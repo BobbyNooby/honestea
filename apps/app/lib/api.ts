@@ -1,4 +1,5 @@
 import Constants from "expo-constants"
+import { fetch as expoFetch } from "expo/fetch"
 import { Platform } from "react-native"
 
 const SERVER_PORT = 3001
@@ -38,6 +39,10 @@ export interface ChatMessage {
  * Vercel AI SDK's `toTextStreamResponse()`, which sends raw text chunks
  * (not SSE / data-stream). We decode and forward each chunk to onToken.
  *
+ * Uses `expo/fetch` instead of the global RN fetch — native fetch in Expo Go
+ * doesn't expose `response.body` as a ReadableStream, so streaming would be
+ * impossible. expo/fetch is the streaming-capable fetch shipped with SDK 53+.
+ *
  * Returns the full assembled string when the stream ends.
  */
 export async function streamChat(opts: {
@@ -46,7 +51,7 @@ export async function streamChat(opts: {
   onToken: (chunk: string) => void
   signal?: AbortSignal
 }): Promise<string> {
-  const res = await fetch(`${getApiUrl()}/api/chat`, {
+  const res = await expoFetch(`${getApiUrl()}/api/chat`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ model: opts.model, messages: opts.messages }),
