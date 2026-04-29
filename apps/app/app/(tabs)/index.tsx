@@ -1,18 +1,12 @@
 import { useCallback, useRef, useState } from "react"
-import {
-  ActivityIndicator,
-  FlatList,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  StyleSheet,
-  TextInput,
-  View,
-} from "react-native"
+import { FlatList, KeyboardAvoidingView, Platform, View } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
+import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
 import { ThemedText } from "@/components/themed-text"
-import { ThemedView } from "@/components/themed-view"
+import { cn } from "@/lib/cn"
 import { streamChat, type ChatMessage } from "@/lib/api"
 
 const DEFAULT_MODEL = "minimax/minimax-m2.5"
@@ -78,33 +72,45 @@ export default function ChatScreen() {
   }, [input, messages, streaming])
 
   const renderItem = useCallback(
-    ({ item }: { item: UiMessage }) => (
-      <ThemedView
-        style={[
-          styles.bubble,
-          item.role === "user" ? styles.userBubble : styles.assistantBubble,
-        ]}
-      >
-        <ThemedText style={styles.bubbleRole}>
-          {item.role === "user" ? "you" : "assistant"}
-        </ThemedText>
-        <ThemedText>
-          {item.content || (item.role === "assistant" && streaming ? "…" : "")}
-        </ThemedText>
-      </ThemedView>
-    ),
+    ({ item }: { item: UiMessage }) => {
+      const isUser = item.role === "user"
+      return (
+        <Card
+          className={cn(
+            "max-w-[88%] gap-1",
+            isUser
+              ? "self-end border-0 bg-primary"
+              : "self-start bg-secondary",
+          )}
+        >
+          <ThemedText
+            className={cn(
+              "text-[10px] uppercase tracking-wider opacity-60",
+              isUser ? "text-primary-foreground" : "text-secondary-foreground",
+            )}
+          >
+            {isUser ? "you" : "assistant"}
+          </ThemedText>
+          <CardContent
+            className={isUser ? "text-primary-foreground" : "text-secondary-foreground"}
+          >
+            {item.content || (item.role === "assistant" && streaming ? "…" : "")}
+          </CardContent>
+        </Card>
+      )
+    },
     [streaming],
   )
 
   return (
-    <SafeAreaView style={styles.safe} edges={["top"]}>
+    <SafeAreaView className="flex-1 bg-background" edges={["top"]}>
       <KeyboardAvoidingView
-        style={styles.flex}
+        className="flex-1"
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <View style={styles.header}>
+        <View className="px-5 pb-2 pt-3">
           <ThemedText type="title">Honest AI</ThemedText>
-          <ThemedText style={styles.dim}>{DEFAULT_MODEL}</ThemedText>
+          <ThemedText className="text-xs opacity-55">{DEFAULT_MODEL}</ThemedText>
         </View>
 
         <FlatList
@@ -112,122 +118,49 @@ export default function ChatScreen() {
           data={messages}
           keyExtractor={(m) => m.id}
           renderItem={renderItem}
-          contentContainerStyle={styles.list}
+          contentContainerClassName="grow gap-2.5 p-4"
           onContentSizeChange={() =>
             listRef.current?.scrollToEnd({ animated: true })
           }
           ListEmptyComponent={
-            <ThemedView style={styles.empty}>
-              <ThemedText style={styles.dim}>
+            <View className="flex-1 items-center justify-center px-6 py-16">
+              <ThemedText className="text-center opacity-55">
                 Start a conversation. Messages stream in real time from
                 OpenRouter.
               </ThemedText>
-            </ThemedView>
+            </View>
           }
         />
 
         {error && (
-          <ThemedView style={styles.errorBar}>
-            <ThemedText style={styles.errorText}>error: {error}</ThemedText>
-          </ThemedView>
+          <View className="bg-destructive/10 px-4 py-2">
+            <ThemedText className="text-sm text-destructive">
+              error: {error}
+            </ThemedText>
+          </View>
         )}
 
-        <View style={styles.inputRow}>
-          <TextInput
+        <View className="flex-row items-end gap-2 border-t border-border p-3">
+          <Input
             value={input}
             onChangeText={setInput}
             placeholder="Send a message…"
-            placeholderTextColor="#888"
-            style={styles.input}
             multiline
             editable={!streaming}
             onSubmitEditing={send}
             returnKeyType="send"
+            className="max-h-32 flex-1"
           />
-          <Pressable
+          <Button
             onPress={send}
             disabled={streaming || !input.trim()}
-            style={({ pressed }) => [
-              styles.sendBtn,
-              (streaming || !input.trim()) && styles.sendBtnDisabled,
-              pressed && styles.sendBtnPressed,
-            ]}
+            loading={streaming}
+            className="min-w-[72px]"
           >
-            {streaming ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <ThemedText style={styles.sendBtnText}>send</ThemedText>
-            )}
-          </Pressable>
+            send
+          </Button>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   )
 }
-
-const styles = StyleSheet.create({
-  safe: { flex: 1 },
-  flex: { flex: 1 },
-  header: {
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 8,
-    gap: 4,
-  },
-  dim: { opacity: 0.55, fontSize: 12 },
-  list: { padding: 16, gap: 10, flexGrow: 1 },
-  empty: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 24,
-    paddingVertical: 60,
-  },
-  bubble: {
-    padding: 12,
-    borderRadius: 12,
-    gap: 4,
-    maxWidth: "92%",
-  },
-  userBubble: { alignSelf: "flex-end", backgroundColor: "#3b82f6" },
-  assistantBubble: { alignSelf: "flex-start" },
-  bubbleRole: { fontSize: 11, opacity: 0.6, textTransform: "uppercase" },
-  errorBar: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    backgroundColor: "#fee2e2",
-  },
-  errorText: { color: "#991b1b", fontSize: 13 },
-  inputRow: {
-    flexDirection: "row",
-    gap: 8,
-    padding: 12,
-    alignItems: "flex-end",
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "#444",
-  },
-  input: {
-    flex: 1,
-    minHeight: 40,
-    maxHeight: 120,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 8,
-    backgroundColor: "#1e293b1a",
-    color: "#fff",
-    fontSize: 15,
-  },
-  sendBtn: {
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 8,
-    backgroundColor: "#3b82f6",
-    alignItems: "center",
-    justifyContent: "center",
-    minWidth: 70,
-    minHeight: 40,
-  },
-  sendBtnDisabled: { opacity: 0.4 },
-  sendBtnPressed: { opacity: 0.7 },
-  sendBtnText: { color: "#fff", fontWeight: "600" },
-})
