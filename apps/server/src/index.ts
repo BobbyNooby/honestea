@@ -1,7 +1,33 @@
 import { Elysia } from "elysia"
 import { cors } from "@elysiajs/cors"
+import { dim, methodColors, red, reset, statusColor } from "./logger"
 
 const app = new Elysia()
+  .derive(({ request }) => ({
+    startTime: performance.now(),
+    ip:
+      request.headers.get("x-forwarded-for") ??
+      request.headers.get("x-real-ip") ??
+      "local",
+  }))
+  .onAfterResponse(({ request, startTime, ip, set }) => {
+    const ms = (performance.now() - startTime).toFixed(1)
+    const url = new URL(request.url)
+    const method = request.method
+    const color = methodColors[method] ?? reset
+    const status = Number(set.status) || 200
+    console.log(
+      `${color}${method.padEnd(7)}${reset} ${url.pathname}${dim}${url.search || ""}${reset} ${statusColor(status)}${status}${reset} ${dim}${ms}ms${reset} ${dim}[${ip}]${reset}`,
+    )
+  })
+  .onError(({ request, error, startTime, ip }) => {
+    const ms = startTime ? (performance.now() - startTime).toFixed(1) : "?"
+    const url = new URL(request.url)
+    const msg = "message" in error ? error.message : String(error)
+    console.error(
+      `${red}ERROR${reset}   ${url.pathname} ${red}${msg}${reset} ${dim}${ms}ms${reset} ${dim}[${ip}]${reset}`,
+    )
+  })
   .use(
     cors({
       origin: [
