@@ -12,6 +12,7 @@ import { OpaqueColorValue, type StyleProp, type TextStyle } from 'react-native';
 const MAPPING = {
   'house.fill': 'home',
   'paperplane.fill': 'send',
+  'gearshape.fill': 'settings',
   'chevron.left.forwardslash.chevron.right': 'code',
   'chevron.right': 'chevron-right',
 } as const;
