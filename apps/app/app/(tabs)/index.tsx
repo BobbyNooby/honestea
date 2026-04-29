@@ -15,7 +15,7 @@ import { ThemedText } from "@/components/themed-text"
 import { ThemedView } from "@/components/themed-view"
 import { streamChat, type ChatMessage } from "@/lib/api"
 
-const DEFAULT_MODEL = "meta-llama/llama-3.3-70b-instruct:free"
+const DEFAULT_MODEL = "minimax/minimax-m2.5:free"
 
 interface UiMessage extends ChatMessage {
   id: string
