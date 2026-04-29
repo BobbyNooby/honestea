@@ -1,6 +1,7 @@
 import { Elysia } from "elysia"
 import { cors } from "@elysiajs/cors"
 import { dim, methodColors, red, reset, statusColor } from "./logger"
+import { chatRoutes } from "./routes/chat"
 
 const app = new Elysia()
   .derive(({ request }) => ({
@@ -44,6 +45,7 @@ const app = new Elysia()
     message: "boop! the api is alive — edit me in apps/server/src/index.ts",
     serverTime: new Date().toISOString(),
   }))
+  .use(chatRoutes)
   .listen(3001)
 
 console.log(
