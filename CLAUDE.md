@@ -21,14 +21,26 @@ Internal package refs use `workspace:*`. All packages extend `tsconfig.base.json
 ## Common commands
 
 ```bash
-pnpm install                        # install everything
-pnpm dev                            # turbo runs all apps in parallel
-pnpm --filter @honestea/app dev     # just the Expo app
-pnpm --filter @honestea/web dev     # just the SvelteKit app
-pnpm --filter @honestea/server dev  # just the Elysia API
-pnpm typecheck                      # turbo typechecks all
-pnpm build                          # turbo builds all
+pnpm install      # install everything
+pnpm dev          # mprocs — all three apps in panes (Expo QR code renders here)
+pnpm dev:app      # just Expo standalone
+pnpm dev:server   # just Elysia (Bun runtime)
+pnpm dev:web      # just SvelteKit
+pnpm typecheck    # turbo typechecks all in parallel
+pnpm build        # turbo builds all
 ```
+
+`pnpm dev` runs mprocs (not turbo) because Turbo's TUI mangles Expo's QR-code ANSI output. mprocs uses real PTYs per process so interactive output renders correctly.
+
+## Known sharp edges
+
+### pnpm + Metro: silently dropped npm-aliases
+
+pnpm 10's `nodeLinker: hoisted` has a bug where transitive deps using npm-alias syntax (e.g. `"@foo/bar--for-generate-function-map": "npm:@foo/bar@^7"`) get dropped during resolution — they're never even written to the lockfile, never installed in `node_modules/`. Metro then crashes at startup with `Cannot find module '<pkg>'`.
+
+Symptom: `Error: Cannot find module 'X'` from a path inside `node_modules/@expo/metro/...` when Expo starts.
+
+Fix: declare the alias explicitly as a direct dep of `apps/app`, copying the version range from the upstream package.json. Precedent in this repo: `@babel/traverse--for-generate-function-map` (see commit `98f69f7`). If you hit this with another Metro dep, find the upstream package's declaration and add the same alias to `apps/app/package.json`.
 
 ## Critical conventions
 
