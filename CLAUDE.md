@@ -66,6 +66,11 @@ Fix: declare the alias explicitly as a direct dep of `apps/app`, copying the ver
 - Paid tiers: Expo calls `apps/server` `/api/chat`; server uses master key.
 - Client branches on `await SecureStore.getItemAsync(...)` — same chat code, different path.
 
+### Voice & audio (Phase 3+)
+- Voice input/output uses device-native STT/TTS (`expo-speech-recognition`, `expo-speech`). Audio never leaves the device — matches the BYOK privacy story.
+- OpenRouter has no realtime voice / no TTS / no Whisper endpoint. Some multimodals (Gemini Pro/Flash, Xiaomi MiMo) accept audio input, but the standard flow doesn't need them.
+- See [`honest-ai-architecture.md`](honest-ai-architecture.md) §"Voice & Audio" for the full pattern.
+
 ### Pricing tiers
 - Free Local (no account, BYOK only)
 - Cloud BYOK ($5/mo) — account + sync, you bring keys
