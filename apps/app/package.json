@@ -15,6 +15,7 @@
     "clean": "rm -rf .expo .turbo node_modules"
   },
   "dependencies": {
+    "@babel/traverse--for-generate-function-map": "npm:@babel/traverse@^7.25.3",
     "@expo/vector-icons": "^15.0.3",
     "@honestea/shared": "workspace:*",
     "@react-navigation/bottom-tabs": "^7.4.0",
