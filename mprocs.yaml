@@ -1,0 +1,10 @@
+proc_list_width: 18
+hide_keymap_window: false
+
+procs:
+  app:
+    shell: pnpm --filter @honestea/app dev
+  server:
+    shell: pnpm --filter @honestea/server dev
+  web:
+    shell: pnpm --filter @honestea/web dev

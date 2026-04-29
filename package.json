@@ -8,13 +8,17 @@
     "node": ">=22"
   },
   "scripts": {
-    "dev": "turbo run dev",
+    "dev": "mprocs",
+    "dev:app": "pnpm --filter @honestea/app dev",
+    "dev:server": "pnpm --filter @honestea/server dev",
+    "dev:web": "pnpm --filter @honestea/web dev",
     "build": "turbo run build",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "clean": "turbo run clean"
   },
   "devDependencies": {
+    "mprocs": "^0.7.2",
     "turbo": "^2.5.0",
     "typescript": "^5.7.0"
   }
