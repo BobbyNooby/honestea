@@ -1,6 +1,11 @@
 # Honest AI — Working with this Repo
 
-> Read [`honest-ai-business-plan.md`](honest-ai-business-plan.md) for product/strategy context and [`honest-ai-architecture.md`](honest-ai-architecture.md) for stack/security/auth/code conventions. Those two docs are the source of truth — this file is just operational notes.
+> Three source-of-truth docs:
+> - [`honest-ai-business-plan.md`](honest-ai-business-plan.md) — product/strategy/pricing/marketing
+> - [`honest-ai-architecture.md`](honest-ai-architecture.md) — stack/security/auth/code conventions for current phase
+> - [`honest-ai-scaling.md`](honest-ai-scaling.md) — migration playbook + cost optimization for Stage 1+ (when MRR triggers warrant building proprietary)
+>
+> This file is just operational notes.
 
 ## Repo layout
 
