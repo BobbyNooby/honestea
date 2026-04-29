@@ -11,8 +11,10 @@
     "clean": "rm -rf dist .turbo"
   },
   "dependencies": {
-    "elysia": "^1.2.0",
-    "@elysiajs/cors": "^1.2.0",
+    "elysia": "^1.4.28",
+    "@elysiajs/cors": "^1.4.2",
+    "@sinclair/typebox": "^0.34.0",
+    "exact-mirror": "^0.1.2",
     "@honestea/shared": "workspace:*"
   },
   "devDependencies": {

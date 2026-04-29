@@ -4,6 +4,9 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+overrides:
+  '@sinclair/typebox': ^0.34.0
+
 importers:
 
   .:
@@ -115,14 +118,20 @@ importers:
   apps/server:
     dependencies:
       '@elysiajs/cors':
-        specifier: ^1.2.0
-        version: 1.4.2(elysia@1.4.28(@sinclair/typebox@0.27.10)(@types/bun@1.3.13)(exact-mirror@1.0.0)(file-type@22.0.1)(openapi-types@12.1.3)(typescript@5.9.3))
+        specifier: ^1.4.2
+        version: 1.4.2(elysia@1.4.28(@sinclair/typebox@0.34.49)(@types/bun@1.3.13)(exact-mirror@0.1.6(@sinclair/typebox@0.34.49))(file-type@22.0.1)(openapi-types@12.1.3)(typescript@5.9.3))
       '@honestea/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@sinclair/typebox':
+        specifier: ^0.34.0
+        version: 0.34.49
       elysia:
-        specifier: ^1.2.0
-        version: 1.4.28(@sinclair/typebox@0.27.10)(@types/bun@1.3.13)(exact-mirror@1.0.0)(file-type@22.0.1)(openapi-types@12.1.3)(typescript@5.9.3)
+        specifier: ^1.4.28
+        version: 1.4.28(@sinclair/typebox@0.34.49)(@types/bun@1.3.13)(exact-mirror@0.1.6(@sinclair/typebox@0.34.49))(file-type@22.0.1)(openapi-types@12.1.3)(typescript@5.9.3)
+      exact-mirror:
+        specifier: ^0.1.2
+        version: 0.1.6(@sinclair/typebox@0.34.49)
     devDependencies:
       '@types/bun':
         specifier: ^1.1.0
@@ -1391,8 +1400,8 @@ packages:
   '@rtsao/scc@1.1.0':
     resolution: {integrity: sha512-zt6OdqaDoOnJ1ZYsCYGt9YmWzDXl4vQdKTyJev62gFhRGKdx7mcT54V9KIjg+d2wi9EXsPvAPKe7i7WjfVWB8g==}
 
-  '@sinclair/typebox@0.27.10':
-    resolution: {integrity: sha512-MTBk/3jGLNB2tVxv6uLlFh1iu64iYOQ2PbdOSK3NW8JZsmlaOh2q6sdtKowBhfw8QFLmYNzTW4/oK4uATIi6ZA==}
+  '@sinclair/typebox@0.34.49':
+    resolution: {integrity: sha512-brySQQs7Jtn0joV8Xh9ZV/hZb9Ozb0pmazDIASBkYKCjXrXU3mpcFahmK/z4YDhGkQvP9mWJbVyahdtU5wQA+A==}
 
   '@sinonjs/commons@3.0.1':
     resolution: {integrity: sha512-K3mCHKQ9sVh8o1C9cxkwxaOmXoAMlDxC1mYyHrjqOWEcBjYr76t96zL2zlj5dUGZ3HSw240X1qgH3Mjf1yJWpQ==}
@@ -2240,7 +2249,7 @@ packages:
   elysia@1.4.28:
     resolution: {integrity: sha512-Vrx8sBnvq8squS/3yNBzR1jBXI+SgmnmvwawPjNuEHndUe5l1jV2Gp6JJ4ulDkEB8On6bWmmuyPpA+bq4t+WYg==}
     peerDependencies:
-      '@sinclair/typebox': '>= 0.34.0 < 1'
+      '@sinclair/typebox': ^0.34.0
       '@types/bun': '>= 1.2.0'
       exact-mirror: '>= 0.0.9'
       file-type: '>= 20.0.0'
@@ -2461,12 +2470,12 @@ packages:
     resolution: {integrity: sha512-i/2XbnSz/uxRCU6+NdVJgKWDTM427+MqYbkQzD321DuCQJUqOuJKIA0IM2+W2xtYHdKOmZ4dR6fExsd4SXL+WQ==}
     engines: {node: '>=6'}
 
-  exact-mirror@1.0.0:
-    resolution: {integrity: sha512-tB6QSwlyUDZh22vS4ytBjmTvpMJ7eNNqSUtH4w7TpQsE7//V+MsdWUhO0B1UptzStDFHQBCxfJPtDDiVaFfRyQ==}
+  exact-mirror@0.1.6:
+    resolution: {integrity: sha512-EXGDixoDotCGrXCce63zmGHDA+3Id6PPkIwshBHuB10dwVc4YV4gfaYLuysHOxyURmwyt4UL186ann0oYa2CFQ==}
     peerDependencies:
-      typebox: '>= 1.1.0'
+      '@sinclair/typebox': ^0.34.0
     peerDependenciesMeta:
-      typebox:
+      '@sinclair/typebox':
         optional: true
 
   expo-asset@12.0.13:
@@ -5302,9 +5311,9 @@ snapshots:
     dependencies:
       '@types/hammerjs': 2.0.46
 
-  '@elysiajs/cors@1.4.2(elysia@1.4.28(@sinclair/typebox@0.27.10)(@types/bun@1.3.13)(exact-mirror@1.0.0)(file-type@22.0.1)(openapi-types@12.1.3)(typescript@5.9.3))':
+  '@elysiajs/cors@1.4.2(elysia@1.4.28(@sinclair/typebox@0.34.49)(@types/bun@1.3.13)(exact-mirror@0.1.6(@sinclair/typebox@0.34.49))(file-type@22.0.1)(openapi-types@12.1.3)(typescript@5.9.3))':
     dependencies:
-      elysia: 1.4.28(@sinclair/typebox@0.27.10)(@types/bun@1.3.13)(exact-mirror@1.0.0)(file-type@22.0.1)(openapi-types@12.1.3)(typescript@5.9.3)
+      elysia: 1.4.28(@sinclair/typebox@0.34.49)(@types/bun@1.3.13)(exact-mirror@0.1.6(@sinclair/typebox@0.34.49))(file-type@22.0.1)(openapi-types@12.1.3)(typescript@5.9.3)
 
   '@emnapi/core@1.10.0':
     dependencies:
@@ -5732,7 +5741,7 @@ snapshots:
 
   '@jest/schemas@29.6.3':
     dependencies:
-      '@sinclair/typebox': 0.27.10
+      '@sinclair/typebox': 0.34.49
 
   '@jest/transform@29.7.0':
     dependencies:
@@ -6236,7 +6245,7 @@ snapshots:
 
   '@rtsao/scc@1.1.0': {}
 
-  '@sinclair/typebox@0.27.10': {}
+  '@sinclair/typebox@0.34.49': {}
 
   '@sinonjs/commons@3.0.1':
     dependencies:
@@ -7151,11 +7160,11 @@ snapshots:
 
   electron-to-chromium@1.5.344: {}
 
-  elysia@1.4.28(@sinclair/typebox@0.27.10)(@types/bun@1.3.13)(exact-mirror@1.0.0)(file-type@22.0.1)(openapi-types@12.1.3)(typescript@5.9.3):
+  elysia@1.4.28(@sinclair/typebox@0.34.49)(@types/bun@1.3.13)(exact-mirror@0.1.6(@sinclair/typebox@0.34.49))(file-type@22.0.1)(openapi-types@12.1.3)(typescript@5.9.3):
     dependencies:
-      '@sinclair/typebox': 0.27.10
+      '@sinclair/typebox': 0.34.49
       cookie: 1.1.1
-      exact-mirror: 1.0.0
+      exact-mirror: 0.1.6(@sinclair/typebox@0.34.49)
       fast-decode-uri-component: 1.0.1
       file-type: 22.0.1
       memoirist: 0.4.0
@@ -7484,7 +7493,9 @@ snapshots:
 
   event-target-shim@5.0.1: {}
 
-  exact-mirror@1.0.0: {}
+  exact-mirror@0.1.6(@sinclair/typebox@0.34.49):
+    optionalDependencies:
+      '@sinclair/typebox': 0.34.49
 
   expo-asset@12.0.13(expo@54.0.34)(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)(typescript@5.9.3):
     dependencies:

@@ -21,5 +21,10 @@
     "mprocs": "^0.7.2",
     "turbo": "^2.5.0",
     "typescript": "^5.7.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "@sinclair/typebox": "^0.34.0"
+    }
   }
 }
