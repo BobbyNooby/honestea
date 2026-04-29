@@ -2,8 +2,8 @@ import { Elysia, t } from "elysia"
 import { streamText } from "ai"
 import { getModel } from "../providers"
 
-export const chatRoutes = new Elysia({ prefix: "/api" }).post(
-  "/chat",
+export const chatRoutes = new Elysia().post(
+  "/api/chat",
   ({ body }) => {
     const { model, messages } = body
     const result = streamText({

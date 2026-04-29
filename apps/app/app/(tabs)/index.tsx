@@ -63,12 +63,12 @@ export default function ChatScreen() {
         },
       })
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "unknown error"
-      setError(msg)
+      const errorText = e instanceof Error ? e.message : "unknown error"
+      setError(errorText)
       setMessages((m) =>
         m.map((msg) =>
           msg.id === assistantMsg.id
-            ? { ...msg, content: `[error: ${msg}]` }
+            ? { ...msg, content: `[error: ${errorText}]` }
             : msg,
         ),
       )
