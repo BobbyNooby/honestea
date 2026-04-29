@@ -1,7 +1,8 @@
-import { Elysia } from "elysia"
+import { Elysia, t } from "elysia"
 import { cors } from "@elysiajs/cors"
+import { streamText } from "ai"
 import { dim, methodColors, red, reset, statusColor } from "./logger"
-import { chatRoutes } from "./routes/chat"
+import { getModel } from "./providers"
 
 const app = new Elysia()
   .derive(({ request }) => ({
@@ -45,7 +46,32 @@ const app = new Elysia()
     message: "boop! the api is alive — edit me in apps/server/src/index.ts",
     serverTime: new Date().toISOString(),
   }))
-  .use(chatRoutes)
+  .post(
+    "/api/chat",
+    ({ body }) => {
+      const { model, messages } = body
+      const result = streamText({
+        model: getModel(model),
+        messages,
+      })
+      return result.toTextStreamResponse()
+    },
+    {
+      body: t.Object({
+        model: t.String(),
+        messages: t.Array(
+          t.Object({
+            role: t.Union([
+              t.Literal("user"),
+              t.Literal("assistant"),
+              t.Literal("system"),
+            ]),
+            content: t.String(),
+          }),
+        ),
+      }),
+    },
+  )
   .listen(3001)
 
 console.log(
