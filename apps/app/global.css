@@ -23,7 +23,7 @@
     --ring: 217 91% 60%;
   }
 
-  .dark:root {
+  .dark {
     --background: 240 10% 4%;
     --foreground: 0 0% 98%;
     --card: 240 10% 6%;
