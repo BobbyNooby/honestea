@@ -15,7 +15,7 @@ import { ThemedText } from "@/components/themed-text"
 import { ThemedView } from "@/components/themed-view"
 import { streamChat, type ChatMessage } from "@/lib/api"
 
-const DEFAULT_MODEL = "minimax/minimax-m2.5:free"
+const DEFAULT_MODEL = "minimax/minimax-m2.5"
 
 interface UiMessage extends ChatMessage {
   id: string
