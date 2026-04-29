@@ -25,3 +25,52 @@ export function getApiUrl(): string {
   if (Platform.OS === "android") return `http://10.0.2.2:${SERVER_PORT}`
   return `http://localhost:${SERVER_PORT}`
 }
+
+export type ChatRole = "user" | "assistant" | "system"
+
+export interface ChatMessage {
+  role: ChatRole
+  content: string
+}
+
+/**
+ * POSTs to /api/chat and streams the plain-text response. The server uses
+ * Vercel AI SDK's `toTextStreamResponse()`, which sends raw text chunks
+ * (not SSE / data-stream). We decode and forward each chunk to onToken.
+ *
+ * Returns the full assembled string when the stream ends.
+ */
+export async function streamChat(opts: {
+  model: string
+  messages: ChatMessage[]
+  onToken: (chunk: string) => void
+  signal?: AbortSignal
+}): Promise<string> {
+  const res = await fetch(`${getApiUrl()}/api/chat`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ model: opts.model, messages: opts.messages }),
+    signal: opts.signal,
+  })
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "")
+    throw new Error(`HTTP ${res.status}: ${text || res.statusText}`)
+  }
+  if (!res.body) throw new Error("No response body to stream")
+
+  const reader = res.body.getReader()
+  const decoder = new TextDecoder()
+  let full = ""
+
+  while (true) {
+    const { value, done } = await reader.read()
+    if (done) break
+    const chunk = decoder.decode(value, { stream: true })
+    if (chunk) {
+      full += chunk
+      opts.onToken(chunk)
+    }
+  }
+  return full
+}
