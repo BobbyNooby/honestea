@@ -1,23 +1,23 @@
-import { ScrollView, View } from "react-native"
+import { ScrollView, Text, View } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
-import { ThemedText } from "@/components/themed-text"
 import { useThemePreference, type ThemePreference } from "@/lib/theme"
-import { cn } from "@/lib/cn"
 
 export default function SettingsScreen() {
   const [pref, setPref] = useThemePreference()
 
   return (
-    <SafeAreaView className="flex-1 bg-background" edges={["top"]}>
+    <SafeAreaView className="flex-1 bg-white dark:bg-zinc-950" edges={["top"]}>
       <ScrollView contentContainerClassName="p-5 gap-6">
         <View className="gap-1">
-          <ThemedText type="title">Settings</ThemedText>
-          <ThemedText className="text-sm opacity-55">
+          <Text className="text-3xl font-bold text-zinc-900 dark:text-zinc-100">
+            Settings
+          </Text>
+          <Text className="text-sm text-zinc-500 dark:text-zinc-400">
             Configure your chat experience.
-          </ThemedText>
+          </Text>
         </View>
 
         <Section title="Appearance">
@@ -32,9 +32,9 @@ export default function SettingsScreen() {
           </Row>
 
           <View className="gap-2 px-1">
-            <ThemedText className="text-xs uppercase tracking-wider opacity-55">
+            <Text className="text-xs uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
               Theme
-            </ThemedText>
+            </Text>
             <View className="flex-row gap-2">
               <ThemeButton current={pref} value="system" onPress={setPref}>
                 System
@@ -54,15 +54,17 @@ export default function SettingsScreen() {
             label="Default model"
             description="The model used for new conversations."
           >
-            <ThemedText className="font-mono text-xs opacity-70">
+            <Text className="font-mono text-xs text-zinc-700 dark:text-zinc-300">
               minimax/minimax-m2.5
-            </ThemedText>
+            </Text>
           </Row>
         </Section>
 
         <Section title="About">
           <Row label="Version" description="Honest AI mobile app">
-            <ThemedText className="font-mono text-xs opacity-70">0.0.0</ThemedText>
+            <Text className="font-mono text-xs text-zinc-700 dark:text-zinc-300">
+              0.0.0
+            </Text>
           </Row>
         </Section>
       </ScrollView>
@@ -79,10 +81,10 @@ function Section({
 }) {
   return (
     <View className="gap-3">
-      <ThemedText className="text-xs uppercase tracking-wider opacity-55">
+      <Text className="text-xs uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
         {title}
-      </ThemedText>
-      <View className="gap-3 rounded-lg border border-border bg-card p-4">
+      </Text>
+      <View className="gap-3 rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
         {children}
       </View>
     </View>
@@ -101,9 +103,11 @@ function Row({
   return (
     <View className="flex-row items-center justify-between gap-4">
       <View className="flex-1 gap-0.5">
-        <ThemedText className="text-base">{label}</ThemedText>
+        <Text className="text-base text-zinc-900 dark:text-zinc-100">{label}</Text>
         {description && (
-          <ThemedText className="text-xs opacity-55">{description}</ThemedText>
+          <Text className="text-xs text-zinc-500 dark:text-zinc-400">
+            {description}
+          </Text>
         )}
       </View>
       {children}
@@ -127,7 +131,7 @@ function ThemeButton({
     <Button
       variant={active ? "default" : "outline"}
       size="sm"
-      className={cn("flex-1")}
+      className="flex-1"
       onPress={() => onPress(value)}
     >
       {children}

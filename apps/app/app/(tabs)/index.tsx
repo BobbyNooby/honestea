@@ -1,11 +1,9 @@
 import { useCallback, useRef, useState } from "react"
-import { FlatList, KeyboardAvoidingView, Platform, View } from "react-native"
+import { FlatList, KeyboardAvoidingView, Platform, Text, View } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { ThemedText } from "@/components/themed-text"
 import { cn } from "@/lib/cn"
 import { streamChat, type ChatMessage } from "@/lib/api"
 
@@ -75,42 +73,47 @@ export default function ChatScreen() {
     ({ item }: { item: UiMessage }) => {
       const isUser = item.role === "user"
       return (
-        <Card
+        <View
           className={cn(
-            "max-w-[88%] gap-1",
-            isUser
-              ? "self-end border-0 bg-primary"
-              : "self-start bg-secondary",
+            "max-w-[88%] gap-1 rounded-lg p-3",
+            isUser ? "self-end bg-blue-500" : "self-start bg-zinc-100 dark:bg-zinc-800",
           )}
         >
-          <ThemedText
+          <Text
             className={cn(
               "text-[10px] uppercase tracking-wider opacity-60",
-              isUser ? "text-primary-foreground" : "text-secondary-foreground",
+              isUser ? "text-white" : "text-zinc-700 dark:text-zinc-300",
             )}
           >
             {isUser ? "you" : "assistant"}
-          </ThemedText>
-          <CardContent
-            className={isUser ? "text-primary-foreground" : "text-secondary-foreground"}
+          </Text>
+          <Text
+            className={cn(
+              "text-base",
+              isUser ? "text-white" : "text-zinc-900 dark:text-zinc-100",
+            )}
           >
             {item.content || (item.role === "assistant" && streaming ? "…" : "")}
-          </CardContent>
-        </Card>
+          </Text>
+        </View>
       )
     },
     [streaming],
   )
 
   return (
-    <SafeAreaView className="flex-1 bg-background" edges={["top"]}>
+    <SafeAreaView className="flex-1 bg-white dark:bg-zinc-950" edges={["top"]}>
       <KeyboardAvoidingView
         className="flex-1"
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <View className="px-5 pb-2 pt-3">
-          <ThemedText type="title">Honest AI</ThemedText>
-          <ThemedText className="text-xs opacity-55">{DEFAULT_MODEL}</ThemedText>
+          <Text className="text-3xl font-bold text-zinc-900 dark:text-zinc-100">
+            Honest AI
+          </Text>
+          <Text className="text-xs text-zinc-500 dark:text-zinc-400">
+            {DEFAULT_MODEL}
+          </Text>
         </View>
 
         <FlatList
@@ -124,23 +127,23 @@ export default function ChatScreen() {
           }
           ListEmptyComponent={
             <View className="flex-1 items-center justify-center px-6 py-16">
-              <ThemedText className="text-center opacity-55">
+              <Text className="text-center text-zinc-500 dark:text-zinc-400">
                 Start a conversation. Messages stream in real time from
                 OpenRouter.
-              </ThemedText>
+              </Text>
             </View>
           }
         />
 
         {error && (
-          <View className="bg-destructive/10 px-4 py-2">
-            <ThemedText className="text-sm text-destructive">
+          <View className="bg-red-500/10 px-4 py-2">
+            <Text className="text-sm text-red-600 dark:text-red-400">
               error: {error}
-            </ThemedText>
+            </Text>
           </View>
         )}
 
-        <View className="flex-row items-end gap-2 border-t border-border p-3">
+        <View className="flex-row items-end gap-2 border-t border-zinc-200 p-3 dark:border-zinc-800">
           <Input
             value={input}
             onChangeText={setInput}
