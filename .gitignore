@@ -1,1 +1,54 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+build/
+out/
+.next/
+.svelte-kit/
+.expo/
+.turbo/
+.cache/
+
+# TypeScript
+*.tsbuildinfo
+
+# Env files (NEVER commit secrets)
+.env
+.env.local
+.env.*.local
+.env.development
+.env.production
+
+# Native (Expo prebuild artifacts)
+ios/
+android/
+*.ipa
+*.apk
+*.aab
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.idea/
+*.swp
+*.swo
+
+# Claude
 .claude
+
+# Local config
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
