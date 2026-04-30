@@ -4,8 +4,19 @@ import {
   IconDeviceMobile,
 } from "@tabler/icons-react-native"
 import { router, useFocusEffect } from "expo-router"
-import { useCallback } from "react"
-import { Alert, FlatList, Pressable, Text, useColorScheme, View } from "react-native"
+import { useCallback, useEffect, useState } from "react"
+import {
+  Alert,
+  FlatList,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  Text,
+  TextInput,
+  useColorScheme,
+  View,
+} from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
 import type { Conversation } from "@honestea/shared"
@@ -13,7 +24,9 @@ import type { Conversation } from "@honestea/shared"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/cn"
 import { useConversations } from "@/lib/conversations-context"
+import { listMessages, renameConversation } from "@/lib/db/repository"
 import { useSelectedModel } from "@/lib/selected-model"
+import { generateTitle } from "@/lib/title-gen"
 
 export interface SidebarProps {
   onClose: () => void
@@ -23,6 +36,7 @@ export function Sidebar({ onClose }: SidebarProps) {
   const { conversations, currentId, refresh, startNew, select, remove } =
     useConversations()
   const { modelId } = useSelectedModel()
+  const [renameTarget, setRenameTarget] = useState<Conversation | null>(null)
 
   // Refresh the list every time the drawer regains focus, so newly created
   // conversations and titles updated by the title generator show up promptly.
@@ -47,10 +61,10 @@ export function Sidebar({ onClose }: SidebarProps) {
     onClose()
   }
 
-  const handleDelete = (convo: Conversation) => {
+  const confirmDelete = (convo: Conversation) => {
     Alert.alert(
       "Delete chat?",
-      convo.title ?? "Untitled",
+      convo.title ?? "New chat",
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -63,6 +77,61 @@ export function Sidebar({ onClose }: SidebarProps) {
       ],
       { cancelable: true },
     )
+  }
+
+  const regenerateTitle = async (convo: Conversation) => {
+    const msgs = await listMessages(convo.id)
+    const firstUser = msgs.find((m) => m.role === "user")
+    const firstAssistant = msgs.find(
+      (m) => m.role === "assistant" && m.status === "complete",
+    )
+    if (!firstUser || !firstAssistant) {
+      Alert.alert(
+        "Cannot regenerate title",
+        "Send at least one message and wait for the reply to finish first.",
+      )
+      return
+    }
+    const title = await generateTitle({
+      userMessage: firstUser.content,
+      assistantResponse: firstAssistant.content,
+    })
+    if (!title) {
+      Alert.alert(
+        "Title generation failed",
+        "Check your OpenRouter key and try again.",
+      )
+      return
+    }
+    await renameConversation(convo.id, title)
+    await refresh()
+  }
+
+  const showActions = (convo: Conversation) => {
+    Alert.alert(convo.title ?? "New chat", undefined, [
+      { text: "Rename", onPress: () => setRenameTarget(convo) },
+      {
+        text: "Regenerate title",
+        onPress: () => {
+          void regenerateTitle(convo)
+        },
+      },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: () => confirmDelete(convo),
+      },
+      { text: "Cancel", style: "cancel" },
+    ])
+  }
+
+  const submitRename = async (next: string) => {
+    if (!renameTarget) return
+    const trimmed = next.trim()
+    setRenameTarget(null)
+    if (!trimmed || trimmed === renameTarget.title) return
+    await renameConversation(renameTarget.id, trimmed)
+    await refresh()
   }
 
   return (
@@ -97,7 +166,7 @@ export function Sidebar({ onClose }: SidebarProps) {
                 convo={item}
                 active={item.id === currentId}
                 onPress={() => handleSelect(item.id)}
-                onLongPress={() => handleDelete(item)}
+                onLongPress={() => showActions(item)}
               />
             )}
             contentContainerClassName="gap-1 pb-4"
@@ -119,6 +188,12 @@ export function Sidebar({ onClose }: SidebarProps) {
           </Text>
         </View>
       </View>
+
+      <RenameDialog
+        target={renameTarget}
+        onCancel={() => setRenameTarget(null)}
+        onSubmit={submitRename}
+      />
     </SafeAreaView>
   )
 }
@@ -169,5 +244,69 @@ function SettingsChevron() {
       color={dark ? "#71717a" : "#a1a1aa"}
       strokeWidth={1.75}
     />
+  )
+}
+
+/**
+ * Cross-platform rename dialog. `Alert.prompt` is iOS-only, so we render a
+ * lightweight modal with a TextInput and matching primary/secondary buttons.
+ */
+function RenameDialog({
+  target,
+  onCancel,
+  onSubmit,
+}: {
+  target: Conversation | null
+  onCancel: () => void
+  onSubmit: (next: string) => void
+}) {
+  const [text, setText] = useState("")
+
+  useEffect(() => {
+    setText(target?.title ?? "")
+  }, [target])
+
+  const visible = target !== null
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onCancel}
+    >
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        className="flex-1"
+      >
+        <Pressable
+          onPress={onCancel}
+          className="flex-1 items-center justify-center bg-black/40 px-8"
+        >
+          <Pressable className="w-full max-w-sm gap-3 rounded-2xl bg-white p-5 dark:bg-zinc-900">
+            <Text className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+              Rename chat
+            </Text>
+            <TextInput
+              value={text}
+              onChangeText={setText}
+              autoFocus
+              placeholder="Chat title"
+              placeholderTextColor="#71717a"
+              selectTextOnFocus
+              className="rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-base text-zinc-900 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+            />
+            <View className="mt-1 flex-row justify-end gap-2">
+              <Button variant="outline" size="sm" onPress={onCancel}>
+                Cancel
+              </Button>
+              <Button size="sm" onPress={() => onSubmit(text)}>
+                Save
+              </Button>
+            </View>
+          </Pressable>
+        </Pressable>
+      </KeyboardAvoidingView>
+    </Modal>
   )
 }
