@@ -6,14 +6,11 @@ import {
   type ModelPricing,
 } from "@honestea/shared"
 
-import { getApiUrl } from "./api"
-
 const STORAGE_KEY = "honestea:model-registry"
 const TTL_MS = 24 * 60 * 60 * 1000
 
 /**
- * Subset of the OpenRouter model object we actually use. The server proxies
- * the upstream /v1/models response shape, so this matches that.
+ * Subset of the OpenRouter `/api/v1/models` response shape we actually use.
  */
 export interface RegistryModel {
   id: string
@@ -37,8 +34,8 @@ interface RegistryCache {
 
 let memoryCache: RegistryCache | null = null
 
-async function fetchFromServer(): Promise<RegistryModel[]> {
-  const res = await fetch(`${getApiUrl()}/api/models`)
+async function fetchFromOpenRouter(): Promise<RegistryModel[]> {
+  const res = await fetch("https://openrouter.ai/api/v1/models")
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
   const json = (await res.json()) as { data: RegistryModel[] }
   return json.data
@@ -70,7 +67,7 @@ async function saveToAsyncStorage(data: RegistryModel[]): Promise<void> {
  *
  * - If memory cache is fresh, return it
  * - Else if disk cache is fresh, hydrate memory + return
- * - Else fetch from server, save to disk, return
+ * - Else fetch from OpenRouter, save to disk, return
  * - On network failure, fall back to stale disk cache if any
  */
 export async function loadRegistry(): Promise<RegistryModel[]> {
@@ -85,7 +82,7 @@ export async function loadRegistry(): Promise<RegistryModel[]> {
   }
 
   try {
-    const fresh = await fetchFromServer()
+    const fresh = await fetchFromOpenRouter()
     memoryCache = { data: fresh, fetchedAt: Date.now() }
     await saveToAsyncStorage(fresh)
     return fresh

@@ -1,33 +1,8 @@
-import Constants from "expo-constants"
 import { fetch as expoFetch } from "expo/fetch"
-import { Platform } from "react-native"
 
 import { getOpenRouterKey } from "./byok"
 
-const SERVER_PORT = 3001
-
-/**
- * Resolves the API base URL based on how the app is being run.
- *
- * - Override with EXPO_PUBLIC_API_URL for staging / production.
- * - On a physical device via Expo Go: derive the host from the Expo manifest
- *   (same LAN IP that Metro is using) so the phone can reach the dev server.
- * - On the Android emulator: 10.0.2.2 maps to the host machine's localhost.
- * - Everywhere else (iOS sim, web): plain localhost.
- */
-export function getApiUrl(): string {
-  if (process.env.EXPO_PUBLIC_API_URL) {
-    return process.env.EXPO_PUBLIC_API_URL
-  }
-
-  const hostUri =
-    Constants.expoConfig?.hostUri ?? Constants.expoGoConfig?.debuggerHost
-  const host = hostUri?.split(":")[0]
-  if (host) return `http://${host}:${SERVER_PORT}`
-
-  if (Platform.OS === "android") return `http://10.0.2.2:${SERVER_PORT}`
-  return `http://localhost:${SERVER_PORT}`
-}
+const OPENROUTER_BASE = "https://openrouter.ai/api/v1"
 
 export type ChatRole = "user" | "assistant" | "system"
 
@@ -37,15 +12,15 @@ export interface ChatMessage {
 }
 
 /**
- * POSTs to /api/chat and streams the plain-text response. The server uses
- * Vercel AI SDK's `toTextStreamResponse()`, which sends raw text chunks
- * (not SSE / data-stream). We decode and forward each chunk to onToken.
+ * Streams a chat completion directly from OpenRouter using the user's BYOK
+ * key. Phase 1 is BYOK-only — see CLAUDE.md §"Phase 1 scope".
  *
- * Uses `expo/fetch` instead of the global RN fetch — native fetch in Expo Go
- * doesn't expose `response.body` as a ReadableStream, so streaming would be
- * impossible. expo/fetch is the streaming-capable fetch shipped with SDK 53+.
+ * Uses `expo/fetch` instead of RN's global fetch — Expo Go's native fetch
+ * doesn't expose `response.body` as a ReadableStream, so SSE parsing
+ * wouldn't work.
  *
- * Returns the full assembled string when the stream ends.
+ * The chat screen gates input on `getOpenRouterKey()` being non-null, so
+ * the missing-key throw is defense-in-depth, not a user-facing path.
  */
 export async function streamChat(opts: {
   model: string
@@ -53,22 +28,23 @@ export async function streamChat(opts: {
   onToken: (chunk: string) => void
   signal?: AbortSignal
 }): Promise<string> {
-  // BYOK: if the user has an OpenRouter key stored, send it via header. Server
-  // forwards to OpenRouter under that key — we never persist it server-side.
-  // No key set → server uses our master key (hosted tier).
   const byokKey = await getOpenRouterKey()
+  if (!byokKey) throw new Error("No OpenRouter key configured")
 
-  const headers: Record<string, string> = {
-    "content-type": "application/json",
-  }
-  if (byokKey) {
-    headers["x-byok-openrouter"] = byokKey
-  }
-
-  const res = await expoFetch(`${getApiUrl()}/api/chat`, {
+  const res = await expoFetch(`${OPENROUTER_BASE}/chat/completions`, {
     method: "POST",
-    headers,
-    body: JSON.stringify({ model: opts.model, messages: opts.messages }),
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${byokKey}`,
+      // Cosmetic: shows "Honest AI" as the calling app in the user's
+      // OpenRouter dashboard alongside their spend.
+      "X-Title": "Honest AI",
+    },
+    body: JSON.stringify({
+      model: opts.model,
+      messages: opts.messages,
+      stream: true,
+    }),
     signal: opts.signal,
   })
 
@@ -80,15 +56,40 @@ export async function streamChat(opts: {
 
   const reader = res.body.getReader()
   const decoder = new TextDecoder()
+  let buffer = ""
   let full = ""
 
   while (true) {
     const { value, done } = await reader.read()
     if (done) break
-    const chunk = decoder.decode(value, { stream: true })
-    if (chunk) {
-      full += chunk
-      opts.onToken(chunk)
+    buffer += decoder.decode(value, { stream: true })
+
+    // SSE events are delimited by a blank line (\n\n). Drain every complete
+    // event from the buffer; leave any partial trailing event for the next
+    // chunk.
+    let sep: number
+    while ((sep = buffer.indexOf("\n\n")) !== -1) {
+      const event = buffer.slice(0, sep)
+      buffer = buffer.slice(sep + 2)
+
+      for (const line of event.split("\n")) {
+        if (!line.startsWith("data:")) continue
+        const data = line.slice(5).trim()
+        if (!data || data === "[DONE]") continue
+        try {
+          const parsed = JSON.parse(data) as {
+            choices?: Array<{ delta?: { content?: string } }>
+          }
+          const delta = parsed.choices?.[0]?.delta?.content
+          if (delta) {
+            full += delta
+            opts.onToken(delta)
+          }
+        } catch {
+          // OpenRouter occasionally sends `: OPENROUTER PROCESSING` keepalive
+          // comments and other non-JSON frames. Skip silently.
+        }
+      }
     }
   }
   return full
