@@ -1,5 +1,7 @@
 import {
   IconArrowUp,
+  IconChevronLeft,
+  IconChevronRight,
   IconCloud,
   IconDeviceMobile,
   IconKey,
@@ -41,12 +43,14 @@ import { streamChat } from "@/lib/api"
 import { useByokStatus } from "@/lib/byok"
 import { compact, projectPromptTokens } from "@/lib/compaction"
 import { useConfirm } from "@/lib/confirm-context"
+import { useBrewingPhrase } from "@/lib/brewing-phrases"
 import { useConversations } from "@/lib/conversations-context"
 import {
   addMessage,
   listMessages,
   markMessagesSupersededFrom,
   renameConversation,
+  setMessageSupersededAt,
   updateMessage,
 } from "@/lib/db/repository"
 import { generateTitle } from "@/lib/title-gen"
@@ -67,6 +71,7 @@ export default function ChatScreen() {
   const conversations = useConversations()
   const confirm = useConfirm()
   const dark = useColorScheme() === "dark"
+  const brewingPhrase = useBrewingPhrase(true)
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState("")
   const [streaming, setStreaming] = useState(false)
@@ -118,6 +123,59 @@ export default function ChatScreen() {
     }
     return -1
   }, [visibleMessages])
+
+  /**
+   * Group assistant messages into "version groups" by which user message
+   * immediately precedes them in chronological order. All regenerations of
+   * the same turn end up in one group (some superseded, one active). Lets
+   * the per-message footer render `< n/total >` pagination so the user
+   * can navigate back to an older version of a regenerated reply.
+   */
+  const versionsByAnchor = useMemo(() => {
+    const groups = new Map<string, Message[]>()
+    let lastUser: Message | null = null
+    const sorted = [...messages].sort((a, b) => a.createdAt - b.createdAt)
+    for (const m of sorted) {
+      if (m.summarizedAt !== null) continue
+      if (m.kind !== "normal") continue
+      if (m.role === "user") {
+        lastUser = m
+      } else if (m.role === "assistant" && lastUser) {
+        const arr = groups.get(lastUser.id) ?? []
+        arr.push(m)
+        groups.set(lastUser.id, arr)
+      }
+    }
+    return groups
+  }, [messages])
+
+  /** O(n) lookup: assistant message id → anchor (preceding user message id). */
+  const anchorByAssistant = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const [anchor, versions] of versionsByAnchor.entries()) {
+      for (const v of versions) map.set(v.id, anchor)
+    }
+    return map
+  }, [versionsByAnchor])
+
+  /**
+   * Switch which version of a turn is "active". Flips supersededAt on the
+   * old + new versions; the visible-message filter does the rest.
+   */
+  const switchVersion = useCallback(
+    async (oldId: string, newId: string) => {
+      const ts = Date.now()
+      await Promise.all([
+        setMessageSupersededAt(newId, null),
+        setMessageSupersededAt(oldId, ts),
+      ])
+      if (conversations.currentId) {
+        const fresh = await listMessages(conversations.currentId)
+        setMessages(fresh)
+      }
+    },
+    [conversations.currentId],
+  )
 
   // Load messages when the current conversation changes (sidebar selection,
   // or on initial app launch resuming the last-used convo).
@@ -546,47 +604,48 @@ export default function ChatScreen() {
         )
       }
 
-      // Assistant — Claude pattern. Brand mark on the left (animated while
-      // streaming, static once complete) acts as the "avatar". Message
-      // text + footer + actions stack on the right.
+      // Assistant — Claude pattern. Content first, then action row +
+      // optional version pagination, then the brand mark as a sign-off
+      // stamp at the bottom (animated while streaming, static once done).
       const showActions = item.status === "complete" || item.status === "error"
       const isLastAssistant = index === lastAssistantIdx
       const isStreaming = item.status === "streaming"
 
+      // Version-group lookup: if this assistant message has siblings (other
+      // versions sharing the same anchor user message), surface the
+      // pagination chip in the action row.
+      const anchorId = anchorByAssistant.get(item.id)
+      const versions = anchorId ? versionsByAnchor.get(anchorId) ?? [] : []
+      const versionIdx = versions.findIndex((v) => v.id === item.id)
+      const hasVersions = versions.length > 1 && versionIdx !== -1
+
       return (
         <View className="gap-1">
           {showDividerAbove && <CompactedDivider />}
-          <View className="flex-row gap-2 self-stretch px-1">
-            <View className="pt-0.5">
-              {isStreaming ? <BrewingMark size={22} /> : <LogoMark size={22} />}
-            </View>
-            <View className="flex-1 gap-1">
-              {item.content ? (
-                <MarkdownText>{item.content}</MarkdownText>
-              ) : isStreaming ? (
-                // Tiny placeholder while we wait for the first token. The
-                // animated mark on the left is the primary "thinking"
-                // indicator; this keeps the row from collapsing to zero
-                // height.
-                <Text className="text-base text-zinc-400 dark:text-zinc-500">
-                  Brewing…
-                </Text>
-              ) : null}
-              {isErrored && (
-                <Text className="text-[10px] text-red-600 dark:text-red-400">
-                  Response failed to complete.
-                </Text>
-              )}
-              {showCost && (
-                <Text className="text-[10px] text-zinc-500 dark:text-zinc-400">
-                  ~{formatUsd(usd ?? 0)}
-                  {item.modelId ? ` · ${shortModelName(item.modelId)}` : ""}
-                  {item.provider
-                    ? ` · via ${providerLabel(item.provider)}`
-                    : ""}
-                </Text>
-              )}
-              {showActions && (
+          <View className="self-stretch gap-1.5 px-1">
+            {item.content ? (
+              <MarkdownText>{item.content}</MarkdownText>
+            ) : isStreaming ? (
+              <Text className="text-base italic text-zinc-500 dark:text-zinc-400">
+                {brewingPhrase}…
+              </Text>
+            ) : null}
+            {isErrored && (
+              <Text className="text-[10px] text-red-600 dark:text-red-400">
+                Response failed to complete.
+              </Text>
+            )}
+            {showCost && (
+              <Text className="text-[10px] text-zinc-500 dark:text-zinc-400">
+                ~{formatUsd(usd ?? 0)}
+                {item.modelId ? ` · ${shortModelName(item.modelId)}` : ""}
+                {item.provider
+                  ? ` · via ${providerLabel(item.provider)}`
+                  : ""}
+              </Text>
+            )}
+            {showActions && (
+              <View className="flex-row items-center justify-between">
                 <MessageActions
                   messageId={item.id}
                   content={item.content}
@@ -595,13 +654,46 @@ export default function ChatScreen() {
                     void regenerate(item.id)
                   }}
                 />
-              )}
-            </View>
+                {hasVersions && (
+                  <VersionPagination
+                    current={versionIdx + 1}
+                    total={versions.length}
+                    onPrev={() => {
+                      const prev = versions[versionIdx - 1]
+                      if (prev) void switchVersion(item.id, prev.id)
+                    }}
+                    onNext={() => {
+                      const next = versions[versionIdx + 1]
+                      if (next) void switchVersion(item.id, next.id)
+                    }}
+                  />
+                )}
+              </View>
+            )}
+            {(item.content || isStreaming) && (
+              <View className="-ml-0.5 mt-0.5">
+                {isStreaming ? (
+                  <BrewingMark size={20} />
+                ) : (
+                  <LogoMark size={20} />
+                )}
+              </View>
+            )}
           </View>
         </View>
       )
     },
-    [copyMessage, dividerBeforeId, lastAssistantIdx, regenerate, streaming],
+    [
+      anchorByAssistant,
+      brewingPhrase,
+      copyMessage,
+      dividerBeforeId,
+      lastAssistantIdx,
+      regenerate,
+      streaming,
+      switchVersion,
+      versionsByAnchor,
+    ],
   )
 
   return (
@@ -798,6 +890,64 @@ function Composer({
           </View>
         </View>
       </View>
+    </View>
+  )
+}
+
+/**
+ * `< n/total >` pagination chip — appears in the action row when an
+ * assistant turn has multiple regenerated versions. Lets the user step
+ * back to an older variant. The corresponding DB write flips
+ * supersededAt between versions so the visible-message filter stays
+ * consistent.
+ */
+function VersionPagination({
+  current,
+  total,
+  onPrev,
+  onNext,
+}: {
+  current: number
+  total: number
+  onPrev: () => void
+  onNext: () => void
+}) {
+  const dark = useColorScheme() === "dark"
+  const tint = dark ? "#a1a1aa" : "#71717a"
+  const disabled = dark ? "#3f3f46" : "#d4d4d8"
+  const atFirst = current <= 1
+  const atLast = current >= total
+  return (
+    <View className="flex-row items-center gap-0.5">
+      <Pressable
+        onPress={onPrev}
+        disabled={atFirst}
+        hitSlop={4}
+        accessibilityLabel="Previous version"
+        className="h-6 w-6 items-center justify-center rounded-md active:bg-zinc-100 dark:active:bg-zinc-900"
+      >
+        <IconChevronLeft
+          size={14}
+          color={atFirst ? disabled : tint}
+          strokeWidth={1.75}
+        />
+      </Pressable>
+      <Text className="text-[11px] tabular-nums text-zinc-500 dark:text-zinc-400">
+        {current}/{total}
+      </Text>
+      <Pressable
+        onPress={onNext}
+        disabled={atLast}
+        hitSlop={4}
+        accessibilityLabel="Next version"
+        className="h-6 w-6 items-center justify-center rounded-md active:bg-zinc-100 dark:active:bg-zinc-900"
+      >
+        <IconChevronRight
+          size={14}
+          color={atLast ? disabled : tint}
+          strokeWidth={1.75}
+        />
+      </Pressable>
     </View>
   )
 }

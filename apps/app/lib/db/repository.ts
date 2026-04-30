@@ -180,6 +180,22 @@ export async function markMessagesSummarizedInto(
 }
 
 /**
+ * Set or clear the `supersededAt` flag on a single message. Used by the
+ * regenerate version-switcher to flip which version of a turn is the
+ * "active" (non-superseded) one — clear on the version we want to show,
+ * set on the previously-active one.
+ */
+export async function setMessageSupersededAt(
+  id: string,
+  value: number | null,
+): Promise<void> {
+  await db
+    .update(messages)
+    .set({ supersededAt: value })
+    .where(eq(messages.id, id))
+}
+
+/**
  * Mark every non-superseded message at-or-after the given timestamp as
  * superseded. Used by regenerate: replaces the prior assistant turn (and
  * anything after) without deleting them, so their cost still rolls into
