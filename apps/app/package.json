@@ -46,7 +46,8 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "tailwind-merge": "^2.6.0",
-    "@react-native-async-storage/async-storage": "2.2.0"
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "react-native-drawer-layout": "^4.1.10"
   },
   "devDependencies": {
     "@types/react": "~19.2.14",
