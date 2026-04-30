@@ -16,12 +16,7 @@ import {
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
-import {
-  calculateCost,
-  estimateTokens,
-  formatUsd,
-  type Message,
-} from "@honestea/shared"
+import { estimateTokens, formatUsd, type Message } from "@honestea/shared"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -153,6 +148,31 @@ export default function ChatScreen() {
 
       setMessages((m) => [...m, assistantRow])
 
+      // Pre-compute the prompt-side cost once. Recomputing per-token would
+      // be wasteful since the prompt isn't changing during the stream.
+      // Pricing comes from OR's live registry — same source as the real
+      // `usage.cost` we'll snap to on completion, so estimate / real are on
+      // the same scale (no markup applied either side).
+      const visibleContext = contextMessages.filter(
+        (m) => m.supersededAt === null,
+      )
+      const registryModel = registry ? findModel(registry, modelId) : null
+      const pricing = registryModel ? pricingFor(registryModel) : null
+      const promptTokensEst = estimateTokens(
+        visibleContext.map((m) => m.content).join("\n"),
+      )
+      const promptCostUsd = pricing
+        ? (promptTokensEst / 1_000_000) * pricing.inputCostPerMillion
+        : 0
+      const liveCostFor = (completion: string): number | null => {
+        if (!pricing) return null
+        const completionTokens = estimateTokens(completion)
+        return (
+          promptCostUsd +
+          (completionTokens / 1_000_000) * pricing.outputCostPerMillion
+        )
+      }
+
       let buffer = ""
       try {
         const result = await streamChat({
@@ -160,40 +180,33 @@ export default function ChatScreen() {
           // Only send non-superseded messages — superseded rows are old
           // regenerated turns hidden from the UI and irrelevant to the
           // model.
-          messages: contextMessages
-            .filter((m) => m.supersededAt === null)
-            .map(({ role, content }) => ({ role, content })),
+          messages: visibleContext.map(({ role, content }) => ({
+            role,
+            content,
+          })),
           onToken: (chunk) => {
             buffer += chunk
+            const liveUsd = liveCostFor(buffer)
             setMessages((m) =>
               m.map((msg) =>
-                msg.id === assistantRow.id ? { ...msg, content: buffer } : msg,
+                msg.id === assistantRow.id
+                  ? { ...msg, content: buffer, costUsd: liveUsd }
+                  : msg,
               ),
             )
           },
         })
 
         const promptTokens =
-          result.usage?.promptTokens ??
-          estimateTokens(contextMessages.map((m) => m.content).join("\n"))
+          result.usage?.promptTokens ?? promptTokensEst
         const completionTokens =
           result.usage?.completionTokens ?? estimateTokens(buffer)
 
-        // Real OR cost (USD float) wins. Otherwise estimate via registry
-        // pricing × heuristic tokens — converted to USD here so the column
-        // stays in one unit regardless of source.
-        const estimatedCents = estimateAssistantCost({
-          registry: registry ?? null,
-          modelId,
-          history: contextMessages,
-          completion: buffer,
-        })
+        // Real OR cost wins. Otherwise hold the streaming estimate.
         const costUsd =
           result.usage?.costUsd != null
             ? result.usage.costUsd
-            : estimatedCents != null
-              ? estimatedCents / 100
-              : null
+            : liveCostFor(buffer)
 
         await updateMessage(assistantRow.id, {
           content: buffer,
@@ -232,14 +245,23 @@ export default function ChatScreen() {
       } catch (e) {
         const errorText = e instanceof Error ? e.message : "unknown error"
         setError(errorText)
+        // Persist the partial estimate so the cost we already accrued
+        // doesn't disappear from the conversation total.
+        const partialCostUsd = liveCostFor(buffer)
         await updateMessage(assistantRow.id, {
           content: buffer,
           status: "error",
+          costUsd: partialCostUsd,
         })
         setMessages((m) =>
           m.map((msg) =>
             msg.id === assistantRow.id
-              ? { ...msg, content: buffer, status: "error" }
+              ? {
+                  ...msg,
+                  content: buffer,
+                  status: "error",
+                  costUsd: partialCostUsd,
+                }
               : msg,
           ),
         )
@@ -408,7 +430,10 @@ export default function ChatScreen() {
       const usd =
         item.costUsd ??
         (typeof item.costCents === "number" ? item.costCents / 100 : null)
-      const showCost = !isUser && usd != null && item.status === "complete"
+      // Show cost as soon as we have one — streaming rows now carry a live
+      // estimate that ticks up with each token, snapping to the real OR
+      // value on completion.
+      const showCost = !isUser && usd != null
       const isErrored = item.status === "error"
 
       if (isUser) {
@@ -585,29 +610,6 @@ export default function ChatScreen() {
 
 function shortModelName(id: string): string {
   return id.split("/").pop() ?? id
-}
-
-function estimateAssistantCost({
-  registry,
-  modelId,
-  history,
-  completion,
-}: {
-  registry: readonly RegistryModel[] | null
-  modelId: string
-  history: { content: string }[]
-  completion: string
-}): number | undefined {
-  if (!registry) return undefined
-  const model = findModel(registry, modelId)
-  if (!model) return undefined
-
-  const promptText = history.map((m) => m.content).join("\n")
-  const usage = {
-    promptTokens: estimateTokens(promptText),
-    completionTokens: estimateTokens(completion),
-  }
-  return calculateCost(pricingFor(model), usage).totalCents
 }
 
 function NoKeyState() {
