@@ -1,20 +1,8 @@
-import { MODELS } from "./models"
-import type { ModelId, TokenUsage } from "./types"
-
-const MARKUP_MULTIPLIER = 1.3
-
-export interface CostBreakdown {
-  baseCents: number
-  markupCents: number
-  totalCents: number
-}
-
 /**
  * Pricing for a single model. Either fetched dynamically from OpenRouter
- * (`/api/v1/models`) or sourced from the static MODELS registry.
- *
- * Note that prices are stored *per million tokens* — convert from OpenRouter's
- * per-token strings via `pricePerMillionFromPerToken()`.
+ * (`/api/v1/models`) or computed elsewhere. Prices are stored *per million
+ * tokens* — convert from OpenRouter's per-token strings via
+ * `pricePerMillionFromPerToken()`.
  */
 export interface ModelPricing {
   inputCostPerMillion: number
@@ -32,72 +20,22 @@ export function pricePerMillionFromPerToken(perToken: string | number): number {
 }
 
 /**
- * Calculate cost from explicit pricing. Used when pricing comes from a dynamic
- * source (the cached OpenRouter registry).
- */
-export function calculateCost(
-  pricing: ModelPricing,
-  usage: TokenUsage,
-): CostBreakdown {
-  const inputDollars =
-    (usage.promptTokens / 1_000_000) * pricing.inputCostPerMillion
-  const outputDollars =
-    (usage.completionTokens / 1_000_000) * pricing.outputCostPerMillion
-  const baseDollars = inputDollars + outputDollars
-  const totalDollars = baseDollars * MARKUP_MULTIPLIER
-
-  const baseCents = Math.ceil(baseDollars * 100)
-  const totalCents = Math.ceil(totalDollars * 100)
-  return {
-    baseCents,
-    markupCents: totalCents - baseCents,
-    totalCents,
-  }
-}
-
-/**
- * Convenience wrapper: look up pricing in the static registry by ModelId.
- * Use this for quick checks against models we have hardcoded; for the live
- * catalog from OpenRouter, call `calculateCost(pricing, usage)` directly.
- */
-export function calculateCostForModel(
-  modelId: ModelId,
-  usage: TokenUsage,
-): CostBreakdown {
-  const spec = MODELS[modelId]
-  if (!spec) throw new Error(`Unknown model: ${modelId}`)
-  return calculateCost(
-    {
-      inputCostPerMillion: spec.inputCostPerMillion,
-      outputCostPerMillion: spec.outputCostPerMillion,
-    },
-    usage,
-  )
-}
-
-/**
  * Rough heuristic: ~4 characters per token for English. Used for client-side
- * estimation when actual usage isn't returned by the streaming response.
- * Replace with real `usage` from the API when we wire `onFinish` end-to-end.
+ * estimation when actual usage isn't returned by the streaming response —
+ * almost never these days now that real `usage` lands on every OR turn.
  */
 export function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4)
 }
 
-export function formatCents(cents: number): string {
-  if (cents < 1) return `$${(cents / 100).toFixed(4)}`
-  if (cents < 100) return `$${(cents / 100).toFixed(3)}`
-  return `$${(cents / 100).toFixed(2)}`
-}
-
 /**
- * Format a real USD float with precision proportional to magnitude:
+ * Format a USD float with precision proportional to magnitude:
  *   < $0.01 → 4 decimals  ($0.0003)
  *   < $1    → 3 decimals  ($0.024)
  *   ≥ $1    → 2 decimals  ($1.23)
  *
- * Use this for OpenRouter `usage.cost` (real float) — preserves sub-cent
- * detail that the integer `formatCents` path rounded away.
+ * Used for OpenRouter `usage.cost` (real float) — preserves sub-cent
+ * detail.
  */
 export function formatUsd(usd: number): string {
   if (usd < 0.01) return `$${usd.toFixed(4)}`
