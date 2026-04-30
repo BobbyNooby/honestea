@@ -1,8 +1,12 @@
 import {
+  IconArrowUp,
   IconCloud,
   IconDeviceMobile,
   IconKey,
   IconMenu2,
+  IconMicrophone,
+  IconPlayerStopFilled,
+  IconPlus,
 } from "@tabler/icons-react-native"
 import * as Clipboard from "expo-clipboard"
 import * as Haptics from "expo-haptics"
@@ -682,26 +686,13 @@ export default function ChatScreen() {
               }}
             />
 
-            <View className="flex-row items-end gap-2 border-t border-zinc-200 p-3 dark:border-zinc-800">
-              <Input
-                value={input}
-                onChangeText={setInput}
-                placeholder="Send a message…"
-                multiline
-                editable={!streaming}
-                onSubmitEditing={send}
-                returnKeyType="send"
-                className="max-h-32 flex-1"
-              />
-              <Button
-                onPress={send}
-                disabled={streaming || !input.trim()}
-                loading={streaming}
-                className="min-w-[72px] bg-matcha-600 dark:bg-matcha-400"
-              >
-                send
-              </Button>
-            </View>
+            <Composer
+              value={input}
+              onChange={setInput}
+              onSend={send}
+              streaming={streaming}
+              dark={dark}
+            />
           </>
         )}
       </KeyboardAvoidingView>
@@ -721,6 +712,80 @@ function shortModelName(id: string): string {
 
 function providerLabel(provider: "openrouter" | "anthropic"): string {
   return provider === "anthropic" ? "Anthropic" : "OpenRouter"
+}
+
+/**
+ * Composer pill — textarea on top, action row underneath. Mirrors the
+ * design kit's `Composer`: full-width rounded-26 card, transparent
+ * TextInput, [+] attachment button on the left, [mic] / [send-or-stop] on
+ * the right. The send affordance is a round matcha button with an up-arrow;
+ * while streaming it becomes a square stop button.
+ */
+function Composer({
+  value,
+  onChange,
+  onSend,
+  streaming,
+  dark,
+}: {
+  value: string
+  onChange: (next: string) => void
+  onSend: () => void
+  streaming: boolean
+  dark: boolean
+}) {
+  const hasText = value.trim().length > 0
+  const iconColor = dark ? "#e4e4e7" : "#3f3f46"
+  return (
+    <View className="border-t border-zinc-200 bg-chamomile-50 px-3 pb-2 pt-2 dark:border-zinc-800 dark:bg-chamomile-900">
+      <View className="rounded-[26px] border border-zinc-200 bg-chamomile-50 px-2 pb-1.5 pt-2 dark:border-zinc-800 dark:bg-zinc-900">
+        <Input
+          value={value}
+          onChangeText={onChange}
+          placeholder="Reply to HonesTea…"
+          placeholderTextColor={dark ? "#71717a" : "#a1a1aa"}
+          multiline
+          editable={!streaming}
+          onSubmitEditing={onSend}
+          returnKeyType="send"
+          className="min-h-[24px] max-h-32 border-0 bg-transparent px-2 pb-1 text-[15px] leading-snug text-zinc-900 dark:text-zinc-100"
+          style={{ borderWidth: 0 }}
+        />
+        <View className="flex-row items-center justify-between">
+          <Pressable
+            hitSlop={6}
+            accessibilityLabel="Add attachment"
+            className="h-9 w-9 items-center justify-center rounded-full active:opacity-70"
+          >
+            <IconPlus size={20} color={iconColor} strokeWidth={1.75} />
+          </Pressable>
+          <View className="flex-row items-center gap-1">
+            {!streaming && !hasText && (
+              <Pressable
+                hitSlop={6}
+                accessibilityLabel="Voice"
+                className="h-9 w-9 items-center justify-center rounded-full active:opacity-70"
+              >
+                <IconMicrophone size={18} color={iconColor} strokeWidth={1.75} />
+              </Pressable>
+            )}
+            <Pressable
+              onPress={streaming ? undefined : onSend}
+              disabled={streaming ? false : !hasText}
+              accessibilityLabel={streaming ? "Streaming" : "Send"}
+              className="h-9 w-9 items-center justify-center rounded-full bg-matcha-600 active:opacity-80 dark:bg-matcha-400"
+            >
+              {streaming ? (
+                <IconPlayerStopFilled size={14} color="#ffffff" />
+              ) : (
+                <IconArrowUp size={18} color="#ffffff" strokeWidth={2.25} />
+              )}
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </View>
+  )
 }
 
 function CompactedDivider() {

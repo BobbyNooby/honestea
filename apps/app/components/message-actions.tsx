@@ -7,7 +7,7 @@ import {
 } from "@tabler/icons-react-native"
 import * as Clipboard from "expo-clipboard"
 import * as Haptics from "expo-haptics"
-import { Pressable, Share, useColorScheme, View } from "react-native"
+import { Pressable, Share, Text, useColorScheme, View } from "react-native"
 import Toast from "react-native-toast-message"
 
 import { useSpeech } from "@/lib/use-speech"
@@ -15,15 +15,15 @@ import { useSpeech } from "@/lib/use-speech"
 interface Props {
   messageId: string
   content: string
-  /** Show the regenerate icon. Only the latest assistant turn gets one. */
+  /** Show the regenerate button. Only the latest assistant turn gets one. */
   canRegenerate: boolean
   onRegenerate: () => void
 }
 
 /**
- * Action row under each assistant message — Claude/ChatGPT pattern.
- * Copy, Share, Speak, Regenerate. Skipping thumbs-up/down for now (no
- * consumer for the signal until the model browse page ships).
+ * Action row under each assistant message — labelled icons (`Copy`,
+ * `Share`, `Speak`, `Regenerate`) styled per the design kit's `ActionBtn`:
+ * 14px icon + 11px muted-zinc label, ghost row that tints on press.
  */
 export function MessageActions({
   messageId,
@@ -31,8 +31,6 @@ export function MessageActions({
   canRegenerate,
   onRegenerate,
 }: Props) {
-  const dark = useColorScheme() === "dark"
-  const tint = dark ? "#a1a1aa" : "#71717a" // zinc-400 / zinc-500
   const { speakingId, toggle } = useSpeech()
   const isSpeaking = speakingId === messageId
 
@@ -53,41 +51,46 @@ export function MessageActions({
   }
 
   return (
-    <View className="mt-2 flex-row gap-4 px-1">
-      <ActionIcon icon={IconCopy} tint={tint} onPress={copy} label="Copy" />
-      <ActionIcon icon={IconShare3} tint={tint} onPress={share} label="Share" />
-      <ActionIcon
+    <View className="mt-1 -ml-1 flex-row items-center">
+      <ActionBtn icon={IconCopy} label="Copy" onPress={copy} />
+      <ActionBtn icon={IconShare3} label="Share" onPress={share} />
+      <ActionBtn
         icon={isSpeaking ? IconPlayerStop : IconVolume}
-        tint={isSpeaking ? "#3b82f6" : tint}
+        label={isSpeaking ? "Stop" : "Speak"}
         onPress={() => toggle(messageId, content)}
-        label={isSpeaking ? "Stop speaking" : "Speak"}
+        active={isSpeaking}
       />
       {canRegenerate && (
-        <ActionIcon
-          icon={IconRefresh}
-          tint={tint}
-          onPress={onRegenerate}
-          label="Regenerate"
-        />
+        <ActionBtn icon={IconRefresh} label="Regenerate" onPress={onRegenerate} />
       )}
     </View>
   )
 }
 
-function ActionIcon({
+function ActionBtn({
   icon: Icon,
-  tint,
-  onPress,
   label,
+  onPress,
+  active = false,
 }: {
   icon: typeof IconCopy
-  tint: string
-  onPress: () => void
   label: string
+  onPress: () => void
+  active?: boolean
 }) {
+  const dark = useColorScheme() === "dark"
+  const muted = dark ? "#a1a1aa" : "#71717a"
+  const tint = active ? (dark ? "#8eb56b" : "#5b8a3a") : muted
   return (
-    <Pressable onPress={onPress} hitSlop={8} accessibilityLabel={label}>
-      <Icon size={20} color={tint} strokeWidth={1.75} />
+    <Pressable
+      onPress={onPress}
+      accessibilityLabel={label}
+      className="h-7 flex-row items-center gap-1 rounded-md px-2 active:bg-zinc-100 dark:active:bg-zinc-900"
+    >
+      <Icon size={14} color={tint} strokeWidth={1.75} />
+      <Text className="text-[11px] text-zinc-500 dark:text-zinc-400">
+        {label}
+      </Text>
     </Pressable>
   )
 }

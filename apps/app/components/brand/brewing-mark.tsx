@@ -26,48 +26,37 @@ interface Props {
 
 /**
  * Animated brewing variant of the cup-and-leaf mark — used as the
- * streaming-state placeholder in place of the bare "…". Mirrors the
- * `LogoBrewing` component from the design kit (animated-logos.jsx):
+ * streaming-state placeholder in the assistant bubble. Mirrors the
+ * `LogoBrewing` variant from the design kit (animated-logos.jsx):
  *
- *  - Tea fill rises from empty → full over ~2.4s, holds, repeats.
- *  - A steam wisp rises through the lifecycle, fading in and out.
- *
- * Reanimated worklets drive the SVG transforms; same theme color rules
- * as the static LogoMark.
+ *  - Tea fill rises from empty → full over ~1.32s, holds ~1.08s, repeats.
+ *    Bottom-anchored: `y` and `height` are animated together so the rect
+ *    grows upward from the bottom of the cup interior.
+ *  - Steam wisp fades in/out on a 2.6s loop (opacity-only — animating SVG
+ *    `transform` via Reanimated 4 worklets isn't reliable enough yet).
+ *  - Theme-aware: matcha-600 / oolong-400 in light, matcha-400 /
+ *    oolong-300 in dark.
  */
 export function BrewingMark({ size = 96 }: Props) {
   const dark = useColorScheme() === "dark"
-  const stroke = dark ? "#8eb56b" : "#5b8a3a" // matcha-400 / matcha-600
-  const teaFill = dark ? "#d9a26a" : "#c2884a" // oolong-300 / oolong-400
+  const stroke = dark ? "#8eb56b" : "#5b8a3a"
+  const teaFill = dark ? "#d9a26a" : "#c2884a"
 
-  const fillY = useSharedValue(28)
-  const steamY = useSharedValue(6)
+  const teaLevel = useSharedValue(0) // 0 = empty, 1 = full
   const steamOpacity = useSharedValue(0)
 
   useEffect(() => {
-    // Tea fill cycle: rise from y=28 (below the visible cup) to y=0 (full
-    // cup) over 1.32s, hold for 1.08s, then snap back. cubic-bezier
-    // matches the standard easing token from colors_and_type.css.
     const fillEasing = Easing.bezier(0.4, 0, 0.2, 1)
-    fillY.value = withRepeat(
+    teaLevel.value = withRepeat(
       withSequence(
-        withTiming(0, { duration: 1320, easing: fillEasing }),
-        withTiming(0, { duration: 1080 }),
-        withTiming(28, { duration: 0 }),
+        withTiming(1, { duration: 1320, easing: fillEasing }),
+        withTiming(1, { duration: 1080 }),
+        withTiming(0, { duration: 0 }),
       ),
       -1,
       false,
     )
 
-    // Steam wisp: rise + fade in + fade out over 2.6s, infinite.
-    steamY.value = withRepeat(
-      withSequence(
-        withTiming(6, { duration: 0 }),
-        withTiming(-16, { duration: 2600, easing: Easing.out(Easing.quad) }),
-      ),
-      -1,
-      false,
-    )
     steamOpacity.value = withRepeat(
       withSequence(
         withTiming(0, { duration: 0 }),
@@ -78,13 +67,20 @@ export function BrewingMark({ size = 96 }: Props) {
       -1,
       false,
     )
-  }, [fillY, steamY, steamOpacity])
+  }, [teaLevel, steamOpacity])
 
-  const fillProps = useAnimatedProps(() => ({
-    transform: `translate(0 ${fillY.value})`,
-  }))
+  // Cup interior: top y=50, bottom y=86, height 36. Anchor the rect at the
+  // bottom and grow the height to fill upward — animating y and height
+  // together is far more reliable than animating a transform string.
+  const fillProps = useAnimatedProps(() => {
+    const h = 36 * teaLevel.value
+    return {
+      y: 86 - h,
+      height: h,
+    }
+  })
+
   const steamProps = useAnimatedProps(() => ({
-    transform: `translate(0 ${steamY.value})`,
     opacity: steamOpacity.value,
   }))
 
@@ -105,20 +101,18 @@ export function BrewingMark({ size = 96 }: Props) {
         strokeLinejoin="round"
       />
 
-      {/* animated tea fill — clipped to cup interior */}
+      {/* animated tea fill, clipped to cup interior */}
       <G clipPath="url(#brewing-cup-clip)">
         <AnimatedRect
           animatedProps={fillProps}
           x={20}
-          y={50}
           width={56}
-          height={36}
           fill={teaFill}
           fillOpacity={0.7}
         />
       </G>
 
-      {/* rim line */}
+      {/* rim */}
       <Line
         x1={24}
         y1={50}
@@ -139,12 +133,12 @@ export function BrewingMark({ size = 96 }: Props) {
         strokeLinecap="round"
       />
 
-      {/* animated steam wisp */}
+      {/* steam wisp — opacity-only animation */}
       <AnimatedG animatedProps={steamProps}>
         <Path
           d="M44 30 Q40 22 46 14 Q56 18 52 30 Z"
           fill={stroke}
-          fillOpacity={0.85}
+          fillOpacity={0.9}
         />
         <Path
           d="M58 34 Q60 28 56 22"
