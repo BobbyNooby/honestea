@@ -34,6 +34,7 @@ import { ModelSelector } from "@/components/model-selector"
 import { RenameDialog } from "@/components/rename-dialog"
 import { streamChat } from "@/lib/api"
 import { useByokStatus } from "@/lib/byok"
+import { compact, projectPromptTokens } from "@/lib/compaction"
 import { useConversations } from "@/lib/conversations-context"
 import {
   addMessage,
@@ -77,14 +78,29 @@ export default function ChatScreen() {
     [conversations.conversations, conversations.currentId],
   )
 
-  // Visible rows = everything not superseded. Superseded rows stay in the
-  // DB + the in-memory list so their cost rolls into the conversation
-  // total, but they're hidden from the rendered transcript and from the
-  // model's send-path.
+  // Visible rows = normal-kind, not superseded, not summarized. The hidden
+  // ones (superseded by regenerate, summarized by compaction, or kind="summary"
+  // synthetic rows) stay in `messages` so their cost rolls into the
+  // conversation total and the send-path can include the summary, but they
+  // don't render as chat bubbles.
   const visibleMessages = useMemo(
-    () => messages.filter((m) => m.supersededAt === null),
+    () =>
+      messages.filter(
+        (m) =>
+          m.supersededAt === null &&
+          m.summarizedAt === null &&
+          m.kind !== "summary",
+      ),
     [messages],
   )
+
+  // First visible message id that follows at least one summarized row —
+  // we render a "earlier messages compacted" divider directly above it.
+  // Null when nothing's been compacted yet.
+  const dividerBeforeId = useMemo(() => {
+    if (!messages.some((m) => m.summarizedAt !== null)) return null
+    return visibleMessages[0]?.id ?? null
+  }, [messages, visibleMessages])
 
   // Index of the latest visible assistant message — only it gets the
   // regenerate affordance, since regenerating a middle turn would discard
@@ -112,14 +128,55 @@ export default function ChatScreen() {
     }
   }, [conversations.currentId])
 
+  /**
+   * Run a compaction pass against the current conversation. Returns true
+   * on success so callers (pre-send, manual button) can decide whether to
+   * proceed or bail. Toasts feedback either way.
+   */
+  const runCompaction = useCallback(async (): Promise<boolean> => {
+    if (!conversations.currentId) return false
+    const model = registry ? findModel(registry, modelId) : null
+    if (!model?.context_length) return false
+    const fresh = await listMessages(conversations.currentId)
+    const result = await compact({
+      conversationId: conversations.currentId,
+      messages: fresh,
+      modelContextLength: model.context_length,
+    })
+    if (!result.ok) {
+      Toast.show({
+        type: "error",
+        text1: "Compaction failed",
+        text2: result.error,
+      })
+      return false
+    }
+    Toast.show({
+      type: "success",
+      text1: `Compacted ${result.summarizedCount} earlier messages`,
+    })
+    // Refresh in-memory state so divider + filtered view update.
+    const refreshed = await listMessages(conversations.currentId)
+    setMessages(refreshed)
+    return true
+  }, [conversations.currentId, modelId, registry])
+
   const handleModelChange = useCallback(
-    (next: string) => {
+    async (next: string) => {
       setModelId(next)
-      // Persist the switch so the picker defaults to it next time the user
-      // returns to this conversation.
       void conversations.updateCurrentModel(next)
+      // If the new model has a smaller context window AND we're already
+      // over 80% of it, auto-compact on switch instead of letting the user
+      // hit a wall on their next send.
+      const newModel = registry ? findModel(registry, next) : null
+      if (newModel?.context_length) {
+        const projected = projectPromptTokens(messages)
+        if (projected > newModel.context_length * 0.8) {
+          await runCompaction()
+        }
+      }
     },
-    [conversations, setModelId],
+    [conversations, messages, registry, runCompaction, setModelId],
   )
 
   const copyMessage = useCallback(async (text: string) => {
@@ -160,8 +217,11 @@ export default function ChatScreen() {
       // Pricing comes from OR's live registry — same source as the real
       // `usage.cost` we'll snap to on completion, so estimate / real are on
       // the same scale (no markup applied either side).
+      // Send-path filter: drop superseded (regenerated) AND summarized
+      // (compacted) rows. Summary rows themselves stay — they ARE the
+      // compacted context. Their summarizedAt is null so they pass through.
       const visibleContext = contextMessages.filter(
-        (m) => m.supersededAt === null,
+        (m) => m.supersededAt === null && m.summarizedAt === null,
       )
       const registryModel = registry ? findModel(registry, modelId) : null
       const pricing = registryModel ? pricingFor(registryModel) : null
@@ -289,25 +349,55 @@ export default function ChatScreen() {
       const conversationId =
         conversations.currentId ?? (await conversations.startNew(modelId))
 
+      // Pre-send compaction guard: if firing the next request would push us
+      // over 80% of the model's context, summarize older turns first. The
+      // compact() call is sync (we await it before sending) so the user
+      // sees one extra second of latency on this turn but every subsequent
+      // turn fits cleanly. Better than refusing the send or silently
+      // truncating.
+      const model = registry ? findModel(registry, modelId) : null
+      if (model?.context_length) {
+        const projected = projectPromptTokens(messages) + estimateTokens(text)
+        if (projected > model.context_length * 0.8) {
+          await runCompaction()
+        }
+      }
+
+      // After a possible compaction, re-read the in-memory list — it may
+      // have new summary rows + stamped summarizedAt fields.
+      const reloaded = conversations.currentId
+        ? await listMessages(conversations.currentId)
+        : messages
+      setMessages(reloaded)
+
       const userRow = await addMessage({
         conversationId,
         role: "user",
         content: text,
       })
 
-      const before = messages
+      const before = reloaded
       setMessages([...before, userRow])
 
       await streamAssistantTurn({
         conversationId,
         contextMessages: [...before, userRow],
-        isFirstTurn: before.length === 0,
+        isFirstTurn: before.filter((m) => m.kind === "normal").length === 0,
         firstTurnText: text,
       })
     } finally {
       setStreaming(false)
     }
-  }, [conversations, input, messages, modelId, streaming, streamAssistantTurn])
+  }, [
+    conversations,
+    input,
+    messages,
+    modelId,
+    registry,
+    runCompaction,
+    streaming,
+    streamAssistantTurn,
+  ])
 
   const regenerate = useCallback(
     async (assistantMessageId: string) => {
@@ -437,17 +527,21 @@ export default function ChatScreen() {
       // value on completion.
       const showCost = !isUser && usd != null
       const isErrored = item.status === "error"
+      const showDividerAbove = item.id === dividerBeforeId
 
       if (isUser) {
         // SMS-style bubble — right-aligned, rounded, blue.
         return (
-          <Pressable
-            onLongPress={() => copyMessage(item.content)}
-            delayLongPress={400}
-            className="self-end max-w-[85%] rounded-[22px] bg-blue-500 px-3.5 py-2"
-          >
-            <Text className="text-base text-white">{item.content}</Text>
-          </Pressable>
+          <View className="gap-2.5">
+            {showDividerAbove && <CompactedDivider />}
+            <Pressable
+              onLongPress={() => copyMessage(item.content)}
+              delayLongPress={400}
+              className="self-end max-w-[85%] rounded-[22px] bg-blue-500 px-3.5 py-2"
+            >
+              <Text className="text-base text-white">{item.content}</Text>
+            </Pressable>
+          </View>
         )
       }
 
@@ -457,39 +551,42 @@ export default function ChatScreen() {
       const isLastAssistant = index === lastAssistantIdx
 
       return (
-        <View className="self-stretch gap-1 px-1">
-          {item.content ? (
-            <MarkdownText>{item.content}</MarkdownText>
-          ) : item.status === "streaming" ? (
-            <Text className="text-base text-zinc-500 dark:text-zinc-400">
-              …
-            </Text>
-          ) : null}
-          {isErrored && (
-            <Text className="text-[10px] text-red-600 dark:text-red-400">
-              Response failed to complete.
-            </Text>
-          )}
-          {showCost && (
-            <Text className="text-[10px] text-zinc-500 dark:text-zinc-400">
-              ~{formatUsd(usd ?? 0)}
-              {item.modelId ? ` · ${shortModelName(item.modelId)}` : ""}
-            </Text>
-          )}
-          {showActions && (
-            <MessageActions
-              messageId={item.id}
-              content={item.content}
-              canRegenerate={isLastAssistant && !streaming}
-              onRegenerate={() => {
-                void regenerate(item.id)
-              }}
-            />
-          )}
+        <View className="gap-1">
+          {showDividerAbove && <CompactedDivider />}
+          <View className="self-stretch gap-1 px-1">
+            {item.content ? (
+              <MarkdownText>{item.content}</MarkdownText>
+            ) : item.status === "streaming" ? (
+              <Text className="text-base text-zinc-500 dark:text-zinc-400">
+                …
+              </Text>
+            ) : null}
+            {isErrored && (
+              <Text className="text-[10px] text-red-600 dark:text-red-400">
+                Response failed to complete.
+              </Text>
+            )}
+            {showCost && (
+              <Text className="text-[10px] text-zinc-500 dark:text-zinc-400">
+                ~{formatUsd(usd ?? 0)}
+                {item.modelId ? ` · ${shortModelName(item.modelId)}` : ""}
+              </Text>
+            )}
+            {showActions && (
+              <MessageActions
+                messageId={item.id}
+                content={item.content}
+                canRegenerate={isLastAssistant && !streaming}
+                onRegenerate={() => {
+                  void regenerate(item.id)
+                }}
+              />
+            )}
+          </View>
         </View>
       )
     },
-    [copyMessage, lastAssistantIdx, regenerate, streaming],
+    [copyMessage, dividerBeforeId, lastAssistantIdx, regenerate, streaming],
   )
 
   return (
@@ -529,6 +626,9 @@ export default function ChatScreen() {
             }}
             onToggleStar={() => {
               void handleToggleStar()
+            }}
+            onCompactNow={() => {
+              void runCompaction()
             }}
             onDelete={handleDelete}
             onNewChat={() => {
@@ -577,6 +677,9 @@ export default function ChatScreen() {
               modelId={modelId}
               registry={registry ?? null}
               draft={input}
+              onCompactNow={() => {
+                void runCompaction()
+              }}
             />
 
             <View className="flex-row items-end gap-2 border-t border-zinc-200 p-3 dark:border-zinc-800">
@@ -614,6 +717,18 @@ export default function ChatScreen() {
 
 function shortModelName(id: string): string {
   return id.split("/").pop() ?? id
+}
+
+function CompactedDivider() {
+  return (
+    <View className="my-3 flex-row items-center gap-2 px-2">
+      <View className="h-px flex-1 bg-zinc-300 dark:bg-zinc-700" />
+      <Text className="text-[10px] uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+        earlier messages compacted
+      </Text>
+      <View className="h-px flex-1 bg-zinc-300 dark:bg-zinc-700" />
+    </View>
+  )
 }
 
 /**

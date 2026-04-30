@@ -1,4 +1,5 @@
 import {
+  IconArrowsMinimize,
   IconDotsVertical,
   IconMessagePlus,
   IconPencil,
@@ -26,6 +27,7 @@ interface Props {
   onRename: () => void
   onRegenerateTitle: () => void
   onToggleStar: () => void
+  onCompactNow: () => void
   onDelete: () => void
   onNewChat: () => void
 }
@@ -43,6 +45,7 @@ export function ChatActionsMenu({
   onRename,
   onRegenerateTitle,
   onToggleStar,
+  onCompactNow,
   onDelete,
   onNewChat,
 }: Props) {
@@ -116,6 +119,12 @@ export function ChatActionsMenu({
               onPress={handle(onToggleStar)}
               disabled={!conversation}
               iconColor={starred ? "#eab308" : undefined}
+            />
+            <MenuRow
+              label="Compact now"
+              icon={IconArrowsMinimize}
+              onPress={handle(onCompactNow)}
+              disabled={!conversation}
             />
             <MenuRow
               label="Delete"
