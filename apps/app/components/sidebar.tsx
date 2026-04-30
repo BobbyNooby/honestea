@@ -110,7 +110,7 @@ export function Sidebar({ onClose }: SidebarProps) {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-white dark:bg-zinc-950" edges={["top", "bottom"]}>
+    <SafeAreaView className="flex-1 bg-chamomile-50 dark:bg-chamomile-900" edges={["top", "bottom"]}>
       <View className="flex-1 px-4 py-3">
         <View className="mb-6 flex-row items-center gap-2">
           <LogoMark size={28} />

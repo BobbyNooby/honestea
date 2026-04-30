@@ -10,7 +10,10 @@ export default function SettingsScreen() {
   const [pref, setPref] = useThemePreference()
 
   return (
-    <SafeAreaView className="flex-1 bg-white dark:bg-zinc-950" edges={["top"]}>
+    <SafeAreaView
+      className="flex-1 bg-chamomile-100 dark:bg-chamomile-900"
+      edges={["top", "bottom"]}
+    >
       <ScrollView contentContainerClassName="p-5 gap-6">
         <Section title="Appearance">
           <Row

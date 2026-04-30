@@ -25,6 +25,7 @@ import { estimateTokens, formatUsd, type Message } from "@honestea/shared"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { BrewingMark } from "@/components/brand/brewing-mark"
 import { ChatActionsMenu } from "@/components/chat-actions-menu"
 import { ChatStatusRow } from "@/components/chat-status-row"
 import { MarkdownText } from "@/components/markdown-text"
@@ -532,7 +533,7 @@ export default function ChatScreen() {
             <Pressable
               onLongPress={() => copyMessage(item.content)}
               delayLongPress={400}
-              className="self-end max-w-[85%] rounded-[22px] bg-blue-500 px-3.5 py-2"
+              className="self-end max-w-[85%] rounded-[22px] bg-matcha-600 px-3.5 py-2 dark:bg-matcha-400"
             >
               <Text className="text-base text-white">{item.content}</Text>
             </Pressable>
@@ -552,9 +553,9 @@ export default function ChatScreen() {
             {item.content ? (
               <MarkdownText>{item.content}</MarkdownText>
             ) : item.status === "streaming" ? (
-              <Text className="text-base text-zinc-500 dark:text-zinc-400">
-                …
-              </Text>
+              <View className="py-1">
+                <BrewingMark size={36} />
+              </View>
             ) : null}
             {isErrored && (
               <Text className="text-[10px] text-red-600 dark:text-red-400">
@@ -586,7 +587,10 @@ export default function ChatScreen() {
   )
 
   return (
-    <SafeAreaView className="flex-1 bg-white dark:bg-zinc-950" edges={["top"]}>
+    <SafeAreaView
+      className="flex-1 bg-chamomile-100 dark:bg-chamomile-900"
+      edges={["top", "bottom"]}
+    >
       <KeyboardAvoidingView
         className="flex-1"
         behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -693,7 +697,7 @@ export default function ChatScreen() {
                 onPress={send}
                 disabled={streaming || !input.trim()}
                 loading={streaming}
-                className="min-w-[72px]"
+                className="min-w-[72px] bg-matcha-600 dark:bg-matcha-400"
               >
                 send
               </Button>
@@ -756,10 +760,10 @@ function NoKeyState() {
   const dark = useColorScheme() === "dark"
   return (
     <View className="flex-1 items-center justify-center gap-4 px-8">
-      <View className="h-14 w-14 items-center justify-center rounded-full bg-blue-500/10">
+      <View className="h-14 w-14 items-center justify-center rounded-full bg-matcha-500/10">
         <IconKey
           size={28}
-          color={dark ? "#60a5fa" : "#3b82f6"}
+          color={dark ? "#8eb56b" : "#5b8a3a"}
           strokeWidth={1.75}
         />
       </View>
@@ -774,7 +778,7 @@ function NoKeyState() {
       </View>
       <Button
         onPress={() => router.push("/byok" as never)}
-        className="mt-2 min-w-[200px]"
+        className="mt-2 min-w-[200px] bg-matcha-600 dark:bg-matcha-400"
       >
         Set up your keys
       </Button>
