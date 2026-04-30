@@ -85,6 +85,131 @@ export async function getOpenRouterKey(): Promise<string | null> {
   return SecureStore.getItemAsync("byok_openrouter")
 }
 
+// ----------------------------------------------------------------------------
+// Key validation — pings each provider's cheapest auth-check endpoint.
+// All four providers expose a list-models or auth-info endpoint that returns
+// 401/403 for invalid keys without spending tokens.
+// ----------------------------------------------------------------------------
+
+export interface ByokKeyInfo {
+  label?: string | null
+  /** Dollars consumed on this key (OpenRouter only). */
+  usage?: number | null
+  /** Dollar credit limit on the key, null = unlimited. (OpenRouter only.) */
+  limit?: number | null
+}
+
+export interface ValidationResult {
+  valid: boolean
+  error?: string
+  info?: ByokKeyInfo
+}
+
+async function validateOpenRouter(key: string): Promise<ValidationResult> {
+  try {
+    const res = await fetch("https://openrouter.ai/api/v1/auth/key", {
+      headers: { Authorization: `Bearer ${key}` },
+    })
+    if (res.status === 401 || res.status === 403) {
+      return { valid: false, error: "Invalid OpenRouter key" }
+    }
+    if (!res.ok) {
+      return { valid: false, error: `HTTP ${res.status}: ${res.statusText}` }
+    }
+    const json = (await res.json()) as {
+      data?: { label?: string; usage?: number; limit?: number | null }
+    }
+    return {
+      valid: true,
+      info: {
+        label: json.data?.label ?? null,
+        usage: json.data?.usage ?? null,
+        limit: json.data?.limit ?? null,
+      },
+    }
+  } catch (e) {
+    return {
+      valid: false,
+      error: e instanceof Error ? e.message : "Network error",
+    }
+  }
+}
+
+async function validateAnthropic(key: string): Promise<ValidationResult> {
+  try {
+    const res = await fetch("https://api.anthropic.com/v1/models", {
+      headers: {
+        "x-api-key": key,
+        "anthropic-version": "2023-06-01",
+      },
+    })
+    if (res.status === 401 || res.status === 403) {
+      return { valid: false, error: "Invalid Anthropic key" }
+    }
+    if (!res.ok) return { valid: false, error: `HTTP ${res.status}` }
+    return { valid: true }
+  } catch (e) {
+    return {
+      valid: false,
+      error: e instanceof Error ? e.message : "Network error",
+    }
+  }
+}
+
+async function validateOpenAI(key: string): Promise<ValidationResult> {
+  try {
+    const res = await fetch("https://api.openai.com/v1/models", {
+      headers: { Authorization: `Bearer ${key}` },
+    })
+    if (res.status === 401 || res.status === 403) {
+      return { valid: false, error: "Invalid OpenAI key" }
+    }
+    if (!res.ok) return { valid: false, error: `HTTP ${res.status}` }
+    return { valid: true }
+  } catch (e) {
+    return {
+      valid: false,
+      error: e instanceof Error ? e.message : "Network error",
+    }
+  }
+}
+
+async function validateGoogle(key: string): Promise<ValidationResult> {
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(key)}`,
+    )
+    if (res.status === 400 || res.status === 401 || res.status === 403) {
+      return { valid: false, error: "Invalid Google AI key" }
+    }
+    if (!res.ok) return { valid: false, error: `HTTP ${res.status}` }
+    return { valid: true }
+  } catch (e) {
+    return {
+      valid: false,
+      error: e instanceof Error ? e.message : "Network error",
+    }
+  }
+}
+
+export async function validateKey(
+  provider: ByokProvider,
+  key: string,
+): Promise<ValidationResult> {
+  switch (provider.id) {
+    case "openrouter":
+      return validateOpenRouter(key)
+    case "anthropic":
+      return validateAnthropic(key)
+    case "openai":
+      return validateOpenAI(key)
+    case "google":
+      return validateGoogle(key)
+    default:
+      return { valid: false, error: "Unknown provider" }
+  }
+}
+
 export interface ByokStatus {
   /** null = still loading, otherwise true/false. */
   ready: boolean
