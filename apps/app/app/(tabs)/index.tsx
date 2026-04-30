@@ -1,5 +1,7 @@
+import { router } from "expo-router"
 import { useCallback, useRef, useState } from "react"
 import {
+  ActivityIndicator,
   FlatList,
   KeyboardAvoidingView,
   Platform,
@@ -13,6 +15,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/cn"
 import { streamChat, type ChatMessage } from "@/lib/api"
+import { useByokStatus } from "@/lib/byok"
 import { useSidebar } from "@/lib/sidebar-context"
 
 const DEFAULT_MODEL = "minimax/minimax-m2.5"
@@ -23,6 +26,7 @@ interface UiMessage extends ChatMessage {
 
 export default function ChatScreen() {
   const sidebar = useSidebar()
+  const byok = useByokStatus()
   const [messages, setMessages] = useState<UiMessage[]>([])
   const [input, setInput] = useState("")
   const [streaming, setStreaming] = useState(false)
@@ -135,54 +139,92 @@ export default function ChatScreen() {
           </View>
         </View>
 
-        <FlatList
-          ref={listRef}
-          data={messages}
-          keyExtractor={(m) => m.id}
-          renderItem={renderItem}
-          contentContainerClassName="grow gap-2.5 p-4"
-          onContentSizeChange={() =>
-            listRef.current?.scrollToEnd({ animated: true })
-          }
-          ListEmptyComponent={
-            <View className="flex-1 items-center justify-center px-6 py-16">
-              <Text className="text-center text-zinc-500 dark:text-zinc-400">
-                Start a conversation. Messages stream in real time from
-                OpenRouter.
-              </Text>
-            </View>
-          }
-        />
-
-        {error && (
-          <View className="bg-red-500/10 px-4 py-2">
-            <Text className="text-sm text-red-600 dark:text-red-400">
-              error: {error}
-            </Text>
+        {!byok.ready ? (
+          <View className="flex-1 items-center justify-center">
+            <ActivityIndicator />
           </View>
-        )}
+        ) : !byok.hasOpenRouter ? (
+          <NoKeyState />
+        ) : (
+          <>
+            <FlatList
+              ref={listRef}
+              data={messages}
+              keyExtractor={(m) => m.id}
+              renderItem={renderItem}
+              contentContainerClassName="grow gap-2.5 p-4"
+              onContentSizeChange={() =>
+                listRef.current?.scrollToEnd({ animated: true })
+              }
+              ListEmptyComponent={
+                <View className="flex-1 items-center justify-center px-6 py-16">
+                  <Text className="text-center text-zinc-500 dark:text-zinc-400">
+                    Start a conversation. Messages stream in real time using
+                    your OpenRouter key.
+                  </Text>
+                </View>
+              }
+            />
 
-        <View className="flex-row items-end gap-2 border-t border-zinc-200 p-3 dark:border-zinc-800">
-          <Input
-            value={input}
-            onChangeText={setInput}
-            placeholder="Send a message…"
-            multiline
-            editable={!streaming}
-            onSubmitEditing={send}
-            returnKeyType="send"
-            className="max-h-32 flex-1"
-          />
-          <Button
-            onPress={send}
-            disabled={streaming || !input.trim()}
-            loading={streaming}
-            className="min-w-[72px]"
-          >
-            send
-          </Button>
-        </View>
+            {error && (
+              <View className="bg-red-500/10 px-4 py-2">
+                <Text className="text-sm text-red-600 dark:text-red-400">
+                  error: {error}
+                </Text>
+              </View>
+            )}
+
+            <View className="flex-row items-end gap-2 border-t border-zinc-200 p-3 dark:border-zinc-800">
+              <Input
+                value={input}
+                onChangeText={setInput}
+                placeholder="Send a message…"
+                multiline
+                editable={!streaming}
+                onSubmitEditing={send}
+                returnKeyType="send"
+                className="max-h-32 flex-1"
+              />
+              <Button
+                onPress={send}
+                disabled={streaming || !input.trim()}
+                loading={streaming}
+                className="min-w-[72px]"
+              >
+                send
+              </Button>
+            </View>
+          </>
+        )}
       </KeyboardAvoidingView>
     </SafeAreaView>
+  )
+}
+
+function NoKeyState() {
+  return (
+    <View className="flex-1 items-center justify-center gap-4 px-8">
+      <View className="h-14 w-14 items-center justify-center rounded-full bg-blue-500/10">
+        <Text className="text-2xl">🔑</Text>
+      </View>
+      <View className="gap-2">
+        <Text className="text-center text-xl font-bold text-zinc-900 dark:text-zinc-100">
+          Add an API key to start chatting
+        </Text>
+        <Text className="text-center text-sm text-zinc-500 dark:text-zinc-400">
+          Honest AI uses your own provider keys. They live encrypted on your
+          device — we never see them.
+        </Text>
+      </View>
+      <Button
+        onPress={() => router.push("/byok" as never)}
+        className="mt-2 min-w-[200px]"
+      >
+        Set up your keys
+      </Button>
+      <Text className="text-center text-xs text-zinc-500 dark:text-zinc-400">
+        Recommended: a single OpenRouter key gives you access to every model.
+      </Text>
+    </View>
   )
 }
