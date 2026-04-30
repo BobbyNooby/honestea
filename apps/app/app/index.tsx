@@ -29,8 +29,10 @@ import { useConversations } from "@/lib/conversations-context"
 import {
   addMessage,
   listMessages,
+  renameConversation,
   updateMessage,
 } from "@/lib/db/repository"
+import { generateTitle } from "@/lib/title-gen"
 import {
   findModel,
   pricingFor,
@@ -162,6 +164,20 @@ export default function ChatScreen() {
               : msg,
           ),
         )
+
+        // First turn → kick off title generation (cheapest model, fire-
+        // and-forget). The convo's `title` stays null until this lands; the
+        // sidebar shows "New chat" in the meantime.
+        if (before.length === 0) {
+          void generateTitle({
+            userMessage: text,
+            assistantResponse: buffer,
+          }).then(async (title) => {
+            if (!title) return
+            await renameConversation(conversationId, title)
+            await conversations.refresh()
+          })
+        }
       } catch (e) {
         const errorText = e instanceof Error ? e.message : "unknown error"
         setError(errorText)
