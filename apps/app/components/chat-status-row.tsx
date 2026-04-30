@@ -1,6 +1,6 @@
 import { Text, View } from "react-native"
 
-import { estimateTokens, formatCents, type Message } from "@honestea/shared"
+import { estimateTokens, formatUsd, type Message } from "@honestea/shared"
 
 import { cn } from "@/lib/cn"
 import { findModel, type RegistryModel } from "@/lib/model-registry"
@@ -21,8 +21,12 @@ export function ChatStatusRow({ messages, modelId, registry }: Props) {
   const model = registry ? findModel(registry, modelId) : null
   const limit = model?.context_length ?? 0
 
-  const used = estimateConversationTokens(messages)
-  const totalCents = sumCostCents(messages)
+  // Use the visible (non-superseded) messages for context-window math —
+  // those are what'll actually get sent in the next request. But include
+  // ALL messages in the cost roll-up so regenerated turns still count.
+  const visible = messages.filter((m) => m.supersededAt === null)
+  const used = estimateConversationTokens(visible)
+  const totalUsd = sumCostUsd(messages)
   const pct = limit > 0 ? Math.min(100, (used / limit) * 100) : 0
 
   const tone = pct >= 90 ? "danger" : pct >= 75 ? "warn" : "neutral"
@@ -60,7 +64,7 @@ export function ChatStatusRow({ messages, modelId, registry }: Props) {
           )}
         </View>
         <Text className="text-[10px] tabular-nums text-zinc-500 dark:text-zinc-400">
-          {totalCents > 0 ? `~${formatCents(totalCents)}` : "—"}
+          {totalUsd > 0 ? `~${formatUsd(totalUsd)}` : "—"}
         </Text>
       </View>
       {tone === "danger" && (
@@ -87,12 +91,17 @@ function estimateConversationTokens(messages: readonly Message[]): number {
   return total
 }
 
-function sumCostCents(messages: readonly Message[]): number {
-  let cents = 0
+function sumCostUsd(messages: readonly Message[]): number {
+  let usd = 0
   for (const m of messages) {
-    if (typeof m.costCents === "number") cents += m.costCents
+    if (typeof m.costUsd === "number") {
+      usd += m.costUsd
+    } else if (typeof m.costCents === "number") {
+      // Pre-v3 rows only carry cents — fall back so totals don't lose them.
+      usd += m.costCents / 100
+    }
   }
-  return cents
+  return usd
 }
 
 function formatTokenCount(n: number): string {

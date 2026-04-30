@@ -21,8 +21,21 @@ export interface Message {
   modelId: string | null
   promptTokens: number | null
   completionTokens: number | null
+  /**
+   * Real USD cost as a float — what OR's `usage.cost` returned. Use this
+   * for any new code path. Sub-cent precision matters for cheap models.
+   */
+  costUsd: number | null
+  /** @deprecated populated only on pre-v3 rows; new writes leave this null. */
   costCents: number | null
   status: MessageStatus
+  /**
+   * ms epoch when this message was superseded by a regenerate. Non-null
+   * means: hide in the chat view, exclude from the model send-path, but
+   * STILL count its cost toward the conversation total (so trailing cost
+   * rolls forward across regenerations).
+   */
+  supersededAt: number | null
   /** ms epoch */
   createdAt: number
 }

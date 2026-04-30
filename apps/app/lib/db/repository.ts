@@ -1,5 +1,5 @@
 import { randomUUID } from "expo-crypto"
-import { and, asc, desc, eq, gte } from "drizzle-orm"
+import { and, asc, desc, eq, gte, isNull } from "drizzle-orm"
 
 import type { Conversation, Message, MessageStatus, Role } from "@honestea/shared"
 
@@ -112,8 +112,10 @@ export async function addMessage(input: {
     modelId: input.modelId ?? null,
     promptTokens: null,
     completionTokens: null,
+    costUsd: null,
     costCents: null,
     status: input.status ?? "complete",
+    supersededAt: null,
     createdAt: now(),
   } as const
   await db.insert(messages).values(row)
@@ -133,6 +135,7 @@ export async function updateMessage(
       | "status"
       | "promptTokens"
       | "completionTokens"
+      | "costUsd"
       | "costCents"
       | "modelId"
     >
@@ -142,21 +145,24 @@ export async function updateMessage(
 }
 
 /**
- * Delete every message in the conversation whose createdAt is at or after
- * the given timestamp. Used by the regenerate-message action: drop the
- * assistant turn we're regenerating + everything that came after it, so
- * the new stream becomes the canonical continuation.
+ * Mark every non-superseded message at-or-after the given timestamp as
+ * superseded. Used by regenerate: replaces the prior assistant turn (and
+ * anything after) without deleting them, so their cost still rolls into
+ * the conversation total. Idempotent — already-superseded rows are left
+ * alone so we don't overwrite their original supersededAt timestamp.
  */
-export async function deleteMessagesFrom(
+export async function markMessagesSupersededFrom(
   conversationId: string,
   sinceCreatedAt: number,
 ): Promise<void> {
   await db
-    .delete(messages)
+    .update(messages)
+    .set({ supersededAt: now() })
     .where(
       and(
         eq(messages.conversationId, conversationId),
         gte(messages.createdAt, sinceCreatedAt),
+        isNull(messages.supersededAt),
       ),
     )
 }

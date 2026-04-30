@@ -19,7 +19,7 @@ import { SafeAreaView } from "react-native-safe-area-context"
 import {
   calculateCost,
   estimateTokens,
-  formatCents,
+  formatUsd,
   type Message,
 } from "@honestea/shared"
 
@@ -36,8 +36,8 @@ import { useByokStatus } from "@/lib/byok"
 import { useConversations } from "@/lib/conversations-context"
 import {
   addMessage,
-  deleteMessagesFrom,
   listMessages,
+  markMessagesSupersededFrom,
   renameConversation,
   updateMessage,
 } from "@/lib/db/repository"
@@ -76,15 +76,24 @@ export default function ChatScreen() {
     [conversations.conversations, conversations.currentId],
   )
 
-  // Index of the latest assistant message — only it gets the regenerate
-  // affordance, since regenerating a middle turn would discard everything
-  // after it.
+  // Visible rows = everything not superseded. Superseded rows stay in the
+  // DB + the in-memory list so their cost rolls into the conversation
+  // total, but they're hidden from the rendered transcript and from the
+  // model's send-path.
+  const visibleMessages = useMemo(
+    () => messages.filter((m) => m.supersededAt === null),
+    [messages],
+  )
+
+  // Index of the latest visible assistant message — only it gets the
+  // regenerate affordance, since regenerating a middle turn would discard
+  // everything after it.
   const lastAssistantIdx = useMemo(() => {
-    for (let i = messages.length - 1; i >= 0; i--) {
-      if (messages[i]?.role === "assistant") return i
+    for (let i = visibleMessages.length - 1; i >= 0; i--) {
+      if (visibleMessages[i]?.role === "assistant") return i
     }
     return -1
-  }, [messages])
+  }, [visibleMessages])
 
   // Load messages when the current conversation changes (sidebar selection,
   // or on initial app launch resuming the last-used convo).
@@ -148,10 +157,12 @@ export default function ChatScreen() {
       try {
         const result = await streamChat({
           model: modelId,
-          messages: contextMessages.map(({ role, content }) => ({
-            role,
-            content,
-          })),
+          // Only send non-superseded messages — superseded rows are old
+          // regenerated turns hidden from the UI and irrelevant to the
+          // model.
+          messages: contextMessages
+            .filter((m) => m.supersededAt === null)
+            .map(({ role, content }) => ({ role, content })),
           onToken: (chunk) => {
             buffer += chunk
             setMessages((m) =>
@@ -168,15 +179,21 @@ export default function ChatScreen() {
         const completionTokens =
           result.usage?.completionTokens ?? estimateTokens(buffer)
 
-        const costCents =
+        // Real OR cost (USD float) wins. Otherwise estimate via registry
+        // pricing × heuristic tokens — converted to USD here so the column
+        // stays in one unit regardless of source.
+        const estimatedCents = estimateAssistantCost({
+          registry: registry ?? null,
+          modelId,
+          history: contextMessages,
+          completion: buffer,
+        })
+        const costUsd =
           result.usage?.costUsd != null
-            ? Math.ceil(result.usage.costUsd * 100)
-            : (estimateAssistantCost({
-                registry: registry ?? null,
-                modelId,
-                history: contextMessages,
-                completion: buffer,
-              }) ?? null)
+            ? result.usage.costUsd
+            : estimatedCents != null
+              ? estimatedCents / 100
+              : null
 
         await updateMessage(assistantRow.id, {
           content: buffer,
@@ -184,7 +201,7 @@ export default function ChatScreen() {
           modelId,
           promptTokens,
           completionTokens,
-          costCents,
+          costUsd,
         })
 
         setMessages((m) =>
@@ -194,7 +211,7 @@ export default function ChatScreen() {
                   ...msg,
                   content: buffer,
                   status: "complete",
-                  costCents,
+                  costUsd,
                   promptTokens,
                   completionTokens,
                 }
@@ -282,17 +299,27 @@ export default function ChatScreen() {
       setError(null)
       setStreaming(true)
       try {
-        // Drop the target assistant + everything after it, both in the DB
-        // and in local state. The user message we're regenerating against
-        // stays. Deleting from `target.createdAt` covers the assistant row
-        // itself and any subsequent rows.
-        await deleteMessagesFrom(target.conversationId, target.createdAt)
-        const trimmed = messages.slice(0, idx)
-        setMessages(trimmed)
+        // Mark the target assistant + anything after as superseded — keeps
+        // their cost rolling forward in the conversation total. The user
+        // message we're regenerating against stays untouched.
+        const supersededAt = Date.now()
+        await markMessagesSupersededFrom(
+          target.conversationId,
+          target.createdAt,
+        )
+        const stamped = messages.map((m, i) =>
+          i >= idx && m.supersededAt === null ? { ...m, supersededAt } : m,
+        )
+        setMessages(stamped)
 
+        // Context for the new stream: everything up to (and including) the
+        // user message — no superseded rows.
+        const context = stamped
+          .slice(0, idx)
+          .filter((m) => m.supersededAt === null)
         await streamAssistantTurn({
           conversationId: target.conversationId,
-          contextMessages: trimmed,
+          contextMessages: context,
           isFirstTurn: false,
         })
       } finally {
@@ -378,8 +405,10 @@ export default function ChatScreen() {
   const renderItem = useCallback(
     ({ item, index }: { item: Message; index: number }) => {
       const isUser = item.role === "user"
-      const showCost =
-        !isUser && typeof item.costCents === "number" && item.status === "complete"
+      const usd =
+        item.costUsd ??
+        (typeof item.costCents === "number" ? item.costCents / 100 : null)
+      const showCost = !isUser && usd != null && item.status === "complete"
       const isErrored = item.status === "error"
 
       if (isUser) {
@@ -416,7 +445,7 @@ export default function ChatScreen() {
           )}
           {showCost && (
             <Text className="text-[10px] text-zinc-500 dark:text-zinc-400">
-              ~{formatCents(item.costCents ?? 0)}
+              ~{formatUsd(usd ?? 0)}
               {item.modelId ? ` · ${shortModelName(item.modelId)}` : ""}
             </Text>
           )}
@@ -490,7 +519,7 @@ export default function ChatScreen() {
           <>
             <FlatList
               ref={listRef}
-              data={messages}
+              data={visibleMessages}
               keyExtractor={(m) => m.id}
               renderItem={renderItem}
               contentContainerClassName="grow gap-2.5 p-4"

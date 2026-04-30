@@ -73,12 +73,36 @@ function applyMigrationV2() {
   }
 }
 
+/**
+ * v3: cost precision + regenerate cost-rolling.
+ *  - `cost_usd REAL` lets us store the real OpenRouter `usage.cost` float
+ *    (typical Haiku turn ≈ $0.0003 — integer cents rounded everything up
+ *    to $0.010 because of `Math.ceil(usd * 100)`).
+ *  - `superseded_at INTEGER` marks an assistant turn that was replaced by a
+ *    regenerate. UI hides them, send-path skips them, but the cost sum
+ *    still includes them so trailing conversation cost rolls forward.
+ */
+function applyMigrationV3() {
+  const cols = sqlite.getAllSync<{ name: string }>(
+    "PRAGMA table_info(messages);",
+  )
+  const hasCostUsd = cols.some((c) => c.name === "cost_usd")
+  if (!hasCostUsd) {
+    sqlite.execSync("ALTER TABLE messages ADD COLUMN cost_usd real;")
+  }
+  const hasSupersededAt = cols.some((c) => c.name === "superseded_at")
+  if (!hasSupersededAt) {
+    sqlite.execSync("ALTER TABLE messages ADD COLUMN superseded_at integer;")
+  }
+}
+
 let migrated = false
 
 function applyMigrations() {
   if (migrated) return
   sqlite.execSync(MIGRATION_V1)
   applyMigrationV2()
+  applyMigrationV3()
   migrated = true
 }
 

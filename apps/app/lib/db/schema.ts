@@ -1,4 +1,4 @@
-import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core"
+import { integer, real, sqliteTable, text } from "drizzle-orm/sqlite-core"
 
 /**
  * SQLite schema for Phase 1 local-only conversation storage.
@@ -35,12 +35,27 @@ export const messages = sqliteTable("messages", {
   modelId: text("model_id"),
   promptTokens: integer("prompt_tokens"),
   completionTokens: integer("completion_tokens"),
+  /**
+   * Real USD cost stored as a float. Source of truth from OpenRouter's
+   * `usage.cost`. Lets us show sub-cent precision (typical Haiku turn is
+   * ~$0.0003) without losing it to integer rounding.
+   */
+  costUsd: real("cost_usd"),
+  /** @deprecated kept for legacy rows; new writes populate `cost_usd` instead. */
   costCents: integer("cost_cents"),
   status: text("status", {
     enum: ["pending", "streaming", "complete", "error"],
   })
     .notNull()
     .default("complete"),
+  /**
+   * ms epoch when this message was superseded by a regenerate. Non-null →
+   * hidden in the chat view + skipped when sending context to the model,
+   * but its cost still counts toward the conversation total. Lets the
+   * status row's "trailing cost" actually roll forward instead of resetting
+   * each regenerate.
+   */
+  supersededAt: integer("superseded_at"),
   createdAt: integer("created_at").notNull(),
 })
 

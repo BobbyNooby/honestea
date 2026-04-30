@@ -89,3 +89,18 @@ export function formatCents(cents: number): string {
   if (cents < 100) return `$${(cents / 100).toFixed(3)}`
   return `$${(cents / 100).toFixed(2)}`
 }
+
+/**
+ * Format a real USD float with precision proportional to magnitude:
+ *   < $0.01 → 4 decimals  ($0.0003)
+ *   < $1    → 3 decimals  ($0.024)
+ *   ≥ $1    → 2 decimals  ($1.23)
+ *
+ * Use this for OpenRouter `usage.cost` (real float) — preserves sub-cent
+ * detail that the integer `formatCents` path rounded away.
+ */
+export function formatUsd(usd: number): string {
+  if (usd < 0.01) return `$${usd.toFixed(4)}`
+  if (usd < 1) return `$${usd.toFixed(3)}`
+  return `$${usd.toFixed(2)}`
+}
