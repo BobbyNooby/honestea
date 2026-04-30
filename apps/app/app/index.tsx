@@ -576,6 +576,7 @@ export default function ChatScreen() {
               messages={messages}
               modelId={modelId}
               registry={registry ?? null}
+              draft={input}
             />
 
             <View className="flex-row items-end gap-2 border-t border-zinc-200 p-3 dark:border-zinc-800">
