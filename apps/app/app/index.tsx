@@ -21,6 +21,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ChatStatusRow } from "@/components/chat-status-row"
+import { MarkdownText } from "@/components/markdown-text"
 import { ModelSelector } from "@/components/model-selector"
 import { cn } from "@/lib/cn"
 import { streamChat } from "@/lib/api"
@@ -223,17 +224,13 @@ export default function ChatScreen() {
             {isUser ? "you" : "assistant"}
             {isErrored ? " · errored" : ""}
           </Text>
-          <Text
-            className={cn(
-              "text-base",
-              isUser ? "text-white" : "text-zinc-900 dark:text-zinc-100",
-            )}
-          >
-            {item.content ||
-              (item.role === "assistant" && item.status === "streaming"
-                ? "…"
-                : "")}
-          </Text>
+          {isUser ? (
+            <Text className="text-base text-white">{item.content}</Text>
+          ) : item.content ? (
+            <MarkdownText>{item.content}</MarkdownText>
+          ) : item.status === "streaming" ? (
+            <Text className="text-base text-zinc-900 dark:text-zinc-100">…</Text>
+          ) : null}
           {showCost && (
             <Text className="text-[10px] text-zinc-500 dark:text-zinc-400">
               ~{formatCents(item.costCents ?? 0)}
