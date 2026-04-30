@@ -117,7 +117,7 @@ export default function ChatScreen() {
 
       let buffer = ""
       try {
-        await streamChat({
+        const result = await streamChat({
           model: modelId,
           messages: [...before, userRow].map(({ role, content }) => ({
             role,
@@ -133,17 +133,25 @@ export default function ChatScreen() {
           },
         })
 
-        const cost = estimateAssistantCost({
-          registry: registry ?? null,
-          modelId,
-          history: [...before, userRow],
-          completion: buffer,
-        })
+        // Prefer real usage from OpenRouter's final SSE chunk over the
+        // 4-chars-per-token estimate. `usage.cost` (USD) is what the key was
+        // actually charged including OR's markup — authoritative. Fall back
+        // to estimation when OR didn't include usage (some niche providers).
+        const promptTokens =
+          result.usage?.promptTokens ??
+          estimateTokens([...before, userRow].map((m) => m.content).join("\n"))
+        const completionTokens =
+          result.usage?.completionTokens ?? estimateTokens(buffer)
 
-        const promptTokens = estimateTokens(
-          [...before, userRow].map((m) => m.content).join("\n"),
-        )
-        const completionTokens = estimateTokens(buffer)
+        const costCents =
+          result.usage?.costUsd != null
+            ? Math.ceil(result.usage.costUsd * 100)
+            : (estimateAssistantCost({
+                registry: registry ?? null,
+                modelId,
+                history: [...before, userRow],
+                completion: buffer,
+              }) ?? null)
 
         await updateMessage(assistantRow.id, {
           content: buffer,
@@ -151,7 +159,7 @@ export default function ChatScreen() {
           modelId,
           promptTokens,
           completionTokens,
-          costCents: cost ?? null,
+          costCents,
         })
 
         setMessages((m) =>
@@ -161,7 +169,7 @@ export default function ChatScreen() {
                   ...msg,
                   content: buffer,
                   status: "complete",
-                  costCents: cost ?? null,
+                  costCents,
                   promptTokens,
                   completionTokens,
                 }

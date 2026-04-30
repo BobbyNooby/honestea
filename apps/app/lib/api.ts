@@ -12,6 +12,26 @@ export interface ChatMessage {
 }
 
 /**
+ * Real usage data parsed from OpenRouter's final SSE chunk. `cost` is in USD
+ * and is what the user's key was actually charged (already includes
+ * OpenRouter's markup — authoritative). Falsy when OR didn't return usage,
+ * which can happen for some niche providers.
+ */
+export interface ChatUsage {
+  promptTokens: number
+  completionTokens: number
+  totalTokens: number
+  costUsd: number | null
+}
+
+export interface ChatResult {
+  /** Full assembled assistant message text. */
+  content: string
+  /** Real token counts + cost from OR. Null when the API didn't include them. */
+  usage: ChatUsage | null
+}
+
+/**
  * Streams a chat completion directly from OpenRouter using the user's BYOK
  * key. Phase 1 is BYOK-only — see CLAUDE.md §"Phase 1 scope".
  *
@@ -21,13 +41,17 @@ export interface ChatMessage {
  *
  * The chat screen gates input on `getOpenRouterKey()` being non-null, so
  * the missing-key throw is defense-in-depth, not a user-facing path.
+ *
+ * `usage: { include: true }` opts in to OR's usage reporting — the final
+ * SSE event arrives with `choices: []` and a populated `usage` object that
+ * we capture and return alongside the content.
  */
 export async function streamChat(opts: {
   model: string
   messages: ChatMessage[]
   onToken: (chunk: string) => void
   signal?: AbortSignal
-}): Promise<string> {
+}): Promise<ChatResult> {
   const byokKey = await getOpenRouterKey()
   if (!byokKey) throw new Error("No OpenRouter key configured")
 
@@ -44,6 +68,7 @@ export async function streamChat(opts: {
       model: opts.model,
       messages: opts.messages,
       stream: true,
+      usage: { include: true },
     }),
     signal: opts.signal,
   })
@@ -58,6 +83,7 @@ export async function streamChat(opts: {
   const decoder = new TextDecoder()
   let buffer = ""
   let full = ""
+  let usage: ChatUsage | null = null
 
   while (true) {
     const { value, done } = await reader.read()
@@ -79,11 +105,26 @@ export async function streamChat(opts: {
         try {
           const parsed = JSON.parse(data) as {
             choices?: Array<{ delta?: { content?: string } }>
+            usage?: {
+              prompt_tokens?: number
+              completion_tokens?: number
+              total_tokens?: number
+              cost?: number
+            }
           }
           const delta = parsed.choices?.[0]?.delta?.content
           if (delta) {
             full += delta
             opts.onToken(delta)
+          }
+          if (parsed.usage) {
+            usage = {
+              promptTokens: parsed.usage.prompt_tokens ?? 0,
+              completionTokens: parsed.usage.completion_tokens ?? 0,
+              totalTokens: parsed.usage.total_tokens ?? 0,
+              costUsd:
+                typeof parsed.usage.cost === "number" ? parsed.usage.cost : null,
+            }
           }
         } catch {
           // OpenRouter occasionally sends `: OPENROUTER PROCESSING` keepalive
@@ -92,5 +133,5 @@ export async function streamChat(opts: {
       }
     }
   }
-  return full
+  return { content: full, usage }
 }
