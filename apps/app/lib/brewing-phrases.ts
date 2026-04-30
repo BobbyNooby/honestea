@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useState } from "react";
 
 /**
  * Tea-making phrases used as the "thinking" placeholder while we wait for
@@ -19,13 +19,15 @@ export const BREWING_PHRASES: readonly string[] = [
   "Cooling",
   "Stirring",
   "Bringing to temperature",
-]
+  "Let it infuse",
+  "Let him cook",
+];
 
-const PHRASE_INTERVAL_MS = 2200
+const PHRASE_INTERVAL_MS = 2200;
 
 function pickRandom(): string {
-  const idx = Math.floor(Math.random() * BREWING_PHRASES.length)
-  return BREWING_PHRASES[idx] ?? "Brewing"
+  const idx = Math.floor(Math.random() * BREWING_PHRASES.length);
+  return BREWING_PHRASES[idx] ?? "Brewing";
 }
 
 /**
@@ -34,23 +36,23 @@ function pickRandom(): string {
  * no content has arrived yet.
  */
 export function useBrewingPhrase(active: boolean): string {
-  const [phrase, setPhrase] = useState<string>(BREWING_PHRASES[0] ?? "Brewing")
+  const [phrase, setPhrase] = useState<string>(BREWING_PHRASES[0] ?? "Brewing");
 
   useEffect(() => {
-    if (!active) return
-    setPhrase(pickRandom())
+    if (!active) return;
+    setPhrase(pickRandom());
     const id = setInterval(() => {
       setPhrase((prev) => {
         // Avoid drawing the same phrase twice in a row.
-        let next = pickRandom()
+        let next = pickRandom();
         if (BREWING_PHRASES.length > 1) {
-          while (next === prev) next = pickRandom()
+          while (next === prev) next = pickRandom();
         }
-        return next
-      })
-    }, PHRASE_INTERVAL_MS)
-    return () => clearInterval(id)
-  }, [active])
+        return next;
+      });
+    }, PHRASE_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, [active]);
 
-  return phrase
+  return phrase;
 }
