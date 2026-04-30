@@ -2,6 +2,8 @@ import Constants from "expo-constants"
 import { fetch as expoFetch } from "expo/fetch"
 import { Platform } from "react-native"
 
+import { getOpenRouterKey } from "./byok"
+
 const SERVER_PORT = 3001
 
 /**
@@ -51,9 +53,21 @@ export async function streamChat(opts: {
   onToken: (chunk: string) => void
   signal?: AbortSignal
 }): Promise<string> {
+  // BYOK: if the user has an OpenRouter key stored, send it via header. Server
+  // forwards to OpenRouter under that key — we never persist it server-side.
+  // No key set → server uses our master key (hosted tier).
+  const byokKey = await getOpenRouterKey()
+
+  const headers: Record<string, string> = {
+    "content-type": "application/json",
+  }
+  if (byokKey) {
+    headers["x-byok-openrouter"] = byokKey
+  }
+
   const res = await expoFetch(`${getApiUrl()}/api/chat`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers,
     body: JSON.stringify({ model: opts.model, messages: opts.messages }),
     signal: opts.signal,
   })

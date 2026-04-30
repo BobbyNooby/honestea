@@ -1,3 +1,4 @@
+import { router } from "expo-router"
 import { Pressable, ScrollView, Text, View } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
@@ -59,6 +60,23 @@ export default function SettingsScreen() {
               </ThemeButton>
             </View>
           </View>
+        </Section>
+
+        <Section title="API access">
+          <Pressable
+            onPress={() => router.push("/byok" as never)}
+            className="-mx-2 flex-row items-center justify-between rounded-md px-2 py-2 active:bg-zinc-100 dark:active:bg-zinc-900"
+          >
+            <View className="flex-1 gap-0.5">
+              <Text className="text-base text-zinc-900 dark:text-zinc-100">
+                Bring your own keys
+              </Text>
+              <Text className="text-xs text-zinc-500 dark:text-zinc-400">
+                Use your OpenRouter key (or direct provider keys) to skip our markup.
+              </Text>
+            </View>
+            <Text className="ml-3 text-zinc-400 dark:text-zinc-500">›</Text>
+          </Pressable>
         </Section>
 
         <Section title="Model">
