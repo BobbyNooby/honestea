@@ -72,10 +72,6 @@ export default function RootLayout() {
                     <Stack.Screen name="index" />
                     <Stack.Screen name="settings" options={{ headerShown: true, title: "Settings" }} />
                     <Stack.Screen name="byok" options={{ headerShown: true, title: "API Keys" }} />
-                    <Stack.Screen
-                      name="modal"
-                      options={{ presentation: "modal", title: "Modal" }}
-                    />
                   </Stack>
                 </Drawer>
               )}
