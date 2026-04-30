@@ -282,6 +282,7 @@ export default function ChatScreen() {
           promptTokens,
           completionTokens,
           costUsd,
+          provider: result.provider,
         })
 
         setMessages((m) =>
@@ -294,6 +295,7 @@ export default function ChatScreen() {
                   costUsd,
                   promptTokens,
                   completionTokens,
+                  provider: result.provider,
                 }
               : msg,
           ),
@@ -570,6 +572,7 @@ export default function ChatScreen() {
               <Text className="text-[10px] text-zinc-500 dark:text-zinc-400">
                 ~{formatUsd(usd ?? 0)}
                 {item.modelId ? ` · ${shortModelName(item.modelId)}` : ""}
+                {item.provider ? ` · via ${providerLabel(item.provider)}` : ""}
               </Text>
             )}
             {showActions && (
@@ -717,6 +720,10 @@ export default function ChatScreen() {
 
 function shortModelName(id: string): string {
   return id.split("/").pop() ?? id
+}
+
+function providerLabel(provider: "openrouter" | "anthropic"): string {
+  return provider === "anthropic" ? "Anthropic" : "OpenRouter"
 }
 
 function CompactedDivider() {
