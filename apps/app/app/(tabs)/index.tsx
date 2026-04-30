@@ -1,11 +1,19 @@
 import { useCallback, useRef, useState } from "react"
-import { FlatList, KeyboardAvoidingView, Platform, Text, View } from "react-native"
+import {
+  FlatList,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  Text,
+  View,
+} from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/cn"
 import { streamChat, type ChatMessage } from "@/lib/api"
+import { useSidebar } from "@/lib/sidebar-context"
 
 const DEFAULT_MODEL = "minimax/minimax-m2.5"
 
@@ -14,6 +22,7 @@ interface UiMessage extends ChatMessage {
 }
 
 export default function ChatScreen() {
+  const sidebar = useSidebar()
   const [messages, setMessages] = useState<UiMessage[]>([])
   const [input, setInput] = useState("")
   const [streaming, setStreaming] = useState(false)
@@ -107,13 +116,23 @@ export default function ChatScreen() {
         className="flex-1"
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <View className="px-5 pb-2 pt-3">
-          <Text className="text-3xl font-bold text-zinc-900 dark:text-zinc-100">
-            Honest AI
-          </Text>
-          <Text className="text-xs text-zinc-500 dark:text-zinc-400">
-            {DEFAULT_MODEL}
-          </Text>
+        <View className="flex-row items-center gap-3 px-3 pb-2 pt-2">
+          <Pressable
+            onPress={sidebar.open}
+            hitSlop={8}
+            className="h-10 w-10 items-center justify-center rounded-md active:bg-zinc-100 dark:active:bg-zinc-800"
+            accessibilityLabel="Open sidebar"
+          >
+            <Text className="text-2xl text-zinc-900 dark:text-zinc-100">☰</Text>
+          </Pressable>
+          <View className="flex-1">
+            <Text className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
+              Honest AI
+            </Text>
+            <Text className="text-xs text-zinc-500 dark:text-zinc-400">
+              {DEFAULT_MODEL}
+            </Text>
+          </View>
         </View>
 
         <FlatList

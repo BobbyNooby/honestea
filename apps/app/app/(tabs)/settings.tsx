@@ -1,23 +1,35 @@
-import { ScrollView, Text, View } from "react-native"
+import { Pressable, ScrollView, Text, View } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
+import { useSidebar } from "@/lib/sidebar-context"
 import { useThemePreference, type ThemePreference } from "@/lib/theme"
 
 export default function SettingsScreen() {
+  const sidebar = useSidebar()
   const [pref, setPref] = useThemePreference()
 
   return (
     <SafeAreaView className="flex-1 bg-white dark:bg-zinc-950" edges={["top"]}>
       <ScrollView contentContainerClassName="p-5 gap-6">
-        <View className="gap-1">
-          <Text className="text-3xl font-bold text-zinc-900 dark:text-zinc-100">
-            Settings
-          </Text>
-          <Text className="text-sm text-zinc-500 dark:text-zinc-400">
-            Configure your chat experience.
-          </Text>
+        <View className="flex-row items-center gap-3">
+          <Pressable
+            onPress={sidebar.open}
+            hitSlop={8}
+            className="-ml-2 h-10 w-10 items-center justify-center rounded-md active:bg-zinc-100 dark:active:bg-zinc-800"
+            accessibilityLabel="Open sidebar"
+          >
+            <Text className="text-2xl text-zinc-900 dark:text-zinc-100">☰</Text>
+          </Pressable>
+          <View className="flex-1 gap-1">
+            <Text className="text-3xl font-bold text-zinc-900 dark:text-zinc-100">
+              Settings
+            </Text>
+            <Text className="text-sm text-zinc-500 dark:text-zinc-400">
+              Configure your chat experience.
+            </Text>
+          </View>
         </View>
 
         <Section title="Appearance">
