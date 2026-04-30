@@ -2,9 +2,10 @@ import { IconKey, IconMenu2 } from "@tabler/icons-react-native"
 import * as Clipboard from "expo-clipboard"
 import * as Haptics from "expo-haptics"
 import { router } from "expo-router"
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   KeyboardAvoidingView,
   Platform,
@@ -24,14 +25,18 @@ import {
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { ChatActionsMenu } from "@/components/chat-actions-menu"
 import { ChatStatusRow } from "@/components/chat-status-row"
 import { MarkdownText } from "@/components/markdown-text"
+import { MessageActions } from "@/components/message-actions"
 import { ModelSelector } from "@/components/model-selector"
+import { RenameDialog } from "@/components/rename-dialog"
 import { streamChat } from "@/lib/api"
 import { useByokStatus } from "@/lib/byok"
 import { useConversations } from "@/lib/conversations-context"
 import {
   addMessage,
+  deleteMessagesFrom,
   listMessages,
   renameConversation,
   updateMessage,
@@ -50,14 +55,36 @@ export default function ChatScreen() {
   const sidebar = useSidebar()
   const byok = useByokStatus()
   const { registry } = useModelRegistry()
-  const dark = useColorScheme() === "dark"
   const { modelId, setModelId } = useSelectedModel()
   const conversations = useConversations()
+  const dark = useColorScheme() === "dark"
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState("")
   const [streaming, setStreaming] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [renameTarget, setRenameTarget] = useState<{
+    id: string
+    title: string | null
+  } | null>(null)
   const listRef = useRef<FlatList<Message>>(null)
+
+  const currentConversation = useMemo(
+    () =>
+      conversations.conversations.find(
+        (c) => c.id === conversations.currentId,
+      ) ?? null,
+    [conversations.conversations, conversations.currentId],
+  )
+
+  // Index of the latest assistant message — only it gets the regenerate
+  // affordance, since regenerating a middle turn would discard everything
+  // after it.
+  const lastAssistantIdx = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i]?.role === "assistant") return i
+    }
+    return -1
+  }, [messages])
 
   // Load messages when the current conversation changes (sidebar selection,
   // or on initial app launch resuming the last-used convo).
@@ -85,24 +112,27 @@ export default function ChatScreen() {
     [conversations, setModelId],
   )
 
-  const send = useCallback(async () => {
-    const text = input.trim()
-    if (!text || streaming) return
+  const copyMessage = useCallback(async (text: string) => {
+    if (!text) return
+    await Clipboard.setStringAsync(text)
+    Haptics.selectionAsync().catch(() => {})
+  }, [])
 
-    setError(null)
-    setStreaming(true)
-    setInput("")
-
-    try {
-      // Ensure there's a conversation to write into. Lazy-create on first send.
-      const conversationId =
-        conversations.currentId ?? (await conversations.startNew(modelId))
-
-      const userRow = await addMessage({
-        conversationId,
-        role: "user",
-        content: text,
-      })
+  /**
+   * Stream an assistant turn given the messages that should form its
+   * context. Inserts the streaming row, drives the SSE, finalizes content +
+   * usage on done. Does NOT insert a user message — caller controls that
+   * (send adds one, regenerate doesn't).
+   */
+  const streamAssistantTurn = useCallback(
+    async (params: {
+      conversationId: string
+      contextMessages: Message[]
+      isFirstTurn: boolean
+      firstTurnText?: string
+    }) => {
+      const { conversationId, contextMessages, isFirstTurn, firstTurnText } =
+        params
 
       const assistantRow = await addMessage({
         conversationId,
@@ -112,15 +142,13 @@ export default function ChatScreen() {
         status: "streaming",
       })
 
-      const before = messages
-      const transcript = [...before, userRow, assistantRow]
-      setMessages(transcript)
+      setMessages((m) => [...m, assistantRow])
 
       let buffer = ""
       try {
         const result = await streamChat({
           model: modelId,
-          messages: [...before, userRow].map(({ role, content }) => ({
+          messages: contextMessages.map(({ role, content }) => ({
             role,
             content,
           })),
@@ -134,13 +162,9 @@ export default function ChatScreen() {
           },
         })
 
-        // Prefer real usage from OpenRouter's final SSE chunk over the
-        // 4-chars-per-token estimate. `usage.cost` (USD) is what the key was
-        // actually charged including OR's markup — authoritative. Fall back
-        // to estimation when OR didn't include usage (some niche providers).
         const promptTokens =
           result.usage?.promptTokens ??
-          estimateTokens([...before, userRow].map((m) => m.content).join("\n"))
+          estimateTokens(contextMessages.map((m) => m.content).join("\n"))
         const completionTokens =
           result.usage?.completionTokens ?? estimateTokens(buffer)
 
@@ -150,7 +174,7 @@ export default function ChatScreen() {
             : (estimateAssistantCost({
                 registry: registry ?? null,
                 modelId,
-                history: [...before, userRow],
+                history: contextMessages,
                 completion: buffer,
               }) ?? null)
 
@@ -178,12 +202,9 @@ export default function ChatScreen() {
           ),
         )
 
-        // First turn → kick off title generation (cheapest model, fire-
-        // and-forget). The convo's `title` stays null until this lands; the
-        // sidebar shows "New chat" in the meantime.
-        if (before.length === 0) {
+        if (isFirstTurn && firstTurnText) {
           void generateTitle({
-            userMessage: text,
+            userMessage: firstTurnText,
             assistantResponse: buffer,
           }).then(async (title) => {
             if (!title) return
@@ -206,19 +227,156 @@ export default function ChatScreen() {
           ),
         )
       }
+    },
+    [conversations, modelId, registry],
+  )
+
+  const send = useCallback(async () => {
+    const text = input.trim()
+    if (!text || streaming) return
+
+    setError(null)
+    setStreaming(true)
+    setInput("")
+
+    try {
+      const conversationId =
+        conversations.currentId ?? (await conversations.startNew(modelId))
+
+      const userRow = await addMessage({
+        conversationId,
+        role: "user",
+        content: text,
+      })
+
+      const before = messages
+      setMessages([...before, userRow])
+
+      await streamAssistantTurn({
+        conversationId,
+        contextMessages: [...before, userRow],
+        isFirstTurn: before.length === 0,
+        firstTurnText: text,
+      })
     } finally {
       setStreaming(false)
     }
-  }, [conversations, input, messages, modelId, registry, streaming])
+  }, [conversations, input, messages, modelId, streaming, streamAssistantTurn])
 
-  const copyMessage = useCallback(async (text: string) => {
-    if (!text) return
-    await Clipboard.setStringAsync(text)
-    Haptics.selectionAsync().catch(() => {})
-  }, [])
+  const regenerate = useCallback(
+    async (assistantMessageId: string) => {
+      if (streaming) return
+      const idx = messages.findIndex((m) => m.id === assistantMessageId)
+      if (idx === -1) return
+      const target = messages[idx]
+      if (!target) return
+      // Walk back to the most recent user message preceding the target.
+      const userIdx = (() => {
+        for (let i = idx - 1; i >= 0; i--) {
+          if (messages[i]?.role === "user") return i
+        }
+        return -1
+      })()
+      if (userIdx === -1) return
+
+      setError(null)
+      setStreaming(true)
+      try {
+        // Drop the target assistant + everything after it, both in the DB
+        // and in local state. The user message we're regenerating against
+        // stays. Deleting from `target.createdAt` covers the assistant row
+        // itself and any subsequent rows.
+        await deleteMessagesFrom(target.conversationId, target.createdAt)
+        const trimmed = messages.slice(0, idx)
+        setMessages(trimmed)
+
+        await streamAssistantTurn({
+          conversationId: target.conversationId,
+          contextMessages: trimmed,
+          isFirstTurn: false,
+        })
+      } finally {
+        setStreaming(false)
+      }
+    },
+    [messages, streaming, streamAssistantTurn],
+  )
+
+  // ---- Triple-dot menu actions ----
+
+  const submitRename = useCallback(
+    async (id: string, next: string) => {
+      setRenameTarget(null)
+      const trimmed = next.trim()
+      if (!trimmed) return
+      await renameConversation(id, trimmed)
+      await conversations.refresh()
+    },
+    [conversations],
+  )
+
+  const handleRegenerateTitle = useCallback(async () => {
+    if (!currentConversation) return
+    const msgs = await listMessages(currentConversation.id)
+    const firstUser = msgs.find((m) => m.role === "user")
+    const firstAssistant = msgs.find(
+      (m) => m.role === "assistant" && m.status === "complete",
+    )
+    if (!firstUser || !firstAssistant) {
+      Alert.alert(
+        "Cannot regenerate title",
+        "Send at least one message and wait for the reply to finish first.",
+      )
+      return
+    }
+    const title = await generateTitle({
+      userMessage: firstUser.content,
+      assistantResponse: firstAssistant.content,
+    })
+    if (!title) {
+      Alert.alert(
+        "Title generation failed",
+        "Check your OpenRouter key and try again.",
+      )
+      return
+    }
+    await renameConversation(currentConversation.id, title)
+    await conversations.refresh()
+  }, [conversations, currentConversation])
+
+  const handleToggleStar = useCallback(async () => {
+    if (!currentConversation) return
+    await conversations.setStarred(
+      currentConversation.id,
+      !currentConversation.starred,
+    )
+  }, [conversations, currentConversation])
+
+  const handleDelete = useCallback(() => {
+    if (!currentConversation) return
+    Alert.alert(
+      "Delete chat?",
+      currentConversation.title ?? "New chat",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => {
+            void conversations.remove(currentConversation.id)
+          },
+        },
+      ],
+      { cancelable: true },
+    )
+  }, [conversations, currentConversation])
+
+  const handleNewChat = useCallback(async () => {
+    await conversations.startNew(modelId)
+  }, [conversations, modelId])
 
   const renderItem = useCallback(
-    ({ item }: { item: Message }) => {
+    ({ item, index }: { item: Message; index: number }) => {
       const isUser = item.role === "user"
       const showCost =
         !isUser && typeof item.costCents === "number" && item.status === "complete"
@@ -237,14 +395,13 @@ export default function ChatScreen() {
         )
       }
 
-      // Assistant — no bubble. Just markdown text on the page background, with
-      // a thin metadata footer below.
+      // Assistant — no bubble. Markdown text on the page background, action
+      // row below, optional metadata footer.
+      const showActions = item.status === "complete" || item.status === "error"
+      const isLastAssistant = index === lastAssistantIdx
+
       return (
-        <Pressable
-          onLongPress={() => copyMessage(item.content)}
-          delayLongPress={400}
-          className="self-stretch gap-1 px-1"
-        >
+        <View className="self-stretch gap-1 px-1">
           {item.content ? (
             <MarkdownText>{item.content}</MarkdownText>
           ) : item.status === "streaming" ? (
@@ -252,21 +409,31 @@ export default function ChatScreen() {
               …
             </Text>
           ) : null}
+          {isErrored && (
+            <Text className="text-[10px] text-red-600 dark:text-red-400">
+              Response failed to complete.
+            </Text>
+          )}
           {showCost && (
             <Text className="text-[10px] text-zinc-500 dark:text-zinc-400">
               ~{formatCents(item.costCents ?? 0)}
               {item.modelId ? ` · ${shortModelName(item.modelId)}` : ""}
             </Text>
           )}
-          {isErrored && (
-            <Text className="text-[10px] text-red-600 dark:text-red-400">
-              Response failed to complete.
-            </Text>
+          {showActions && (
+            <MessageActions
+              messageId={item.id}
+              content={item.content}
+              canRegenerate={isLastAssistant && !streaming}
+              onRegenerate={() => {
+                void regenerate(item.id)
+              }}
+            />
           )}
-        </Pressable>
+        </View>
       )
     },
-    [copyMessage],
+    [copyMessage, lastAssistantIdx, regenerate, streaming],
   )
 
   return (
@@ -291,7 +458,26 @@ export default function ChatScreen() {
           <View className="flex-1 items-center">
             <ModelSelector modelId={modelId} onChange={handleModelChange} />
           </View>
-          <View className="h-10 w-10" />
+          <ChatActionsMenu
+            conversation={currentConversation}
+            onRename={() => {
+              if (!currentConversation) return
+              setRenameTarget({
+                id: currentConversation.id,
+                title: currentConversation.title,
+              })
+            }}
+            onRegenerateTitle={() => {
+              void handleRegenerateTitle()
+            }}
+            onToggleStar={() => {
+              void handleToggleStar()
+            }}
+            onDelete={handleDelete}
+            onNewChat={() => {
+              void handleNewChat()
+            }}
+          />
         </View>
 
         {!byok.ready ? (
@@ -358,6 +544,12 @@ export default function ChatScreen() {
           </>
         )}
       </KeyboardAvoidingView>
+
+      <RenameDialog
+        initial={renameTarget}
+        onCancel={() => setRenameTarget(null)}
+        onSubmit={submitRename}
+      />
     </SafeAreaView>
   )
 }

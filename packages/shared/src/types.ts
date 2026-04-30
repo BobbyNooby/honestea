@@ -35,6 +35,8 @@ export interface Conversation {
   /** OpenRouter slug of the most recently used model (picker default on resume). */
   modelId: string
   archived: boolean
+  /** User-pinned via the triple-dot menu. Surfaces above non-starred chats in the sidebar. */
+  starred: boolean
   /** ms epoch when this conversation was last pushed to the server. null = never. */
   syncedAt: number | null
   /** ms epoch */

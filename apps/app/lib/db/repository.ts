@@ -1,5 +1,5 @@
 import { randomUUID } from "expo-crypto"
-import { and, asc, desc, eq } from "drizzle-orm"
+import { and, asc, desc, eq, gte } from "drizzle-orm"
 
 import type { Conversation, Message, MessageStatus, Role } from "@honestea/shared"
 
@@ -25,6 +25,7 @@ export async function createConversation(opts: {
     title: null,
     modelId: opts.modelId,
     archived: false,
+    starred: false,
     syncedAt: null,
     createdAt: ts,
     updatedAt: ts,
@@ -34,11 +35,23 @@ export async function createConversation(opts: {
 }
 
 export async function listConversations(): Promise<Conversation[]> {
+  // Starred chats float to the top, then by recency. Drizzle's orderBy with
+  // multiple columns applies left-to-right.
   return db
     .select()
     .from(conversations)
     .where(eq(conversations.archived, false))
-    .orderBy(desc(conversations.updatedAt))
+    .orderBy(desc(conversations.starred), desc(conversations.updatedAt))
+}
+
+export async function setConversationStarred(
+  id: string,
+  starred: boolean,
+): Promise<void> {
+  await db
+    .update(conversations)
+    .set({ starred, updatedAt: now() })
+    .where(eq(conversations.id, id))
 }
 
 export async function getConversation(id: string): Promise<Conversation | null> {
@@ -126,6 +139,26 @@ export async function updateMessage(
   >,
 ): Promise<void> {
   await db.update(messages).set(patch).where(eq(messages.id, id))
+}
+
+/**
+ * Delete every message in the conversation whose createdAt is at or after
+ * the given timestamp. Used by the regenerate-message action: drop the
+ * assistant turn we're regenerating + everything that came after it, so
+ * the new stream becomes the canonical continuation.
+ */
+export async function deleteMessagesFrom(
+  conversationId: string,
+  sinceCreatedAt: number,
+): Promise<void> {
+  await db
+    .delete(messages)
+    .where(
+      and(
+        eq(messages.conversationId, conversationId),
+        gte(messages.createdAt, sinceCreatedAt),
+      ),
+    )
 }
 
 /**

@@ -56,11 +56,29 @@ CREATE TABLE IF NOT EXISTS messages (
 );
 `
 
+/**
+ * v2: starred flag for the triple-dot menu's pin/star action. Idempotent
+ * via a column-existence check (sqlite ALTER TABLE doesn't have IF NOT
+ * EXISTS for ADD COLUMN).
+ */
+function applyMigrationV2() {
+  const cols = sqlite.getAllSync<{ name: string }>(
+    "PRAGMA table_info(conversations);",
+  )
+  const hasStarred = cols.some((c) => c.name === "starred")
+  if (!hasStarred) {
+    sqlite.execSync(
+      "ALTER TABLE conversations ADD COLUMN starred integer DEFAULT 0 NOT NULL;",
+    )
+  }
+}
+
 let migrated = false
 
 function applyMigrations() {
   if (migrated) return
   sqlite.execSync(MIGRATION_V1)
+  applyMigrationV2()
   migrated = true
 }
 

@@ -7,6 +7,7 @@ import {
   deleteConversation as repoDelete,
   listConversations,
   setConversationModel,
+  setConversationStarred,
 } from "./db/repository"
 
 interface ConversationsState {
@@ -24,6 +25,8 @@ interface ConversationsState {
   remove: (id: string) => Promise<void>
   /** Persist a model change for the current conversation. */
   updateCurrentModel: (modelId: string) => Promise<void>
+  /** Toggle the star/pin flag on a conversation. */
+  setStarred: (id: string, starred: boolean) => Promise<void>
 }
 
 const Ctx = createContext<ConversationsState | null>(null)
@@ -73,6 +76,14 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
     [currentId, refresh],
   )
 
+  const setStarred = useCallback(
+    async (id: string, starred: boolean) => {
+      await setConversationStarred(id, starred)
+      await refresh()
+    },
+    [refresh],
+  )
+
   const value: ConversationsState = {
     currentId,
     conversations,
@@ -81,6 +92,7 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
     select,
     remove,
     updateCurrentModel,
+    setStarred,
   }
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>

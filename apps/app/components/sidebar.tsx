@@ -2,18 +2,15 @@ import {
   IconChevronRight,
   IconCloud,
   IconDeviceMobile,
+  IconStarFilled,
 } from "@tabler/icons-react-native"
 import { router, useFocusEffect } from "expo-router"
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useState } from "react"
 import {
   Alert,
   FlatList,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
   Pressable,
   Text,
-  TextInput,
   useColorScheme,
   View,
 } from "react-native"
@@ -21,6 +18,7 @@ import { SafeAreaView } from "react-native-safe-area-context"
 
 import type { Conversation } from "@honestea/shared"
 
+import { RenameDialog } from "@/components/rename-dialog"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/cn"
 import { useConversations } from "@/lib/conversations-context"
@@ -125,12 +123,11 @@ export function Sidebar({ onClose }: SidebarProps) {
     ])
   }
 
-  const submitRename = async (next: string) => {
-    if (!renameTarget) return
-    const trimmed = next.trim()
+  const submitRename = async (id: string, next: string) => {
     setRenameTarget(null)
-    if (!trimmed || trimmed === renameTarget.title) return
-    await renameConversation(renameTarget.id, trimmed)
+    const trimmed = next.trim()
+    if (!trimmed) return
+    await renameConversation(id, trimmed)
     await refresh()
   }
 
@@ -190,7 +187,11 @@ export function Sidebar({ onClose }: SidebarProps) {
       </View>
 
       <RenameDialog
-        target={renameTarget}
+        initial={
+          renameTarget
+            ? { id: renameTarget.id, title: renameTarget.title }
+            : null
+        }
         onCancel={() => setRenameTarget(null)}
         onSubmit={submitRename}
       />
@@ -232,6 +233,9 @@ function ConversationRow({
       >
         {convo.title ?? "New chat"}
       </Text>
+      {convo.starred && (
+        <IconStarFilled size={13} color="#eab308" />
+      )}
     </Pressable>
   )
 }
@@ -247,66 +251,3 @@ function SettingsChevron() {
   )
 }
 
-/**
- * Cross-platform rename dialog. `Alert.prompt` is iOS-only, so we render a
- * lightweight modal with a TextInput and matching primary/secondary buttons.
- */
-function RenameDialog({
-  target,
-  onCancel,
-  onSubmit,
-}: {
-  target: Conversation | null
-  onCancel: () => void
-  onSubmit: (next: string) => void
-}) {
-  const [text, setText] = useState("")
-
-  useEffect(() => {
-    setText(target?.title ?? "")
-  }, [target])
-
-  const visible = target !== null
-
-  return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onCancel}
-    >
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        className="flex-1"
-      >
-        <Pressable
-          onPress={onCancel}
-          className="flex-1 items-center justify-center bg-black/40 px-8"
-        >
-          <Pressable className="w-full max-w-sm gap-3 rounded-2xl bg-white p-5 dark:bg-zinc-900">
-            <Text className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-              Rename chat
-            </Text>
-            <TextInput
-              value={text}
-              onChangeText={setText}
-              autoFocus
-              placeholder="Chat title"
-              placeholderTextColor="#71717a"
-              selectTextOnFocus
-              className="rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-base text-zinc-900 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
-            />
-            <View className="mt-1 flex-row justify-end gap-2">
-              <Button variant="outline" size="sm" onPress={onCancel}>
-                Cancel
-              </Button>
-              <Button size="sm" onPress={() => onSubmit(text)}>
-                Save
-              </Button>
-            </View>
-          </Pressable>
-        </Pressable>
-      </KeyboardAvoidingView>
-    </Modal>
-  )
-}

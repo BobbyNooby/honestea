@@ -17,6 +17,7 @@ export const conversations = sqliteTable("conversations", {
   title: text("title"),
   modelId: text("model_id").notNull(),
   archived: integer("archived", { mode: "boolean" }).notNull().default(false),
+  starred: integer("starred", { mode: "boolean" }).notNull().default(false),
   syncedAt: integer("synced_at"),
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
