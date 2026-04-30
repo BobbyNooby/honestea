@@ -1,5 +1,5 @@
 import { router } from "expo-router"
-import { useCallback, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import {
   ActivityIndicator,
   FlatList,
@@ -15,110 +15,187 @@ import {
   calculateCost,
   estimateTokens,
   formatCents,
+  type Message,
 } from "@honestea/shared"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { ChatStatusRow } from "@/components/chat-status-row"
+import { ModelSelector } from "@/components/model-selector"
 import { cn } from "@/lib/cn"
-import { streamChat, type ChatMessage } from "@/lib/api"
+import { streamChat } from "@/lib/api"
 import { useByokStatus } from "@/lib/byok"
+import { useConversations } from "@/lib/conversations-context"
+import {
+  addMessage,
+  listMessages,
+  updateMessage,
+} from "@/lib/db/repository"
 import {
   findModel,
   pricingFor,
   useModelRegistry,
   type RegistryModel,
 } from "@/lib/model-registry"
+import { useSelectedModel } from "@/lib/selected-model"
 import { useSidebar } from "@/lib/sidebar-context"
-
-const DEFAULT_MODEL = "minimax/minimax-m2.5"
-
-interface UiMessage extends ChatMessage {
-  id: string
-  costCents?: number
-  model?: string
-}
 
 export default function ChatScreen() {
   const sidebar = useSidebar()
   const byok = useByokStatus()
   const { registry } = useModelRegistry()
-  const [messages, setMessages] = useState<UiMessage[]>([])
+  const { modelId, setModelId } = useSelectedModel()
+  const conversations = useConversations()
+  const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState("")
   const [streaming, setStreaming] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const listRef = useRef<FlatList<UiMessage>>(null)
+  const listRef = useRef<FlatList<Message>>(null)
+
+  // Load messages when the current conversation changes (sidebar selection,
+  // or on initial app launch resuming the last-used convo).
+  useEffect(() => {
+    if (!conversations.currentId) {
+      setMessages([])
+      return
+    }
+    let cancelled = false
+    listMessages(conversations.currentId).then((rows) => {
+      if (!cancelled) setMessages(rows)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [conversations.currentId])
+
+  const handleModelChange = useCallback(
+    (next: string) => {
+      setModelId(next)
+      // Persist the switch so the picker defaults to it next time the user
+      // returns to this conversation.
+      void conversations.updateCurrentModel(next)
+    },
+    [conversations, setModelId],
+  )
 
   const send = useCallback(async () => {
     const text = input.trim()
     if (!text || streaming) return
 
     setError(null)
-    const userMsg: UiMessage = {
-      id: `u-${Date.now()}`,
-      role: "user",
-      content: text,
-    }
-    const assistantMsg: UiMessage = {
-      id: `a-${Date.now()}`,
-      role: "assistant",
-      content: "",
-    }
-    const conversation = [...messages, userMsg]
-    setMessages([...conversation, assistantMsg])
-    setInput("")
     setStreaming(true)
+    setInput("")
 
     try {
+      // Ensure there's a conversation to write into. Lazy-create on first send.
+      const conversationId =
+        conversations.currentId ?? (await conversations.startNew(modelId))
+
+      const userRow = await addMessage({
+        conversationId,
+        role: "user",
+        content: text,
+      })
+
+      const assistantRow = await addMessage({
+        conversationId,
+        role: "assistant",
+        content: "",
+        modelId,
+        status: "streaming",
+      })
+
+      const before = messages
+      const transcript = [...before, userRow, assistantRow]
+      setMessages(transcript)
+
       let buffer = ""
-      await streamChat({
-        model: DEFAULT_MODEL,
-        messages: conversation.map(({ role, content }) => ({ role, content })),
-        onToken: (chunk) => {
-          buffer += chunk
-          setMessages((m) =>
-            m.map((msg) =>
-              msg.id === assistantMsg.id ? { ...msg, content: buffer } : msg,
-            ),
-          )
-        },
-      })
-      // Once the stream finishes, estimate cost from input + output sizes.
-      const cost = estimateAssistantCost({
-        registry: registry ?? null,
-        modelId: DEFAULT_MODEL,
-        conversation,
-        completion: buffer,
-      })
-      setMessages((m) =>
-        m.map((msg) =>
-          msg.id === assistantMsg.id
-            ? { ...msg, costCents: cost, model: DEFAULT_MODEL }
-            : msg,
-        ),
-      )
-    } catch (e) {
-      const errorText = e instanceof Error ? e.message : "unknown error"
-      setError(errorText)
-      setMessages((m) =>
-        m.map((msg) =>
-          msg.id === assistantMsg.id
-            ? { ...msg, content: `[error: ${errorText}]` }
-            : msg,
-        ),
-      )
+      try {
+        await streamChat({
+          model: modelId,
+          messages: [...before, userRow].map(({ role, content }) => ({
+            role,
+            content,
+          })),
+          onToken: (chunk) => {
+            buffer += chunk
+            setMessages((m) =>
+              m.map((msg) =>
+                msg.id === assistantRow.id ? { ...msg, content: buffer } : msg,
+              ),
+            )
+          },
+        })
+
+        const cost = estimateAssistantCost({
+          registry: registry ?? null,
+          modelId,
+          history: [...before, userRow],
+          completion: buffer,
+        })
+
+        const promptTokens = estimateTokens(
+          [...before, userRow].map((m) => m.content).join("\n"),
+        )
+        const completionTokens = estimateTokens(buffer)
+
+        await updateMessage(assistantRow.id, {
+          content: buffer,
+          status: "complete",
+          modelId,
+          promptTokens,
+          completionTokens,
+          costCents: cost ?? null,
+        })
+
+        setMessages((m) =>
+          m.map((msg) =>
+            msg.id === assistantRow.id
+              ? {
+                  ...msg,
+                  content: buffer,
+                  status: "complete",
+                  costCents: cost ?? null,
+                  promptTokens,
+                  completionTokens,
+                }
+              : msg,
+          ),
+        )
+      } catch (e) {
+        const errorText = e instanceof Error ? e.message : "unknown error"
+        setError(errorText)
+        await updateMessage(assistantRow.id, {
+          content: buffer,
+          status: "error",
+        })
+        setMessages((m) =>
+          m.map((msg) =>
+            msg.id === assistantRow.id
+              ? { ...msg, content: buffer, status: "error" }
+              : msg,
+          ),
+        )
+      }
     } finally {
       setStreaming(false)
     }
-  }, [input, messages, streaming])
+  }, [conversations, input, messages, modelId, registry, streaming])
 
   const renderItem = useCallback(
-    ({ item }: { item: UiMessage }) => {
+    ({ item }: { item: Message }) => {
       const isUser = item.role === "user"
+      const showCost =
+        !isUser && typeof item.costCents === "number" && item.status === "complete"
+      const isErrored = item.status === "error"
       return (
         <View
           className={cn(
             "max-w-[88%] gap-1 rounded-lg p-3",
-            isUser ? "self-end bg-blue-500" : "self-start bg-zinc-100 dark:bg-zinc-800",
+            isUser
+              ? "self-end bg-blue-500"
+              : "self-start bg-zinc-100 dark:bg-zinc-800",
+            isErrored && "border border-red-500/40",
           )}
         >
           <Text
@@ -128,6 +205,7 @@ export default function ChatScreen() {
             )}
           >
             {isUser ? "you" : "assistant"}
+            {isErrored ? " · errored" : ""}
           </Text>
           <Text
             className={cn(
@@ -135,18 +213,21 @@ export default function ChatScreen() {
               isUser ? "text-white" : "text-zinc-900 dark:text-zinc-100",
             )}
           >
-            {item.content || (item.role === "assistant" && streaming ? "…" : "")}
+            {item.content ||
+              (item.role === "assistant" && item.status === "streaming"
+                ? "…"
+                : "")}
           </Text>
-          {!isUser && typeof item.costCents === "number" && (
+          {showCost && (
             <Text className="text-[10px] text-zinc-500 dark:text-zinc-400">
-              ~{formatCents(item.costCents)}
-              {item.model ? ` · ${shortModelName(item.model)}` : ""}
+              ~{formatCents(item.costCents ?? 0)}
+              {item.modelId ? ` · ${shortModelName(item.modelId)}` : ""}
             </Text>
           )}
         </View>
       )
     },
-    [streaming],
+    [],
   )
 
   return (
@@ -155,7 +236,7 @@ export default function ChatScreen() {
         className="flex-1"
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <View className="flex-row items-center gap-3 px-3 pb-2 pt-2">
+        <View className="flex-row items-center px-2 pb-2 pt-2">
           <Pressable
             onPress={sidebar.open}
             hitSlop={8}
@@ -164,14 +245,10 @@ export default function ChatScreen() {
           >
             <Text className="text-2xl text-zinc-900 dark:text-zinc-100">☰</Text>
           </Pressable>
-          <View className="flex-1">
-            <Text className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
-              Honest AI
-            </Text>
-            <Text className="text-xs text-zinc-500 dark:text-zinc-400">
-              {DEFAULT_MODEL}
-            </Text>
+          <View className="flex-1 items-center">
+            <ModelSelector modelId={modelId} onChange={handleModelChange} />
           </View>
+          <View className="h-10 w-10" />
         </View>
 
         {!byok.ready ? (
@@ -209,6 +286,12 @@ export default function ChatScreen() {
               </View>
             )}
 
+            <ChatStatusRow
+              messages={messages}
+              modelId={modelId}
+              registry={registry ?? null}
+            />
+
             <View className="flex-row items-end gap-2 border-t border-zinc-200 p-3 dark:border-zinc-800">
               <Input
                 value={input}
@@ -243,19 +326,19 @@ function shortModelName(id: string): string {
 function estimateAssistantCost({
   registry,
   modelId,
-  conversation,
+  history,
   completion,
 }: {
   registry: readonly RegistryModel[] | null
   modelId: string
-  conversation: UiMessage[]
+  history: { content: string }[]
   completion: string
 }): number | undefined {
   if (!registry) return undefined
   const model = findModel(registry, modelId)
   if (!model) return undefined
 
-  const promptText = conversation.map((m) => m.content).join("\n")
+  const promptText = history.map((m) => m.content).join("\n")
   const usage = {
     promptTokens: estimateTokens(promptText),
     completionTokens: estimateTokens(completion),

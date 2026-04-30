@@ -1,22 +1,46 @@
 export type Role = "user" | "assistant" | "system"
 
+/**
+ * Lifecycle of a single message row.
+ * - `pending`  — created, request not yet sent
+ * - `streaming` — request in flight, content being appended
+ * - `complete` — fully received
+ * - `error`    — request failed; content may be partial
+ *
+ * On app launch we sweep any `streaming` rows to `error` so a crash
+ * mid-stream doesn't leave the UI in a permanent "..." state.
+ */
+export type MessageStatus = "pending" | "streaming" | "complete" | "error"
+
 export interface Message {
   id: string
+  conversationId: string
   role: Role
   content: string
-  model?: ModelId
-  promptTokens?: number
-  completionTokens?: number
-  costCents?: number
-  createdAt: string
+  /** OpenRouter slug for assistant messages (e.g. "anthropic/claude-haiku-4.5"). */
+  modelId: string | null
+  promptTokens: number | null
+  completionTokens: number | null
+  costCents: number | null
+  status: MessageStatus
+  /** ms epoch */
+  createdAt: number
 }
 
 export interface Conversation {
   id: string
+  /** null = local-only (Phase 1). Non-null = synced to server under this user. */
   userId: string | null
-  title: string
-  createdAt: string
-  updatedAt: string
+  title: string | null
+  /** OpenRouter slug of the most recently used model (picker default on resume). */
+  modelId: string
+  archived: boolean
+  /** ms epoch when this conversation was last pushed to the server. null = never. */
+  syncedAt: number | null
+  /** ms epoch */
+  createdAt: number
+  /** ms epoch */
+  updatedAt: number
 }
 
 export interface User {

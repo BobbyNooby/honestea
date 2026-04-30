@@ -4,35 +4,14 @@ import { SafeAreaView } from "react-native-safe-area-context"
 
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
-import { useSidebar } from "@/lib/sidebar-context"
 import { useThemePreference, type ThemePreference } from "@/lib/theme"
 
 export default function SettingsScreen() {
-  const sidebar = useSidebar()
   const [pref, setPref] = useThemePreference()
 
   return (
     <SafeAreaView className="flex-1 bg-white dark:bg-zinc-950" edges={["top"]}>
       <ScrollView contentContainerClassName="p-5 gap-6">
-        <View className="flex-row items-center gap-3">
-          <Pressable
-            onPress={sidebar.open}
-            hitSlop={8}
-            className="-ml-2 h-10 w-10 items-center justify-center rounded-md active:bg-zinc-100 dark:active:bg-zinc-800"
-            accessibilityLabel="Open sidebar"
-          >
-            <Text className="text-2xl text-zinc-900 dark:text-zinc-100">☰</Text>
-          </Pressable>
-          <View className="flex-1 gap-1">
-            <Text className="text-3xl font-bold text-zinc-900 dark:text-zinc-100">
-              Settings
-            </Text>
-            <Text className="text-sm text-zinc-500 dark:text-zinc-400">
-              Configure your chat experience.
-            </Text>
-          </View>
-        </View>
-
         <Section title="Appearance">
           <Row
             label="Dark mode"
@@ -77,17 +56,6 @@ export default function SettingsScreen() {
             </View>
             <Text className="ml-3 text-zinc-400 dark:text-zinc-500">›</Text>
           </Pressable>
-        </Section>
-
-        <Section title="Model">
-          <Row
-            label="Default model"
-            description="The model used for new conversations."
-          >
-            <Text className="font-mono text-xs text-zinc-700 dark:text-zinc-300">
-              minimax/minimax-m2.5
-            </Text>
-          </Row>
         </Section>
 
         <Section title="About">

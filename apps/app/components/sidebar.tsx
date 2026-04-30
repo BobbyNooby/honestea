@@ -1,22 +1,63 @@
-import { router } from "expo-router"
-import { Pressable, Text, View } from "react-native"
+import { router, useFocusEffect } from "expo-router"
+import { useCallback, useState } from "react"
+import { Alert, FlatList, Pressable, Text, View } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
+import type { Conversation } from "@honestea/shared"
+
 import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/cn"
+import { useConversations } from "@/lib/conversations-context"
+import { useSelectedModel } from "@/lib/selected-model"
 
 export interface SidebarProps {
   onClose: () => void
 }
 
 export function Sidebar({ onClose }: SidebarProps) {
+  const { conversations, currentId, refresh, startNew, select, remove } =
+    useConversations()
+  const { modelId } = useSelectedModel()
+
+  // Refresh the list every time the drawer regains focus, so newly created
+  // conversations and titles updated by the title generator show up promptly.
+  useFocusEffect(
+    useCallback(() => {
+      refresh()
+    }, [refresh]),
+  )
+
   const goToSettings = () => {
     onClose()
-    router.push("/(tabs)/settings")
+    router.push("/settings")
   }
 
-  const newChat = () => {
-    // TODO: wire up to clear conversation state once persistence lands.
+  const handleNewChat = async () => {
+    await startNew(modelId)
     onClose()
+  }
+
+  const handleSelect = (id: string) => {
+    select(id)
+    onClose()
+  }
+
+  const handleDelete = (convo: Conversation) => {
+    Alert.alert(
+      "Delete chat?",
+      convo.title ?? "Untitled",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => {
+            void remove(convo.id)
+          },
+        },
+      ],
+      { cancelable: true },
+    )
   }
 
   return (
@@ -28,19 +69,35 @@ export function Sidebar({ onClose }: SidebarProps) {
           </Text>
         </View>
 
-        <Button onPress={newChat} variant="outline" className="mb-6">
+        <Button onPress={handleNewChat} variant="outline" className="mb-6">
           + New chat
         </Button>
 
         <Text className="mb-2 px-1 text-xs uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
           Recent
         </Text>
-        <View className="flex-1 items-center justify-center px-2">
-          <Text className="text-center text-sm text-zinc-500 dark:text-zinc-400">
-            No conversations yet. Once chat persistence lands, your history
-            will appear here.
-          </Text>
-        </View>
+
+        {conversations.length === 0 ? (
+          <View className="flex-1 items-center justify-center px-2">
+            <Text className="text-center text-sm text-zinc-500 dark:text-zinc-400">
+              No conversations yet. Tap + New chat to start one.
+            </Text>
+          </View>
+        ) : (
+          <FlatList
+            data={conversations}
+            keyExtractor={(c) => c.id}
+            renderItem={({ item }) => (
+              <ConversationRow
+                convo={item}
+                active={item.id === currentId}
+                onPress={() => handleSelect(item.id)}
+                onLongPress={() => handleDelete(item)}
+              />
+            )}
+            contentContainerClassName="gap-1 pb-4"
+          />
+        )}
 
         <View className="border-t border-zinc-200 pt-3 dark:border-zinc-800">
           <Pressable
@@ -58,5 +115,41 @@ export function Sidebar({ onClose }: SidebarProps) {
         </View>
       </View>
     </SafeAreaView>
+  )
+}
+
+function ConversationRow({
+  convo,
+  active,
+  onPress,
+  onLongPress,
+}: {
+  convo: Conversation
+  active: boolean
+  onPress: () => void
+  onLongPress: () => void
+}) {
+  const isCloud = convo.userId !== null
+  return (
+    <Pressable
+      onPress={onPress}
+      onLongPress={onLongPress}
+      delayLongPress={400}
+      className={cn(
+        "flex-row items-center gap-2 rounded-md px-2 py-2.5 active:bg-zinc-100 dark:active:bg-zinc-900",
+        active && "bg-zinc-100 dark:bg-zinc-900",
+      )}
+    >
+      <Text className="text-sm text-zinc-400 dark:text-zinc-500">
+        {/* Phase 1: every chat is local. The icon stays accurate when sync ships. */}
+        {isCloud ? "☁" : "▢"}
+      </Text>
+      <Text
+        numberOfLines={1}
+        className="flex-1 text-sm text-zinc-900 dark:text-zinc-100"
+      >
+        {convo.title ?? "New chat"}
+      </Text>
+    </Pressable>
   )
 }
