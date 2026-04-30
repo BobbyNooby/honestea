@@ -1,3 +1,3 @@
-export * from "./types.ts"
-export * from "./models.ts"
-export * from "./cost.ts"
+export * from "./types"
+export * from "./models"
+export * from "./cost"

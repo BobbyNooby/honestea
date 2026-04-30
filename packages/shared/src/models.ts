@@ -1,4 +1,4 @@
-import type { ModelId } from "./types.ts"
+import type { ModelId } from "./types"
 
 export type Provider = "anthropic" | "openai" | "google" | "moonshot" | "deepseek" | "mistral"
 
