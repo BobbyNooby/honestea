@@ -11,6 +11,7 @@ import Toast from "react-native-toast-message"
 
 import { Sidebar } from "@/components/sidebar"
 import { useColorScheme } from "@/hooks/use-color-scheme"
+import { ConfirmDialogProvider } from "@/lib/confirm-context"
 import { useRunMigrations } from "@/lib/db"
 import { sweepStreamingMessages } from "@/lib/db/repository"
 import { ConversationsProvider } from "@/lib/conversations-context"
@@ -56,6 +57,7 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
           <ConversationsProvider>
+            <ConfirmDialogProvider>
             <SidebarProvider
               render={({ isOpen, open, close }) => (
                 <Drawer
@@ -79,6 +81,7 @@ export default function RootLayout() {
               )}
             />
             <StatusBar style="auto" />
+            </ConfirmDialogProvider>
           </ConversationsProvider>
         </ThemeProvider>
       </SafeAreaProvider>

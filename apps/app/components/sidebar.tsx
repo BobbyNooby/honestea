@@ -2,12 +2,14 @@ import {
   IconChevronRight,
   IconCloud,
   IconDeviceMobile,
+  IconPencil,
+  IconRefresh,
   IconStarFilled,
+  IconTrash,
 } from "@tabler/icons-react-native"
 import { router, useFocusEffect } from "expo-router"
 import { useCallback, useState } from "react"
 import {
-  Alert,
   FlatList,
   Pressable,
   Text,
@@ -19,9 +21,11 @@ import Toast from "react-native-toast-message"
 
 import type { Conversation } from "@honestea/shared"
 
+import { ActionSheet } from "@/components/action-sheet"
 import { RenameDialog } from "@/components/rename-dialog"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/cn"
+import { useConfirm } from "@/lib/confirm-context"
 import { useConversations } from "@/lib/conversations-context"
 import { listMessages, renameConversation } from "@/lib/db/repository"
 import { useSelectedModel } from "@/lib/selected-model"
@@ -35,7 +39,9 @@ export function Sidebar({ onClose }: SidebarProps) {
   const { conversations, currentId, refresh, startNew, select, remove } =
     useConversations()
   const { modelId } = useSelectedModel()
+  const confirm = useConfirm()
   const [renameTarget, setRenameTarget] = useState<Conversation | null>(null)
+  const [actionsTarget, setActionsTarget] = useState<Conversation | null>(null)
 
   // Refresh the list every time the drawer regains focus, so newly created
   // conversations and titles updated by the title generator show up promptly.
@@ -60,22 +66,14 @@ export function Sidebar({ onClose }: SidebarProps) {
     onClose()
   }
 
-  const confirmDelete = (convo: Conversation) => {
-    Alert.alert(
-      "Delete chat?",
-      convo.title ?? "New chat",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: () => {
-            void remove(convo.id)
-          },
-        },
-      ],
-      { cancelable: true },
-    )
+  const confirmDelete = async (convo: Conversation) => {
+    const ok = await confirm({
+      title: "Delete chat?",
+      message: convo.title ?? "New chat",
+      confirmLabel: "Delete",
+      destructive: true,
+    })
+    if (ok) await remove(convo.id)
   }
 
   const regenerateTitle = async (convo: Conversation) => {
@@ -99,24 +97,6 @@ export function Sidebar({ onClose }: SidebarProps) {
     await renameConversation(convo.id, title)
     await refresh()
     Toast.show({ type: "success", text1: "Title regenerated" })
-  }
-
-  const showActions = (convo: Conversation) => {
-    Alert.alert(convo.title ?? "New chat", undefined, [
-      { text: "Rename", onPress: () => setRenameTarget(convo) },
-      {
-        text: "Regenerate title",
-        onPress: () => {
-          void regenerateTitle(convo)
-        },
-      },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: () => confirmDelete(convo),
-      },
-      { text: "Cancel", style: "cancel" },
-    ])
   }
 
   const submitRename = async (id: string, next: string) => {
@@ -159,7 +139,7 @@ export function Sidebar({ onClose }: SidebarProps) {
                 convo={item}
                 active={item.id === currentId}
                 onPress={() => handleSelect(item.id)}
-                onLongPress={() => showActions(item)}
+                onLongPress={() => setActionsTarget(item)}
               />
             )}
             contentContainerClassName="gap-1 pb-4"
@@ -181,6 +161,38 @@ export function Sidebar({ onClose }: SidebarProps) {
           </Text>
         </View>
       </View>
+
+      <ActionSheet
+        open={actionsTarget !== null}
+        title={actionsTarget?.title ?? "New chat"}
+        onClose={() => setActionsTarget(null)}
+        actions={
+          actionsTarget
+            ? [
+                {
+                  label: "Rename",
+                  icon: IconPencil,
+                  onPress: () => setRenameTarget(actionsTarget),
+                },
+                {
+                  label: "Regenerate title",
+                  icon: IconRefresh,
+                  onPress: () => {
+                    void regenerateTitle(actionsTarget)
+                  },
+                },
+                {
+                  label: "Delete",
+                  icon: IconTrash,
+                  destructive: true,
+                  onPress: () => {
+                    void confirmDelete(actionsTarget)
+                  },
+                },
+              ]
+            : []
+        }
+      />
 
       <RenameDialog
         initial={

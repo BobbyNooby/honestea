@@ -10,7 +10,6 @@ import { router } from "expo-router"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   KeyboardAvoidingView,
   Platform,
@@ -35,6 +34,7 @@ import { RenameDialog } from "@/components/rename-dialog"
 import { streamChat } from "@/lib/api"
 import { useByokStatus } from "@/lib/byok"
 import { compact, projectPromptTokens } from "@/lib/compaction"
+import { useConfirm } from "@/lib/confirm-context"
 import { useConversations } from "@/lib/conversations-context"
 import {
   addMessage,
@@ -59,6 +59,7 @@ export default function ChatScreen() {
   const { registry } = useModelRegistry()
   const { modelId, setModelId } = useSelectedModel()
   const conversations = useConversations()
+  const confirm = useConfirm()
   const dark = useColorScheme() === "dark"
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState("")
@@ -495,24 +496,16 @@ export default function ChatScreen() {
     )
   }, [conversations, currentConversation])
 
-  const handleDelete = useCallback(() => {
+  const handleDelete = useCallback(async () => {
     if (!currentConversation) return
-    Alert.alert(
-      "Delete chat?",
-      currentConversation.title ?? "New chat",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: () => {
-            void conversations.remove(currentConversation.id)
-          },
-        },
-      ],
-      { cancelable: true },
-    )
-  }, [conversations, currentConversation])
+    const ok = await confirm({
+      title: "Delete chat?",
+      message: currentConversation.title ?? "New chat",
+      confirmLabel: "Delete",
+      destructive: true,
+    })
+    if (ok) await conversations.remove(currentConversation.id)
+  }, [confirm, conversations, currentConversation])
 
   const handleNewChat = useCallback(async () => {
     await conversations.startNew(modelId)
