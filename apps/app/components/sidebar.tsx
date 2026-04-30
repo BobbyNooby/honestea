@@ -15,6 +15,7 @@ import {
   View,
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
+import { toast } from "sonner-native"
 
 import type { Conversation } from "@honestea/shared"
 
@@ -84,10 +85,7 @@ export function Sidebar({ onClose }: SidebarProps) {
       (m) => m.role === "assistant" && m.status === "complete",
     )
     if (!firstUser || !firstAssistant) {
-      Alert.alert(
-        "Cannot regenerate title",
-        "Send at least one message and wait for the reply to finish first.",
-      )
+      toast.error("Send a message first")
       return
     }
     const title = await generateTitle({
@@ -95,14 +93,12 @@ export function Sidebar({ onClose }: SidebarProps) {
       assistantResponse: firstAssistant.content,
     })
     if (!title) {
-      Alert.alert(
-        "Title generation failed",
-        "Check your OpenRouter key and try again.",
-      )
+      toast.error("Title generation failed")
       return
     }
     await renameConversation(convo.id, title)
     await refresh()
+    toast.success("Title regenerated")
   }
 
   const showActions = (convo: Conversation) => {

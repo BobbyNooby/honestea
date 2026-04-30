@@ -6,6 +6,7 @@ import { ActivityIndicator, Text, View } from "react-native"
 import { GestureHandlerRootView } from "react-native-gesture-handler"
 import { Drawer } from "react-native-drawer-layout"
 import "react-native-reanimated"
+import { Toaster } from "sonner-native"
 
 import { Sidebar } from "@/components/sidebar"
 import { useColorScheme } from "@/hooks/use-color-scheme"
@@ -76,6 +77,12 @@ export default function RootLayout() {
             )}
           />
           <StatusBar style="auto" />
+          {/* Toaster lives at the root so toasts overlay any screen / modal. */}
+          <Toaster
+            position="top-center"
+            richColors
+            theme={colorScheme === "dark" ? "dark" : "light"}
+          />
         </ConversationsProvider>
       </ThemeProvider>
     </GestureHandlerRootView>

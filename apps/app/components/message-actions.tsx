@@ -8,6 +8,7 @@ import {
 import * as Clipboard from "expo-clipboard"
 import * as Haptics from "expo-haptics"
 import { Pressable, Share, useColorScheme, View } from "react-native"
+import { toast } from "sonner-native"
 
 import { useSpeech } from "@/lib/use-speech"
 
@@ -39,6 +40,7 @@ export function MessageActions({
     if (!content) return
     await Clipboard.setStringAsync(content)
     Haptics.selectionAsync().catch(() => {})
+    toast("Copied")
   }
 
   const share = async () => {
@@ -46,7 +48,7 @@ export function MessageActions({
     try {
       await Share.share({ message: content })
     } catch {
-      // User cancelled or share unavailable. No-op.
+      toast.error("Share failed")
     }
   }
 
