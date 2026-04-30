@@ -18,6 +18,8 @@ import {
   deleteKey,
   getKey,
   setKey,
+  validateKey,
+  type ByokKeyInfo,
   type ByokProvider,
 } from "@/lib/byok"
 
@@ -104,18 +106,35 @@ function ProviderRow({ provider }: { provider: ByokProvider }) {
   const [draft, setDraft] = useState("")
   const [editing, setEditing] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [info, setInfo] = useState<ByokKeyInfo | null>(null)
 
   useEffect(() => {
     getKey(provider).then(setStored)
   }, [provider])
 
+  const updateDraft = (next: string) => {
+    setDraft(next)
+    if (error) setError(null)
+  }
+
   const handleSave = async () => {
     const value = draft.trim()
     if (!value) return
     setBusy(true)
+    setError(null)
+
+    const result = await validateKey(provider, value)
+    if (!result.valid) {
+      setError(result.error ?? "Invalid key")
+      setBusy(false)
+      return
+    }
+
     try {
       await setKey(provider, value)
       setStored(value)
+      setInfo(result.info ?? null)
       setDraft("")
       setEditing(false)
     } finally {
@@ -137,6 +156,7 @@ function ProviderRow({ provider }: { provider: ByokProvider }) {
             try {
               await deleteKey(provider)
               setStored(null)
+              setInfo(null)
               setDraft("")
             } finally {
               setBusy(false)
@@ -185,7 +205,7 @@ function ProviderRow({ provider }: { provider: ByokProvider }) {
         <View className="gap-2">
           <Input
             value={draft}
-            onChangeText={setDraft}
+            onChangeText={updateDraft}
             placeholder={provider.keyFormat}
             secureTextEntry
             autoCapitalize="none"
@@ -193,6 +213,11 @@ function ProviderRow({ provider }: { provider: ByokProvider }) {
             spellCheck={false}
             editable={!busy}
           />
+          {error && (
+            <Text className="text-xs text-red-600 dark:text-red-400">
+              {error}
+            </Text>
+          )}
           <View className="flex-row gap-2">
             <Button
               onPress={handleSave}
@@ -201,7 +226,7 @@ function ProviderRow({ provider }: { provider: ByokProvider }) {
               className="flex-1"
               size="sm"
             >
-              Save key
+              {busy ? "Verifying…" : "Save & verify"}
             </Button>
             {isConfigured && (
               <Button
@@ -210,6 +235,7 @@ function ProviderRow({ provider }: { provider: ByokProvider }) {
                 onPress={() => {
                   setEditing(false)
                   setDraft("")
+                  setError(null)
                 }}
               >
                 Cancel
@@ -220,23 +246,26 @@ function ProviderRow({ provider }: { provider: ByokProvider }) {
       )}
 
       {isConfigured && !editing && (
-        <View className="flex-row gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            className="flex-1"
-            onPress={() => setEditing(true)}
-          >
-            Replace
-          </Button>
-          <Button
-            variant="destructive"
-            size="sm"
-            onPress={handleRemove}
-          >
-            Remove
-          </Button>
-        </View>
+        <>
+          {info && <KeyInfoDisplay info={info} />}
+          <View className="flex-row gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1"
+              onPress={() => setEditing(true)}
+            >
+              Replace
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onPress={handleRemove}
+            >
+              Remove
+            </Button>
+          </View>
+        </>
       )}
 
       <Pressable
@@ -247,6 +276,32 @@ function ProviderRow({ provider }: { provider: ByokProvider }) {
           Get a key at {provider.signupUrl.replace(/^https?:\/\//, "")} →
         </Text>
       </Pressable>
+    </View>
+  )
+}
+
+function KeyInfoDisplay({ info }: { info: ByokKeyInfo }) {
+  const showUsage = info.usage != null
+  const showLimit = info.limit != null
+  if (!info.label && !showUsage && !showLimit) return null
+
+  return (
+    <View className="gap-0.5 rounded-md bg-zinc-100 px-3 py-2 dark:bg-zinc-800">
+      {info.label && (
+        <Text className="text-xs text-zinc-700 dark:text-zinc-300">
+          Label: <Text className="font-mono">{info.label}</Text>
+        </Text>
+      )}
+      {showUsage && (
+        <Text className="text-xs text-zinc-700 dark:text-zinc-300">
+          Used: ${info.usage!.toFixed(4)}
+          {showLimit
+            ? ` / $${info.limit!.toFixed(2)}`
+            : info.limit === null
+              ? " (unlimited)"
+              : ""}
+        </Text>
+      )}
     </View>
   )
 }
