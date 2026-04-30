@@ -7,7 +7,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler"
 import { Drawer } from "react-native-drawer-layout"
 import "react-native-reanimated"
 import { SafeAreaProvider } from "react-native-safe-area-context"
-import { Toaster } from "sonner-native"
+import Toast from "react-native-toast-message"
 
 import { Sidebar } from "@/components/sidebar"
 import { useColorScheme } from "@/hooks/use-color-scheme"
@@ -81,18 +81,10 @@ export default function RootLayout() {
             <StatusBar style="auto" />
           </ConversationsProvider>
         </ThemeProvider>
-        {/*
-         * Toaster sits OUTSIDE the drawer/stack tree but INSIDE
-         * SafeAreaProvider so its useSafeAreaInsets() returns real values.
-         * sonner-native otherwise hides under the drawer overlay or
-         * renders at y=0 behind the notch.
-         */}
-        <Toaster
-          position="top-center"
-          richColors
-          theme={colorScheme === "dark" ? "dark" : "light"}
-        />
       </SafeAreaProvider>
+      {/* Pure-JS toast — sits as the last child of the root view so it
+       * always overlays everything else. */}
+      <Toast />
     </GestureHandlerRootView>
   )
 }

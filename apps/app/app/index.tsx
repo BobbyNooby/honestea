@@ -15,7 +15,7 @@ import {
   View,
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
-import { toast } from "sonner-native"
+import Toast from "react-native-toast-message"
 
 import { estimateTokens, formatUsd, type Message } from "@honestea/shared"
 
@@ -121,7 +121,7 @@ export default function ChatScreen() {
     if (!text) return
     await Clipboard.setStringAsync(text)
     Haptics.selectionAsync().catch(() => {})
-    toast("Copied")
+    Toast.show({ type: "success", text1: "Copied" })
   }, [])
 
   /**
@@ -374,7 +374,7 @@ export default function ChatScreen() {
       (m) => m.role === "assistant" && m.status === "complete",
     )
     if (!firstUser || !firstAssistant) {
-      toast.error("Send a message first")
+      Toast.show({ type: "error", text1: "Send a message first" })
       return
     }
     const title = await generateTitle({
@@ -382,12 +382,12 @@ export default function ChatScreen() {
       assistantResponse: firstAssistant.content,
     })
     if (!title) {
-      toast.error("Title generation failed")
+      Toast.show({ type: "error", text1: "Title generation failed" })
       return
     }
     await renameConversation(currentConversation.id, title)
     await conversations.refresh()
-    toast.success("Title regenerated")
+    Toast.show({ type: "success", text1: "Title regenerated" })
   }, [conversations, currentConversation])
 
   const handleToggleStar = useCallback(async () => {

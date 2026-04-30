@@ -15,7 +15,7 @@ import {
   View,
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
-import { toast } from "sonner-native"
+import Toast from "react-native-toast-message"
 
 import type { Conversation } from "@honestea/shared"
 
@@ -85,7 +85,7 @@ export function Sidebar({ onClose }: SidebarProps) {
       (m) => m.role === "assistant" && m.status === "complete",
     )
     if (!firstUser || !firstAssistant) {
-      toast.error("Send a message first")
+      Toast.show({ type: "error", text1: "Send a message first" })
       return
     }
     const title = await generateTitle({
@@ -93,12 +93,12 @@ export function Sidebar({ onClose }: SidebarProps) {
       assistantResponse: firstAssistant.content,
     })
     if (!title) {
-      toast.error("Title generation failed")
+      Toast.show({ type: "error", text1: "Title generation failed" })
       return
     }
     await renameConversation(convo.id, title)
     await refresh()
-    toast.success("Title regenerated")
+    Toast.show({ type: "success", text1: "Title regenerated" })
   }
 
   const showActions = (convo: Conversation) => {
