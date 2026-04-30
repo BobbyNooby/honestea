@@ -11,22 +11,37 @@ import {
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
+import {
+  calculateCost,
+  estimateTokens,
+  formatCents,
+} from "@honestea/shared"
+
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/cn"
 import { streamChat, type ChatMessage } from "@/lib/api"
 import { useByokStatus } from "@/lib/byok"
+import {
+  findModel,
+  pricingFor,
+  useModelRegistry,
+  type RegistryModel,
+} from "@/lib/model-registry"
 import { useSidebar } from "@/lib/sidebar-context"
 
 const DEFAULT_MODEL = "minimax/minimax-m2.5"
 
 interface UiMessage extends ChatMessage {
   id: string
+  costCents?: number
+  model?: string
 }
 
 export default function ChatScreen() {
   const sidebar = useSidebar()
   const byok = useByokStatus()
+  const { registry } = useModelRegistry()
   const [messages, setMessages] = useState<UiMessage[]>([])
   const [input, setInput] = useState("")
   const [streaming, setStreaming] = useState(false)
@@ -67,6 +82,20 @@ export default function ChatScreen() {
           )
         },
       })
+      // Once the stream finishes, estimate cost from input + output sizes.
+      const cost = estimateAssistantCost({
+        registry: registry ?? null,
+        modelId: DEFAULT_MODEL,
+        conversation,
+        completion: buffer,
+      })
+      setMessages((m) =>
+        m.map((msg) =>
+          msg.id === assistantMsg.id
+            ? { ...msg, costCents: cost, model: DEFAULT_MODEL }
+            : msg,
+        ),
+      )
     } catch (e) {
       const errorText = e instanceof Error ? e.message : "unknown error"
       setError(errorText)
@@ -108,6 +137,12 @@ export default function ChatScreen() {
           >
             {item.content || (item.role === "assistant" && streaming ? "…" : "")}
           </Text>
+          {!isUser && typeof item.costCents === "number" && (
+            <Text className="text-[10px] text-zinc-500 dark:text-zinc-400">
+              ~{formatCents(item.costCents)}
+              {item.model ? ` · ${shortModelName(item.model)}` : ""}
+            </Text>
+          )}
         </View>
       )
     },
@@ -199,6 +234,33 @@ export default function ChatScreen() {
       </KeyboardAvoidingView>
     </SafeAreaView>
   )
+}
+
+function shortModelName(id: string): string {
+  return id.split("/").pop() ?? id
+}
+
+function estimateAssistantCost({
+  registry,
+  modelId,
+  conversation,
+  completion,
+}: {
+  registry: readonly RegistryModel[] | null
+  modelId: string
+  conversation: UiMessage[]
+  completion: string
+}): number | undefined {
+  if (!registry) return undefined
+  const model = findModel(registry, modelId)
+  if (!model) return undefined
+
+  const promptText = conversation.map((m) => m.content).join("\n")
+  const usage = {
+    promptTokens: estimateTokens(promptText),
+    completionTokens: estimateTokens(completion),
+  }
+  return calculateCost(pricingFor(model), usage).totalCents
 }
 
 function NoKeyState() {
