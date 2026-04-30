@@ -4,6 +4,55 @@ import { streamText } from "ai"
 import { dim, methodColors, red, reset, statusColor } from "./logger"
 import { getModel } from "./providers"
 
+// ----------------------------------------------------------------------------
+// Model catalog cache. Hits OpenRouter's public /api/v1/models endpoint, caches
+// the result in memory for 24h. Pricing in the response includes OpenRouter's
+// ~5% markup; close enough for "estimated cost" UI on direct-provider keys too.
+// ----------------------------------------------------------------------------
+
+interface ModelEntry {
+  id: string
+  name: string
+  context_length: number
+  architecture?: { modality?: string }
+  pricing: {
+    prompt: string
+    completion: string
+    image?: string
+    request?: string
+  }
+  top_provider?: { context_length?: number; max_completion_tokens?: number }
+}
+
+const MODELS_CACHE_TTL_MS = 24 * 60 * 60 * 1000
+let modelsCache: ModelEntry[] | null = null
+let cachedAt = 0
+let inFlight: Promise<ModelEntry[]> | null = null
+
+async function fetchOpenrouterModels(): Promise<ModelEntry[]> {
+  const res = await fetch("https://openrouter.ai/api/v1/models")
+  if (!res.ok) throw new Error(`OpenRouter /models HTTP ${res.status}`)
+  const json = (await res.json()) as { data: ModelEntry[] }
+  return json.data
+}
+
+async function getModelsCached(): Promise<ModelEntry[]> {
+  const fresh = modelsCache && Date.now() - cachedAt < MODELS_CACHE_TTL_MS
+  if (fresh && modelsCache) return modelsCache
+  if (inFlight) return inFlight
+
+  inFlight = fetchOpenrouterModels()
+    .then((data) => {
+      modelsCache = data
+      cachedAt = Date.now()
+      return data
+    })
+    .finally(() => {
+      inFlight = null
+    })
+  return inFlight
+}
+
 const app = new Elysia()
   .derive(({ request }) => ({
     startTime: performance.now(),
@@ -47,6 +96,10 @@ const app = new Elysia()
     message: "boop! the api is alive — edit me in apps/server/src/index.ts",
     serverTime: new Date().toISOString(),
   }))
+  .get("/api/models", async () => {
+    const data = await getModelsCached()
+    return { data, cachedAt }
+  })
   .post(
     "/api/chat",
     ({ body, request }) => {
