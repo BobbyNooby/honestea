@@ -30,6 +30,7 @@ import { estimateTokens, formatUsd, type Message } from "@honestea/shared"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { BrewingMark } from "@/components/brand/brewing-mark"
+import { LogoMark } from "@/components/brand/logo-mark"
 import { ChatActionsMenu } from "@/components/chat-actions-menu"
 import { ChatStatusRow } from "@/components/chat-status-row"
 import { MarkdownText } from "@/components/markdown-text"
@@ -545,44 +546,57 @@ export default function ChatScreen() {
         )
       }
 
-      // Assistant — no bubble. Markdown text on the page background, action
-      // row below, optional metadata footer.
+      // Assistant — Claude pattern. Brand mark on the left (animated while
+      // streaming, static once complete) acts as the "avatar". Message
+      // text + footer + actions stack on the right.
       const showActions = item.status === "complete" || item.status === "error"
       const isLastAssistant = index === lastAssistantIdx
+      const isStreaming = item.status === "streaming"
 
       return (
         <View className="gap-1">
           {showDividerAbove && <CompactedDivider />}
-          <View className="self-stretch gap-1 px-1">
-            {item.content ? (
-              <MarkdownText>{item.content}</MarkdownText>
-            ) : item.status === "streaming" ? (
-              <View className="py-1">
-                <BrewingMark size={36} />
-              </View>
-            ) : null}
-            {isErrored && (
-              <Text className="text-[10px] text-red-600 dark:text-red-400">
-                Response failed to complete.
-              </Text>
-            )}
-            {showCost && (
-              <Text className="text-[10px] text-zinc-500 dark:text-zinc-400">
-                ~{formatUsd(usd ?? 0)}
-                {item.modelId ? ` · ${shortModelName(item.modelId)}` : ""}
-                {item.provider ? ` · via ${providerLabel(item.provider)}` : ""}
-              </Text>
-            )}
-            {showActions && (
-              <MessageActions
-                messageId={item.id}
-                content={item.content}
-                canRegenerate={isLastAssistant && !streaming}
-                onRegenerate={() => {
-                  void regenerate(item.id)
-                }}
-              />
-            )}
+          <View className="flex-row gap-2 self-stretch px-1">
+            <View className="pt-0.5">
+              {isStreaming ? <BrewingMark size={22} /> : <LogoMark size={22} />}
+            </View>
+            <View className="flex-1 gap-1">
+              {item.content ? (
+                <MarkdownText>{item.content}</MarkdownText>
+              ) : isStreaming ? (
+                // Tiny placeholder while we wait for the first token. The
+                // animated mark on the left is the primary "thinking"
+                // indicator; this keeps the row from collapsing to zero
+                // height.
+                <Text className="text-base text-zinc-400 dark:text-zinc-500">
+                  Brewing…
+                </Text>
+              ) : null}
+              {isErrored && (
+                <Text className="text-[10px] text-red-600 dark:text-red-400">
+                  Response failed to complete.
+                </Text>
+              )}
+              {showCost && (
+                <Text className="text-[10px] text-zinc-500 dark:text-zinc-400">
+                  ~{formatUsd(usd ?? 0)}
+                  {item.modelId ? ` · ${shortModelName(item.modelId)}` : ""}
+                  {item.provider
+                    ? ` · via ${providerLabel(item.provider)}`
+                    : ""}
+                </Text>
+              )}
+              {showActions && (
+                <MessageActions
+                  messageId={item.id}
+                  content={item.content}
+                  canRegenerate={isLastAssistant && !streaming}
+                  onRegenerate={() => {
+                    void regenerate(item.id)
+                  }}
+                />
+              )}
+            </View>
           </View>
         </View>
       )
