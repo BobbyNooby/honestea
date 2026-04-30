@@ -1,4 +1,9 @@
-import { IconKey, IconMenu2 } from "@tabler/icons-react-native"
+import {
+  IconCloud,
+  IconDeviceMobile,
+  IconKey,
+  IconMenu2,
+} from "@tabler/icons-react-native"
 import * as Clipboard from "expo-clipboard"
 import * as Haptics from "expo-haptics"
 import { router } from "expo-router"
@@ -509,6 +514,7 @@ export default function ChatScreen() {
           <View className="flex-1 items-center">
             <ModelSelector modelId={modelId} onChange={handleModelChange} />
           </View>
+          <StorageToggle />
           <ChatActionsMenu
             conversation={currentConversation}
             onRename={() => {
@@ -607,6 +613,27 @@ export default function ChatScreen() {
 
 function shortModelName(id: string): string {
   return id.split("/").pop() ?? id
+}
+
+/**
+ * Local/cloud storage indicator. Visual-only for now — taps toggle the
+ * icon. Wires to the conversation's userId field once cloud sync ships.
+ */
+function StorageToggle() {
+  const [isCloud, setIsCloud] = useState(false)
+  const dark = useColorScheme() === "dark"
+  const Icon = isCloud ? IconCloud : IconDeviceMobile
+  const tint = dark ? "#f4f4f5" : "#18181b"
+  return (
+    <Pressable
+      onPress={() => setIsCloud((v) => !v)}
+      hitSlop={8}
+      accessibilityLabel={isCloud ? "Cloud storage" : "Local storage"}
+      className="h-10 w-10 items-center justify-center rounded-md active:bg-zinc-100 dark:active:bg-zinc-800"
+    >
+      <Icon size={22} color={tint} strokeWidth={1.75} />
+    </Pressable>
+  )
 }
 
 function NoKeyState() {
