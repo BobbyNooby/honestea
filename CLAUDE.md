@@ -62,7 +62,11 @@ Fix: declare the alias explicitly as a direct dep of `apps/app`, copying the ver
 - Sign in with Apple is required by App Store rules if any other social login exists; use `expo-apple-authentication` for the native flow.
 
 ### BYOK vs hosted
-- Free Local tier: Expo calls Anthropic/etc. directly with the user's key. No backend.
+
+**Phase 1 (current): every request is BYOK, direct-to-provider. No server in the request path.** No paid tiers exist yet, so there is nothing the server is doing that the client can't do itself. The Expo app calls OpenRouter/Anthropic/OpenAI directly with the user's key from `expo-secure-store`.
+
+Future tier behavior (Stage 2+, when `apps/server` becomes load-bearing):
+- Free Local: same as today — direct call, no backend.
 - Paid tiers: Expo calls `apps/server` `/api/chat`; server uses master key.
 - Client branches on `await SecureStore.getItemAsync(...)` — same chat code, different path.
 
@@ -129,10 +133,20 @@ docs: update phase 1 implementation order
 - Don't add API routes to `apps/web` — all backend logic goes in `apps/server`
 - Don't mock the database for integration tests; hit a real Postgres
 - Don't run `expo prebuild` casually — it generates `ios/`/`android/` and breaks Expo Go workflow
+- **Phase 1: don't route BYOK requests through `apps/server`.** Call OpenRouter directly from the app. The server's `/api/chat` and `/api/models` are Stage 2 scaffolding — they exist but are not in the request path yet.
 
 ## Phase 1 scope (current)
 
-BYOK-only chat in Expo Go on a phone. No `apps/server` work, no `apps/web` work, no auth, no Stripe, no Supabase. The only goal is "I can talk to Claude in a chat app I built." See architecture doc §"Phase 1 Implementation Order" for the week-by-week breakdown.
+BYOK-only chat in Expo Go on a phone. The only goal is "I can talk to Claude in a chat app I built."
+
+- No `apps/web` work, no auth, no Stripe, no Supabase, no billing.
+- **`apps/server` scaffolding exists** (`/api/chat` proxy, `/api/models` cache, BYOK key validation) but is **not in the request path right now**. The Expo app calls OpenRouter directly:
+  - Model catalog → `GET https://openrouter.ai/api/v1/models` (public, no auth — ~330 models including ~50 free ones)
+  - Chat completions → `POST https://openrouter.ai/api/v1/chat/completions` with `Authorization: Bearer <user's sk-or-v1-... from expo-secure-store>`
+  - Streaming on native: use `expo/fetch` (not the global `fetch`) — RN's built-in fetch doesn't expose `response.body` as a stream in Expo Go.
+- The server becomes load-bearing once paid tiers ship (master key must not be bundled, plus auth/sync/billing). Until then it's Stage 2 scaffolding.
+
+See architecture doc §"Phase 1 Implementation Order" for the week-by-week breakdown.
 
 ## Useful links
 
