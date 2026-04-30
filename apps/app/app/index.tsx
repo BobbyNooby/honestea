@@ -670,12 +670,15 @@ export default function ChatScreen() {
                 )}
               </View>
             )}
-            {(item.content || isStreaming) && (
-              <View className="-ml-0.5 mt-0.5">
+            {/* Brand sign-off — only on the most recent assistant turn,
+             *  matching Claude's pattern. Animated while streaming, static
+             *  once done. */}
+            {isLastAssistant && (item.content || isStreaming) && (
+              <View className="-ml-1 mt-1">
                 {isStreaming ? (
-                  <BrewingMark size={20} />
+                  <BrewingMark size={40} />
                 ) : (
-                  <LogoMark size={20} />
+                  <LogoMark size={40} />
                 )}
               </View>
             )}
