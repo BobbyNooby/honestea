@@ -56,6 +56,29 @@ export const messages = sqliteTable("messages", {
    * each regenerate.
    */
   supersededAt: integer("superseded_at"),
+  /**
+   * ms epoch when this message was rolled into a summary as part of a
+   * compaction. Non-null → hidden in the chat view + skipped from the
+   * model send-path. Cost still counts. Distinct from supersededAt because
+   * a single row could in principle be both regenerated AND summarized.
+   */
+  summarizedAt: integer("summarized_at"),
+  /**
+   * FK → messages.id for the synthetic summary row that replaces this row
+   * in the model send-path. Null when not summarized. Lets us walk back
+   * from a summarized prefix to its summary if we ever expose
+   * "expand summary" in the UI.
+   */
+  summarizedInto: text("summarized_into"),
+  /**
+   * "normal" = regular user/assistant/system turn.
+   * "summary" = synthetic system-role row containing a Haiku-generated
+   *   summary of older turns. Hidden in the chat list; sent to the model
+   *   as a system message.
+   */
+  kind: text("kind", { enum: ["normal", "summary"] })
+    .notNull()
+    .default("normal"),
   createdAt: integer("created_at").notNull(),
 })
 

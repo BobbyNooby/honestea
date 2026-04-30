@@ -12,6 +12,15 @@ export type Role = "user" | "assistant" | "system"
  */
 export type MessageStatus = "pending" | "streaming" | "complete" | "error"
 
+/**
+ * "normal" = regular user/assistant/system turn the user typed or the
+ * model produced. "summary" = synthetic system-role row containing a
+ * Haiku-generated summary of older turns. Summary rows are hidden in the
+ * chat list and rendered as a divider; they're sent to the model as a
+ * system message.
+ */
+export type MessageKind = "normal" | "summary"
+
 export interface Message {
   id: string
   conversationId: string
@@ -36,6 +45,18 @@ export interface Message {
    * rolls forward across regenerations).
    */
   supersededAt: number | null
+  /**
+   * ms epoch when this row was rolled into a compaction summary. Same
+   * hide-in-UI / skip-from-send / keep-in-cost-sum semantics as
+   * `supersededAt` — a row could in principle carry both.
+   */
+  summarizedAt: number | null
+  /**
+   * FK → messages.id of the synthetic summary row that replaces this one
+   * in the model send-path. Null when not summarized.
+   */
+  summarizedInto: string | null
+  kind: MessageKind
   /** ms epoch */
   createdAt: number
 }

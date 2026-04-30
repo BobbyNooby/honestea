@@ -1,7 +1,13 @@
 import { randomUUID } from "expo-crypto"
 import { and, asc, desc, eq, gte, isNull } from "drizzle-orm"
 
-import type { Conversation, Message, MessageStatus, Role } from "@honestea/shared"
+import type {
+  Conversation,
+  Message,
+  MessageKind,
+  MessageStatus,
+  Role,
+} from "@honestea/shared"
 
 import { db } from "./index"
 import { conversations, messages } from "./schema"
@@ -103,6 +109,7 @@ export async function addMessage(input: {
   content: string
   modelId?: string | null
   status?: MessageStatus
+  kind?: MessageKind
 }): Promise<Message> {
   const row = {
     id: randomUUID(),
@@ -116,6 +123,9 @@ export async function addMessage(input: {
     costCents: null,
     status: input.status ?? "complete",
     supersededAt: null,
+    summarizedAt: null,
+    summarizedInto: null,
+    kind: input.kind ?? "normal",
     createdAt: now(),
   } as const
   await db.insert(messages).values(row)
@@ -142,6 +152,27 @@ export async function updateMessage(
   >,
 ): Promise<void> {
   await db.update(messages).set(patch).where(eq(messages.id, id))
+}
+
+/**
+ * Mark a specific list of messages as summarized into the given summary
+ * row. Done as a single transaction so partial failure can't leave half
+ * the prefix marked summarized while the rest still feed the model.
+ */
+export async function markMessagesSummarizedInto(
+  messageIds: readonly string[],
+  summaryId: string,
+): Promise<void> {
+  if (messageIds.length === 0) return
+  const ts = now()
+  await db.transaction(async (tx) => {
+    for (const id of messageIds) {
+      await tx
+        .update(messages)
+        .set({ summarizedAt: ts, summarizedInto: summaryId })
+        .where(eq(messages.id, id))
+    }
+  })
 }
 
 /**

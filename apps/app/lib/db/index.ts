@@ -96,6 +96,36 @@ function applyMigrationV3() {
   }
 }
 
+/**
+ * v4: compaction support.
+ *  - `summarized_at INTEGER` marks a row that was rolled into a summary.
+ *    Hidden in UI + skipped from send-path; cost still counts.
+ *  - `summarized_into TEXT` FK to the synthetic summary row that replaces
+ *    this one in the model context.
+ *  - `kind TEXT` — "normal" (default) or "summary". The send-path keeps
+ *    summary rows as system-role messages in the prompt; the chat view
+ *    hides them and renders a divider where they sit.
+ */
+function applyMigrationV4() {
+  const cols = sqlite.getAllSync<{ name: string }>(
+    "PRAGMA table_info(messages);",
+  )
+  const hasSummarizedAt = cols.some((c) => c.name === "summarized_at")
+  if (!hasSummarizedAt) {
+    sqlite.execSync("ALTER TABLE messages ADD COLUMN summarized_at integer;")
+  }
+  const hasSummarizedInto = cols.some((c) => c.name === "summarized_into")
+  if (!hasSummarizedInto) {
+    sqlite.execSync("ALTER TABLE messages ADD COLUMN summarized_into text;")
+  }
+  const hasKind = cols.some((c) => c.name === "kind")
+  if (!hasKind) {
+    sqlite.execSync(
+      "ALTER TABLE messages ADD COLUMN kind text DEFAULT 'normal' NOT NULL;",
+    )
+  }
+}
+
 let migrated = false
 
 function applyMigrations() {
@@ -103,6 +133,7 @@ function applyMigrations() {
   sqlite.execSync(MIGRATION_V1)
   applyMigrationV2()
   applyMigrationV3()
+  applyMigrationV4()
   migrated = true
 }
 
