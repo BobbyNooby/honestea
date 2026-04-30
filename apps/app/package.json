@@ -61,6 +61,7 @@
   },
   "devDependencies": {
     "@types/react": "~19.2.14",
+    "babel-plugin-transform-imports": "^2.0.0",
     "drizzle-kit": "^0.31.10",
     "eslint": "^9.25.0",
     "eslint-config-expo": "~55.0.0",
