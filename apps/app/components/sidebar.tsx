@@ -22,6 +22,8 @@ import Toast from "react-native-toast-message"
 import type { Conversation } from "@honestea/shared"
 
 import { ActionSheet } from "@/components/action-sheet"
+import { LogoMark } from "@/components/brand/logo-mark"
+import { Wordmark } from "@/components/brand/wordmark"
 import { RenameDialog } from "@/components/rename-dialog"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/cn"
@@ -110,10 +112,9 @@ export function Sidebar({ onClose }: SidebarProps) {
   return (
     <SafeAreaView className="flex-1 bg-white dark:bg-zinc-950" edges={["top", "bottom"]}>
       <View className="flex-1 px-4 py-3">
-        <View className="mb-6 flex-row items-center justify-between">
-          <Text className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
-            Honest AI
-          </Text>
+        <View className="mb-6 flex-row items-center gap-2">
+          <LogoMark size={28} />
+          <Wordmark size={20} />
         </View>
 
         <Button onPress={handleNewChat} variant="outline" className="mb-6">
