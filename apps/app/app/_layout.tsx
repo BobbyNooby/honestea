@@ -6,6 +6,7 @@ import { ActivityIndicator, Text, View } from "react-native"
 import { GestureHandlerRootView } from "react-native-gesture-handler"
 import { Drawer } from "react-native-drawer-layout"
 import "react-native-reanimated"
+import { SafeAreaProvider } from "react-native-safe-area-context"
 import { Toaster } from "sonner-native"
 
 import { Sidebar } from "@/components/sidebar"
@@ -52,39 +53,46 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
-        <ConversationsProvider>
-          <SidebarProvider
-            render={({ isOpen, open, close }) => (
-              <Drawer
-                open={isOpen}
-                onOpen={open}
-                onClose={close}
-                renderDrawerContent={() => <Sidebar onClose={close} />}
-                drawerType="front"
-                swipeEdgeWidth={40}
-              >
-                <Stack screenOptions={{ headerShown: false }}>
-                  <Stack.Screen name="index" />
-                  <Stack.Screen name="settings" options={{ headerShown: true, title: "Settings" }} />
-                  <Stack.Screen name="byok" options={{ headerShown: true, title: "API Keys" }} />
-                  <Stack.Screen
-                    name="modal"
-                    options={{ presentation: "modal", title: "Modal" }}
-                  />
-                </Stack>
-              </Drawer>
-            )}
-          />
-          <StatusBar style="auto" />
-          {/* Toaster lives at the root so toasts overlay any screen / modal. */}
-          <Toaster
-            position="top-center"
-            richColors
-            theme={colorScheme === "dark" ? "dark" : "light"}
-          />
-        </ConversationsProvider>
-      </ThemeProvider>
+      <SafeAreaProvider>
+        <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
+          <ConversationsProvider>
+            <SidebarProvider
+              render={({ isOpen, open, close }) => (
+                <Drawer
+                  open={isOpen}
+                  onOpen={open}
+                  onClose={close}
+                  renderDrawerContent={() => <Sidebar onClose={close} />}
+                  drawerType="front"
+                  swipeEdgeWidth={40}
+                >
+                  <Stack screenOptions={{ headerShown: false }}>
+                    <Stack.Screen name="index" />
+                    <Stack.Screen name="settings" options={{ headerShown: true, title: "Settings" }} />
+                    <Stack.Screen name="byok" options={{ headerShown: true, title: "API Keys" }} />
+                    <Stack.Screen
+                      name="modal"
+                      options={{ presentation: "modal", title: "Modal" }}
+                    />
+                  </Stack>
+                </Drawer>
+              )}
+            />
+            <StatusBar style="auto" />
+          </ConversationsProvider>
+        </ThemeProvider>
+        {/*
+         * Toaster sits OUTSIDE the drawer/stack tree but INSIDE
+         * SafeAreaProvider so its useSafeAreaInsets() returns real values.
+         * sonner-native otherwise hides under the drawer overlay or
+         * renders at y=0 behind the notch.
+         */}
+        <Toaster
+          position="top-center"
+          richColors
+          theme={colorScheme === "dark" ? "dark" : "light"}
+        />
+      </SafeAreaProvider>
     </GestureHandlerRootView>
   )
 }
