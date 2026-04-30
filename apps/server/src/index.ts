@@ -38,6 +38,7 @@ const app = new Elysia()
         "http://localhost:8081",
       ],
       credentials: true,
+      allowedHeaders: ["content-type", "x-byok-openrouter"],
     }),
   )
   .get("/", () => ({ ok: true, service: "honestea-server" }))
@@ -48,10 +49,11 @@ const app = new Elysia()
   }))
   .post(
     "/api/chat",
-    ({ body }) => {
+    ({ body, request }) => {
       const { model, messages } = body
+      const byokKey = request.headers.get("x-byok-openrouter") ?? undefined
       const result = streamText({
-        model: getModel(model),
+        model: getModel(model, byokKey),
         messages,
       })
       return result.toTextStreamResponse()
