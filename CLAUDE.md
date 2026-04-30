@@ -76,7 +76,13 @@ Fix: declare the alias explicitly as a direct dep of `apps/app`, copying the ver
 - Cloud BYOK ($5/mo) — account + sync, you bring keys
 - Cloud + Credits — $5/mo + 25-30% markup credits via Stripe
 - Subscription ($15/mo) — unlimited hosted tokens
-- Mixed BYOK + hosted is allowed in paid tiers; the transparency UI labels each message accordingly
+
+### BYOK gating rule
+BYOK is allowed only when our revenue isn't tied to token volume:
+- ✓ Free Local, Cloud BYOK, Subscription (revenue is $0 or flat)
+- ✗ Cloud + Credits / PAYG (revenue = token markup; BYOK here = free cloud-infra rider, structural loss)
+
+So the BYOK settings page must be hidden or gated for PAYG users. In Subscription tier users mix freely.
 
 ## Git conventions
 
