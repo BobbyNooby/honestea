@@ -1,4 +1,6 @@
 import { IconKey, IconMenu2 } from "@tabler/icons-react-native"
+import * as Clipboard from "expo-clipboard"
+import * as Haptics from "expo-haptics"
 import { router } from "expo-router"
 import { useCallback, useEffect, useRef, useState } from "react"
 import {
@@ -25,7 +27,6 @@ import { Input } from "@/components/ui/input"
 import { ChatStatusRow } from "@/components/chat-status-row"
 import { MarkdownText } from "@/components/markdown-text"
 import { ModelSelector } from "@/components/model-selector"
-import { cn } from "@/lib/cn"
 import { streamChat } from "@/lib/api"
 import { useByokStatus } from "@/lib/byok"
 import { useConversations } from "@/lib/conversations-context"
@@ -210,37 +211,46 @@ export default function ChatScreen() {
     }
   }, [conversations, input, messages, modelId, registry, streaming])
 
+  const copyMessage = useCallback(async (text: string) => {
+    if (!text) return
+    await Clipboard.setStringAsync(text)
+    Haptics.selectionAsync().catch(() => {})
+  }, [])
+
   const renderItem = useCallback(
     ({ item }: { item: Message }) => {
       const isUser = item.role === "user"
       const showCost =
         !isUser && typeof item.costCents === "number" && item.status === "complete"
       const isErrored = item.status === "error"
-      return (
-        <View
-          className={cn(
-            "max-w-[88%] gap-1 rounded-lg p-3",
-            isUser
-              ? "self-end bg-blue-500"
-              : "self-start bg-zinc-100 dark:bg-zinc-800",
-            isErrored && "border border-red-500/40",
-          )}
-        >
-          <Text
-            className={cn(
-              "text-[10px] uppercase tracking-wider opacity-60",
-              isUser ? "text-white" : "text-zinc-700 dark:text-zinc-300",
-            )}
+
+      if (isUser) {
+        // SMS-style bubble — right-aligned, rounded, blue.
+        return (
+          <Pressable
+            onLongPress={() => copyMessage(item.content)}
+            delayLongPress={400}
+            className="self-end max-w-[85%] rounded-[22px] bg-blue-500 px-3.5 py-2"
           >
-            {isUser ? "you" : "assistant"}
-            {isErrored ? " · errored" : ""}
-          </Text>
-          {isUser ? (
             <Text className="text-base text-white">{item.content}</Text>
-          ) : item.content ? (
+          </Pressable>
+        )
+      }
+
+      // Assistant — no bubble. Just markdown text on the page background, with
+      // a thin metadata footer below.
+      return (
+        <Pressable
+          onLongPress={() => copyMessage(item.content)}
+          delayLongPress={400}
+          className="self-stretch gap-1 px-1"
+        >
+          {item.content ? (
             <MarkdownText>{item.content}</MarkdownText>
           ) : item.status === "streaming" ? (
-            <Text className="text-base text-zinc-900 dark:text-zinc-100">…</Text>
+            <Text className="text-base text-zinc-500 dark:text-zinc-400">
+              …
+            </Text>
           ) : null}
           {showCost && (
             <Text className="text-[10px] text-zinc-500 dark:text-zinc-400">
@@ -248,10 +258,15 @@ export default function ChatScreen() {
               {item.modelId ? ` · ${shortModelName(item.modelId)}` : ""}
             </Text>
           )}
-        </View>
+          {isErrored && (
+            <Text className="text-[10px] text-red-600 dark:text-red-400">
+              Response failed to complete.
+            </Text>
+          )}
+        </Pressable>
       )
     },
-    [],
+    [copyMessage],
   )
 
   return (
