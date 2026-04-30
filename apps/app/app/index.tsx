@@ -1,18 +1,6 @@
-import {
-  IconArrowUp,
-  IconChevronLeft,
-  IconChevronRight,
-  IconCloud,
-  IconDeviceMobile,
-  IconKey,
-  IconMenu2,
-  IconMicrophone,
-  IconPlayerStopFilled,
-  IconPlus,
-} from "@tabler/icons-react-native"
+import { IconMenu2 } from "@tabler/icons-react-native"
 import * as Clipboard from "expo-clipboard"
 import * as Haptics from "expo-haptics"
-import { router } from "expo-router"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   ActivityIndicator,
@@ -27,23 +15,21 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context"
 import Toast from "react-native-toast-message"
 
-import { estimateTokens, formatUsd, type Message } from "@honestea/shared"
+import { estimateTokens, type Message } from "@honestea/shared"
 
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { BrewingMark } from "@/components/brand/brewing-mark"
-import { LogoMark } from "@/components/brand/logo-mark"
 import { ChatActionsMenu } from "@/components/chat-actions-menu"
+import { ChatMessage } from "@/components/chat-message"
 import { ChatStatusRow } from "@/components/chat-status-row"
-import { MarkdownText } from "@/components/markdown-text"
-import { MessageActions } from "@/components/message-actions"
+import { Composer } from "@/components/composer"
 import { ModelSelector } from "@/components/model-selector"
+import { NoKeyState } from "@/components/no-key-state"
 import { RenameDialog } from "@/components/rename-dialog"
+import { StorageToggle } from "@/components/storage-toggle"
 import { streamChat } from "@/lib/api"
+import { useBrewingPhrase } from "@/lib/brewing-phrases"
 import { useByokStatus } from "@/lib/byok"
 import { compact, projectPromptTokens } from "@/lib/compaction"
 import { useConfirm } from "@/lib/confirm-context"
-import { useBrewingPhrase } from "@/lib/brewing-phrases"
 import { useConversations } from "@/lib/conversations-context"
 import {
   addMessage,
@@ -53,15 +39,10 @@ import {
   setMessageSupersededAt,
   updateMessage,
 } from "@/lib/db/repository"
-import { generateTitle } from "@/lib/title-gen"
-import {
-  findModel,
-  pricingFor,
-  useModelRegistry,
-  type RegistryModel,
-} from "@/lib/model-registry"
+import { findModel, pricingFor, useModelRegistry } from "@/lib/model-registry"
 import { useSelectedModel } from "@/lib/selected-model"
 import { useSidebar } from "@/lib/sidebar-context"
+import { generateTitle } from "@/lib/title-gen"
 
 export default function ChatScreen() {
   const sidebar = useSidebar()
@@ -577,113 +558,26 @@ export default function ChatScreen() {
 
   const renderItem = useCallback(
     ({ item, index }: { item: Message; index: number }) => {
-      const isUser = item.role === "user"
-      const usd =
-        item.costUsd ??
-        (typeof item.costCents === "number" ? item.costCents / 100 : null)
-      // Show cost as soon as we have one — streaming rows now carry a live
-      // estimate that ticks up with each token, snapping to the real OR
-      // value on completion.
-      const showCost = !isUser && usd != null
-      const isErrored = item.status === "error"
-      const showDividerAbove = item.id === dividerBeforeId
-
-      if (isUser) {
-        // SMS-style bubble — right-aligned, rounded, blue.
-        return (
-          <View className="gap-2.5">
-            {showDividerAbove && <CompactedDivider />}
-            <Pressable
-              onLongPress={() => copyMessage(item.content)}
-              delayLongPress={400}
-              className="self-end max-w-[85%] rounded-[22px] bg-matcha-600 px-3.5 py-2 dark:bg-matcha-400"
-            >
-              <Text className="text-base text-white">{item.content}</Text>
-            </Pressable>
-          </View>
-        )
-      }
-
-      // Assistant — Claude pattern. Content first, then action row +
-      // optional version pagination, then the brand mark as a sign-off
-      // stamp at the bottom (animated while streaming, static once done).
-      const showActions = item.status === "complete" || item.status === "error"
-      const isLastAssistant = index === lastAssistantIdx
-      const isStreaming = item.status === "streaming"
-
-      // Version-group lookup: if this assistant message has siblings (other
-      // versions sharing the same anchor user message), surface the
-      // pagination chip in the action row.
       const anchorId = anchorByAssistant.get(item.id)
       const versions = anchorId ? versionsByAnchor.get(anchorId) ?? [] : []
       const versionIdx = versions.findIndex((v) => v.id === item.id)
-      const hasVersions = versions.length > 1 && versionIdx !== -1
-
       return (
-        <View className="gap-1">
-          {showDividerAbove && <CompactedDivider />}
-          <View className="self-stretch gap-1.5 px-1">
-            {item.content ? (
-              <MarkdownText>{item.content}</MarkdownText>
-            ) : isStreaming ? (
-              <Text className="text-base italic text-zinc-500 dark:text-zinc-400">
-                {brewingPhrase}…
-              </Text>
-            ) : null}
-            {isErrored && (
-              <Text className="text-[10px] text-red-600 dark:text-red-400">
-                Response failed to complete.
-              </Text>
-            )}
-            {showCost && (
-              <Text className="text-[10px] text-zinc-500 dark:text-zinc-400">
-                ~{formatUsd(usd ?? 0)}
-                {item.modelId ? ` · ${shortModelName(item.modelId)}` : ""}
-                {item.provider
-                  ? ` · via ${providerLabel(item.provider)}`
-                  : ""}
-              </Text>
-            )}
-            {showActions && (
-              <View className="flex-row items-center justify-between">
-                <MessageActions
-                  messageId={item.id}
-                  content={item.content}
-                  canRegenerate={isLastAssistant && !streaming}
-                  onRegenerate={() => {
-                    void regenerate(item.id)
-                  }}
-                />
-                {hasVersions && (
-                  <VersionPagination
-                    current={versionIdx + 1}
-                    total={versions.length}
-                    onPrev={() => {
-                      const prev = versions[versionIdx - 1]
-                      if (prev) void switchVersion(item.id, prev.id)
-                    }}
-                    onNext={() => {
-                      const next = versions[versionIdx + 1]
-                      if (next) void switchVersion(item.id, next.id)
-                    }}
-                  />
-                )}
-              </View>
-            )}
-            {/* Brand sign-off — only on the most recent assistant turn,
-             *  matching Claude's pattern. Animated while streaming, static
-             *  once done. */}
-            {isLastAssistant && (item.content || isStreaming) && (
-              <View className="-ml-1 mt-1">
-                {isStreaming ? (
-                  <BrewingMark size={40} />
-                ) : (
-                  <LogoMark size={40} />
-                )}
-              </View>
-            )}
-          </View>
-        </View>
+        <ChatMessage
+          message={item}
+          isLastAssistant={index === lastAssistantIdx}
+          showDividerAbove={item.id === dividerBeforeId}
+          brewingPhrase={brewingPhrase}
+          globallyStreaming={streaming}
+          versions={versions}
+          versionIdx={versionIdx}
+          onCopyText={copyMessage}
+          onRegenerate={(id) => {
+            void regenerate(id)
+          }}
+          onSwitchVersion={(oldId, newId) => {
+            void switchVersion(oldId, newId)
+          }}
+        />
       )
     },
     [
@@ -812,211 +706,5 @@ export default function ChatScreen() {
         onSubmit={submitRename}
       />
     </SafeAreaView>
-  )
-}
-
-function shortModelName(id: string): string {
-  return id.split("/").pop() ?? id
-}
-
-function providerLabel(provider: "openrouter" | "anthropic"): string {
-  return provider === "anthropic" ? "Anthropic" : "OpenRouter"
-}
-
-/**
- * Composer pill — textarea on top, action row underneath. Mirrors the
- * design kit's `Composer`: full-width rounded-26 card, transparent
- * TextInput, [+] attachment button on the left, [mic] / [send-or-stop] on
- * the right. The send affordance is a round matcha button with an up-arrow;
- * while streaming it becomes a square stop button.
- */
-function Composer({
-  value,
-  onChange,
-  onSend,
-  streaming,
-  dark,
-}: {
-  value: string
-  onChange: (next: string) => void
-  onSend: () => void
-  streaming: boolean
-  dark: boolean
-}) {
-  const hasText = value.trim().length > 0
-  const iconColor = dark ? "#e4e4e7" : "#3f3f46"
-  return (
-    <View className="border-t border-zinc-200 bg-chamomile-50 px-3 pb-2 pt-2 dark:border-zinc-800 dark:bg-chamomile-900">
-      <View className="rounded-[26px] border border-zinc-200 bg-chamomile-50 px-2 pb-1.5 pt-2 dark:border-zinc-800 dark:bg-zinc-900">
-        <Input
-          value={value}
-          onChangeText={onChange}
-          placeholder="Reply to HonesTea…"
-          placeholderTextColor={dark ? "#71717a" : "#a1a1aa"}
-          multiline
-          editable={!streaming}
-          onSubmitEditing={onSend}
-          returnKeyType="send"
-          className="min-h-[24px] max-h-32 border-0 bg-transparent px-2 pb-1 text-[15px] leading-snug text-zinc-900 dark:text-zinc-100"
-          style={{ borderWidth: 0 }}
-        />
-        <View className="flex-row items-center justify-between">
-          <Pressable
-            hitSlop={6}
-            accessibilityLabel="Add attachment"
-            className="h-9 w-9 items-center justify-center rounded-full active:opacity-70"
-          >
-            <IconPlus size={20} color={iconColor} strokeWidth={1.75} />
-          </Pressable>
-          <View className="flex-row items-center gap-1">
-            {!streaming && !hasText && (
-              <Pressable
-                hitSlop={6}
-                accessibilityLabel="Voice"
-                className="h-9 w-9 items-center justify-center rounded-full active:opacity-70"
-              >
-                <IconMicrophone size={18} color={iconColor} strokeWidth={1.75} />
-              </Pressable>
-            )}
-            <Pressable
-              onPress={streaming ? undefined : onSend}
-              disabled={streaming ? false : !hasText}
-              accessibilityLabel={streaming ? "Streaming" : "Send"}
-              className="h-9 w-9 items-center justify-center rounded-full bg-matcha-600 active:opacity-80 dark:bg-matcha-400"
-            >
-              {streaming ? (
-                <IconPlayerStopFilled size={14} color="#ffffff" />
-              ) : (
-                <IconArrowUp size={18} color="#ffffff" strokeWidth={2.25} />
-              )}
-            </Pressable>
-          </View>
-        </View>
-      </View>
-    </View>
-  )
-}
-
-/**
- * `< n/total >` pagination chip — appears in the action row when an
- * assistant turn has multiple regenerated versions. Lets the user step
- * back to an older variant. The corresponding DB write flips
- * supersededAt between versions so the visible-message filter stays
- * consistent.
- */
-function VersionPagination({
-  current,
-  total,
-  onPrev,
-  onNext,
-}: {
-  current: number
-  total: number
-  onPrev: () => void
-  onNext: () => void
-}) {
-  const dark = useColorScheme() === "dark"
-  const tint = dark ? "#a1a1aa" : "#71717a"
-  const disabled = dark ? "#3f3f46" : "#d4d4d8"
-  const atFirst = current <= 1
-  const atLast = current >= total
-  return (
-    <View className="flex-row items-center gap-0.5">
-      <Pressable
-        onPress={onPrev}
-        disabled={atFirst}
-        hitSlop={4}
-        accessibilityLabel="Previous version"
-        className="h-6 w-6 items-center justify-center rounded-md active:bg-zinc-100 dark:active:bg-zinc-900"
-      >
-        <IconChevronLeft
-          size={14}
-          color={atFirst ? disabled : tint}
-          strokeWidth={1.75}
-        />
-      </Pressable>
-      <Text className="text-[11px] tabular-nums text-zinc-500 dark:text-zinc-400">
-        {current}/{total}
-      </Text>
-      <Pressable
-        onPress={onNext}
-        disabled={atLast}
-        hitSlop={4}
-        accessibilityLabel="Next version"
-        className="h-6 w-6 items-center justify-center rounded-md active:bg-zinc-100 dark:active:bg-zinc-900"
-      >
-        <IconChevronRight
-          size={14}
-          color={atLast ? disabled : tint}
-          strokeWidth={1.75}
-        />
-      </Pressable>
-    </View>
-  )
-}
-
-function CompactedDivider() {
-  return (
-    <View className="my-3 flex-row items-center gap-2 px-2">
-      <View className="h-px flex-1 bg-zinc-300 dark:bg-zinc-700" />
-      <Text className="text-[10px] uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-        earlier messages compacted
-      </Text>
-      <View className="h-px flex-1 bg-zinc-300 dark:bg-zinc-700" />
-    </View>
-  )
-}
-
-/**
- * Local/cloud storage indicator. Visual-only for now — taps toggle the
- * icon. Wires to the conversation's userId field once cloud sync ships.
- */
-function StorageToggle() {
-  const [isCloud, setIsCloud] = useState(false)
-  const dark = useColorScheme() === "dark"
-  const Icon = isCloud ? IconCloud : IconDeviceMobile
-  const tint = dark ? "#f4f4f5" : "#18181b"
-  return (
-    <Pressable
-      onPress={() => setIsCloud((v) => !v)}
-      hitSlop={8}
-      accessibilityLabel={isCloud ? "Cloud storage" : "Local storage"}
-      className="h-10 w-10 items-center justify-center rounded-md active:bg-zinc-100 dark:active:bg-zinc-800"
-    >
-      <Icon size={22} color={tint} strokeWidth={1.75} />
-    </Pressable>
-  )
-}
-
-function NoKeyState() {
-  const dark = useColorScheme() === "dark"
-  return (
-    <View className="flex-1 items-center justify-center gap-4 px-8">
-      <View className="h-14 w-14 items-center justify-center rounded-full bg-matcha-500/10">
-        <IconKey
-          size={28}
-          color={dark ? "#8eb56b" : "#5b8a3a"}
-          strokeWidth={1.75}
-        />
-      </View>
-      <View className="gap-2">
-        <Text className="text-center text-xl font-bold text-zinc-900 dark:text-zinc-100">
-          Add an API key to start chatting
-        </Text>
-        <Text className="text-center text-sm text-zinc-500 dark:text-zinc-400">
-          Honest AI uses your own provider keys. They live encrypted on your
-          device — we never see them.
-        </Text>
-      </View>
-      <Button
-        onPress={() => router.push("/byok" as never)}
-        className="mt-2 min-w-[200px] bg-matcha-600 dark:bg-matcha-400"
-      >
-        Set up your keys
-      </Button>
-      <Text className="text-center text-xs text-zinc-500 dark:text-zinc-400">
-        Recommended: a single OpenRouter key gives you access to every model.
-      </Text>
-    </View>
   )
 }
