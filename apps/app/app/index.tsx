@@ -1,3 +1,4 @@
+import { IconKey, IconMenu2 } from "@tabler/icons-react-native"
 import { router } from "expo-router"
 import { useCallback, useEffect, useRef, useState } from "react"
 import {
@@ -7,6 +8,7 @@ import {
   Platform,
   Pressable,
   Text,
+  useColorScheme,
   View,
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
@@ -47,6 +49,7 @@ export default function ChatScreen() {
   const sidebar = useSidebar()
   const byok = useByokStatus()
   const { registry } = useModelRegistry()
+  const dark = useColorScheme() === "dark"
   const { modelId, setModelId } = useSelectedModel()
   const conversations = useConversations()
   const [messages, setMessages] = useState<Message[]>([])
@@ -256,7 +259,11 @@ export default function ChatScreen() {
             className="h-10 w-10 items-center justify-center rounded-md active:bg-zinc-100 dark:active:bg-zinc-800"
             accessibilityLabel="Open sidebar"
           >
-            <Text className="text-2xl text-zinc-900 dark:text-zinc-100">☰</Text>
+            <IconMenu2
+              size={24}
+              color={dark ? "#f4f4f5" : "#18181b"}
+              strokeWidth={1.75}
+            />
           </Pressable>
           <View className="flex-1 items-center">
             <ModelSelector modelId={modelId} onChange={handleModelChange} />
@@ -360,10 +367,15 @@ function estimateAssistantCost({
 }
 
 function NoKeyState() {
+  const dark = useColorScheme() === "dark"
   return (
     <View className="flex-1 items-center justify-center gap-4 px-8">
       <View className="h-14 w-14 items-center justify-center rounded-full bg-blue-500/10">
-        <Text className="text-2xl">🔑</Text>
+        <IconKey
+          size={28}
+          color={dark ? "#60a5fa" : "#3b82f6"}
+          strokeWidth={1.75}
+        />
       </View>
       <View className="gap-2">
         <Text className="text-center text-xl font-bold text-zinc-900 dark:text-zinc-100">

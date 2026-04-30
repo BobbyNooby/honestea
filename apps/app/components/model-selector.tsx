@@ -1,5 +1,6 @@
+import { IconCheck, IconChevronDown } from "@tabler/icons-react-native"
 import { useState } from "react"
-import { Modal, Pressable, Text, View } from "react-native"
+import { Modal, Pressable, Text, useColorScheme, View } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
 import {
@@ -23,6 +24,7 @@ interface Props {
  */
 export function ModelSelector({ modelId, onChange }: Props) {
   const [open, setOpen] = useState(false)
+  const dark = useColorScheme() === "dark"
   const current = findCuratedModel(modelId)
   const label = current?.shortName ?? modelId
 
@@ -37,7 +39,11 @@ export function ModelSelector({ modelId, onChange }: Props) {
         <Text className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
           {label}
         </Text>
-        <Text className="text-xs text-zinc-500 dark:text-zinc-400">▾</Text>
+        <IconChevronDown
+          size={14}
+          color={dark ? "#a1a1aa" : "#71717a"}
+          strokeWidth={2}
+        />
       </Pressable>
 
       <Modal
@@ -88,6 +94,7 @@ function ModelRow({
   selected: boolean
   onPress: () => void
 }) {
+  const dark = useColorScheme() === "dark"
   return (
     <Pressable
       onPress={onPress}
@@ -105,9 +112,11 @@ function ModelRow({
         </Text>
       </View>
       {selected && (
-        <Text className="text-base font-bold text-blue-500 dark:text-blue-400">
-          ✓
-        </Text>
+        <IconCheck
+          size={20}
+          color={dark ? "#60a5fa" : "#3b82f6"}
+          strokeWidth={2.5}
+        />
       )}
     </Pressable>
   )

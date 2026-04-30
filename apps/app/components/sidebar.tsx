@@ -1,6 +1,11 @@
+import {
+  IconChevronRight,
+  IconCloud,
+  IconDeviceMobile,
+} from "@tabler/icons-react-native"
 import { router, useFocusEffect } from "expo-router"
-import { useCallback, useState } from "react"
-import { Alert, FlatList, Pressable, Text, View } from "react-native"
+import { useCallback } from "react"
+import { Alert, FlatList, Pressable, Text, useColorScheme, View } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
 import type { Conversation } from "@honestea/shared"
@@ -107,7 +112,7 @@ export function Sidebar({ onClose }: SidebarProps) {
             <Text className="text-base text-zinc-900 dark:text-zinc-100">
               Settings
             </Text>
-            <Text className="text-zinc-400 dark:text-zinc-500">›</Text>
+            <SettingsChevron />
           </Pressable>
           <Text className="mt-1 px-2 text-xs text-zinc-400 dark:text-zinc-500">
             v0.0.0
@@ -129,7 +134,12 @@ function ConversationRow({
   onPress: () => void
   onLongPress: () => void
 }) {
+  const dark = useColorScheme() === "dark"
+  // Phase 1: every chat is local. Stays accurate when sync ships and rows
+  // start having a non-null userId.
   const isCloud = convo.userId !== null
+  const Icon = isCloud ? IconCloud : IconDeviceMobile
+  const tint = dark ? "#71717a" : "#a1a1aa" // zinc-500 / zinc-400 to match prior text tone
   return (
     <Pressable
       onPress={onPress}
@@ -140,10 +150,7 @@ function ConversationRow({
         active && "bg-zinc-100 dark:bg-zinc-900",
       )}
     >
-      <Text className="text-sm text-zinc-400 dark:text-zinc-500">
-        {/* Phase 1: every chat is local. The icon stays accurate when sync ships. */}
-        {isCloud ? "☁" : "▢"}
-      </Text>
+      <Icon size={16} color={tint} strokeWidth={1.75} />
       <Text
         numberOfLines={1}
         className="flex-1 text-sm text-zinc-900 dark:text-zinc-100"
@@ -151,5 +158,16 @@ function ConversationRow({
         {convo.title ?? "New chat"}
       </Text>
     </Pressable>
+  )
+}
+
+function SettingsChevron() {
+  const dark = useColorScheme() === "dark"
+  return (
+    <IconChevronRight
+      size={18}
+      color={dark ? "#71717a" : "#a1a1aa"}
+      strokeWidth={1.75}
+    />
   )
 }
