@@ -79,6 +79,15 @@ export const messages = sqliteTable("messages", {
   kind: text("kind", { enum: ["normal", "summary"] })
     .notNull()
     .default("normal"),
+  /**
+   * Which network the assistant turn was actually sent to. Recorded at
+   * write time so the "via X" badge stays truthful even if the user later
+   * removes the direct key. Null on user/system rows + pre-v5 assistant
+   * rows.
+   */
+  provider: text("provider", {
+    enum: ["openrouter", "anthropic"],
+  }),
   createdAt: integer("created_at").notNull(),
 })
 

@@ -126,6 +126,22 @@ function applyMigrationV4() {
   }
 }
 
+/**
+ * v5: route provenance.
+ *  - `provider TEXT` records which backend an assistant turn was actually
+ *    sent to. Lets the UI render "via OpenRouter" / "via Anthropic"
+ *    accurately even after the user removes the direct key.
+ */
+function applyMigrationV5() {
+  const cols = sqlite.getAllSync<{ name: string }>(
+    "PRAGMA table_info(messages);",
+  )
+  const hasProvider = cols.some((c) => c.name === "provider")
+  if (!hasProvider) {
+    sqlite.execSync("ALTER TABLE messages ADD COLUMN provider text;")
+  }
+}
+
 let migrated = false
 
 function applyMigrations() {
@@ -134,6 +150,7 @@ function applyMigrations() {
   applyMigrationV2()
   applyMigrationV3()
   applyMigrationV4()
+  applyMigrationV5()
   migrated = true
 }
 

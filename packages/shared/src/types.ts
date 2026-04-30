@@ -21,6 +21,13 @@ export type MessageStatus = "pending" | "streaming" | "complete" | "error"
  */
 export type MessageKind = "normal" | "summary"
 
+/**
+ * Which network the assistant turn was actually routed through. Recorded
+ * at write time so the "via X" badge in the chat is faithful even if the
+ * user later removes the direct key.
+ */
+export type ChatProvider = "openrouter" | "anthropic"
+
 export interface Message {
   id: string
   conversationId: string
@@ -57,6 +64,8 @@ export interface Message {
    */
   summarizedInto: string | null
   kind: MessageKind
+  /** Backend the assistant turn was sent to. Null on user/system rows + pre-v5 history. */
+  provider: ChatProvider | null
   /** ms epoch */
   createdAt: number
 }
