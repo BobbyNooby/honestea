@@ -25,7 +25,14 @@ interface SpeechRecognitionState {
   interim: string
   error: string | null
   start: () => Promise<void>
+  /** Stop recording and commit whatever final text the recognizer
+   *  surfaces — typically what `interim` was last set to becomes a
+   *  final result on stop. Used by the recording pill's check button. */
   stop: () => void
+  /** Stop recording AND discard any pending transcript. Used by the
+   *  recording pill's cancel (X) button — never commits the partial
+   *  interim text. */
+  abort: () => void
 }
 
 const STUB_STATE: SpeechRecognitionState = {
@@ -35,6 +42,7 @@ const STUB_STATE: SpeechRecognitionState = {
   error: null,
   start: async () => {},
   stop: () => {},
+  abort: () => {},
 }
 
 interface SpeechRecognitionOptions {
@@ -135,7 +143,21 @@ function useNativeSpeechRecognition(
     setRecording(false)
   }, [speech])
 
-  return { available, recording, interim, error, start, stop }
+  const abort = useCallback(() => {
+    // `abort()` differs from `stop()`: it cancels without committing a
+    // final result. The recognizer's `result` listener with
+    // `isFinal=true` won't fire — so the consumer's `onTranscript`
+    // callback isn't invoked and the partial interim text is discarded.
+    try {
+      speech.ExpoSpeechRecognitionModule.abort()
+    } catch {
+      // Best effort — module throws if already stopped.
+    }
+    setRecording(false)
+    setInterim("")
+  }, [speech])
+
+  return { available, recording, interim, error, start, stop, abort }
 }
 
 /**

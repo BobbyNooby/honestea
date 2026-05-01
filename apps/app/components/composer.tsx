@@ -17,6 +17,7 @@ import {
   ComposeMenu,
   type ResponseStyle,
 } from "@/components/compose-menu"
+import { RecordingPill } from "@/components/recording-pill"
 import { Input } from "@/components/ui/input"
 import { useSpeechRecognition } from "@/lib/speech-recognition"
 
@@ -105,14 +106,23 @@ export function Composer({
     if (speech.recording) speech.stop()
     else void speech.start()
   }
+
+  // When recording, the whole composer turns into the matcha
+  // RecordingPill — replacing input + chips + actions with a focused
+  // X / waveform / ✓ widget. Stop commits, abort discards.
+  if (speech.recording) {
+    return (
+      <View className="border-t border-zinc-200 bg-chamomile-50 px-3 pb-2 pt-2 dark:border-zinc-800 dark:bg-chamomile-900">
+        <RecordingPill
+          onCancel={speech.abort}
+          onConfirm={speech.stop}
+        />
+      </View>
+    )
+  }
   return (
     <View className="border-t border-zinc-200 bg-chamomile-50 px-3 pb-2 pt-2 dark:border-zinc-800 dark:bg-chamomile-900">
       <View className="rounded-[26px] border border-zinc-200 bg-chamomile-50 px-2 pb-1.5 pt-2 dark:border-zinc-800 dark:bg-zinc-900">
-        {speech.recording && speech.interim.length > 0 && (
-          <Text className="px-3 pb-1 text-[12px] italic text-matcha-700 dark:text-matcha-300">
-            {speech.interim}…
-          </Text>
-        )}
         {hasAttachments && (
           <>
             <View className="flex-row flex-wrap gap-2 px-2 pb-2">
@@ -180,32 +190,22 @@ export function Composer({
             )}
           </View>
           <View className="flex-row items-center gap-1">
-            {!streaming && (!hasText || speech.recording) && (
+            {!streaming && !hasText && (
               <Pressable
                 onPress={toggleMic}
                 hitSlop={6}
-                disabled={!speech.available && !speech.recording}
-                accessibilityLabel={
-                  speech.recording ? "Stop voice input" : "Voice input"
-                }
-                className={
-                  speech.recording
-                    ? "h-9 w-9 items-center justify-center rounded-full bg-matcha-500/20 active:opacity-70 dark:bg-matcha-400/25"
-                    : "h-9 w-9 items-center justify-center rounded-full active:opacity-70"
-                }
+                disabled={!speech.available}
+                accessibilityLabel="Voice input"
+                className="h-9 w-9 items-center justify-center rounded-full active:opacity-70"
               >
                 <IconMicrophone
                   size={18}
                   color={
-                    speech.recording
-                      ? dark
-                        ? "#a8c98a"
-                        : "#5b8a3a"
-                      : speech.available
-                        ? iconColor
-                        : dark
-                          ? "#52525b"
-                          : "#a1a1aa"
+                    speech.available
+                      ? iconColor
+                      : dark
+                        ? "#52525b"
+                        : "#a1a1aa"
                   }
                   strokeWidth={1.75}
                 />
