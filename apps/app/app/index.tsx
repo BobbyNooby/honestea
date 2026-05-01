@@ -21,6 +21,7 @@ import { ChatActionsMenu } from "@/components/chat-actions-menu"
 import { ChatMessage } from "@/components/chat-message"
 import { ChatStatusRow } from "@/components/chat-status-row"
 import { Composer } from "@/components/composer"
+import { EmptyChatState } from "@/components/empty-chat-state"
 import { ModelSelector } from "@/components/model-selector"
 import { NoKeyState } from "@/components/no-key-state"
 import { RenameDialog } from "@/components/rename-dialog"
@@ -661,14 +662,7 @@ export default function ChatScreen() {
               onContentSizeChange={() =>
                 listRef.current?.scrollToEnd({ animated: true })
               }
-              ListEmptyComponent={
-                <View className="flex-1 items-center justify-center px-6 py-16">
-                  <Text className="text-center text-zinc-500 dark:text-zinc-400">
-                    Start a conversation. Messages stream in real time using
-                    your OpenRouter key.
-                  </Text>
-                </View>
-              }
+              ListEmptyComponent={<EmptyChatState />}
             />
 
             {error && (
