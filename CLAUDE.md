@@ -85,8 +85,11 @@ Future tier behavior (Stage 2+, when `apps/server` becomes load-bearing):
 ### Pricing tiers
 - Free Local (no account, BYOK only)
 - Cloud BYOK ($5/mo) — account + sync, you bring keys
-- Cloud + Credits — $5/mo + 25-30% markup credits via Stripe
+- Cloud + Credits — $5/mo + 25-30% markup credits via Stripe. **First-time PAYG activation requires a $7.99 minimum deposit** as an anti-fraud floor; the $7.99 lands as marked-up balance the user spends down. Subsequent top-ups can be any amount.
 - Subscription ($15/mo) — unlimited hosted tokens
+
+### Wallet semantics
+Credit balance lives on the account, not on the active tier. **Switching tiers never touches the balance** — it's the user's money. PAYG → Subscription preserves leftover balance (sits as fallback for fair-use overage / premium models). Subscription → PAYG: balance is still spendable. Anyone can top up at any time, no minimum on top-ups (the $7.99 floor is only on first-time PAYG activation). Balance doesn't expire; refunds are explicit-only.
 
 ### BYOK gating rule
 BYOK is allowed only when our revenue isn't tied to token volume:
