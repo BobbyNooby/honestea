@@ -1,6 +1,7 @@
 import { IconCheck } from "@tabler/icons-react-native"
 import { Text, useColorScheme, View } from "react-native"
 
+import { ModalityPill, collectModalities } from "@/components/modality-pill"
 import {
   formatContext,
   formatPricePerMillion,
@@ -26,6 +27,7 @@ export function CustomModelSection({
   const dark = useColorScheme() === "dark"
   const { inputUsd, outputUsd } = pricePartsFromPricing(model.pricing)
   const isFree = inputUsd === 0 && outputUsd === 0
+  const modalities = collectModalities(model)
   return (
     <View className="border-t border-zinc-200 dark:border-zinc-800">
       <Text className="px-5 pb-1 pt-3 text-[11px] uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
@@ -39,6 +41,13 @@ export function CustomModelSection({
           >
             {model.name}
           </Text>
+          {modalities.length > 0 && (
+            <View className="flex-row flex-wrap gap-1">
+              {modalities.map((m) => (
+                <ModalityPill key={m} name={m} />
+              ))}
+            </View>
+          )}
           {model.description && (
             <Text
               className="text-xs text-zinc-500 dark:text-zinc-400"
