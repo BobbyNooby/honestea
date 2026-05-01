@@ -1,17 +1,22 @@
 import {
+  IconAdjustmentsHorizontal,
   IconBell,
   IconChartLine,
   IconChevronRight,
-  IconDeviceMobile,
+  IconCreditCard,
+  IconDeviceMobileVibration,
   IconInfoCircle,
-  IconKey,
-  IconMicrophone,
-  IconMoon,
-  IconShieldLock,
+  IconLayoutGrid,
+  IconLockSquareRounded,
+  IconMenu2,
+  IconMoonStars,
+  IconShield,
   IconTypography,
+  IconUserCircle,
+  IconWorld,
   type Icon,
 } from "@tabler/icons-react-native"
-import { router } from "expo-router"
+import { Stack, router } from "expo-router"
 import { useState } from "react"
 import {
   Pressable,
@@ -25,92 +30,113 @@ import { SafeAreaView } from "react-native-safe-area-context"
 import { ColorModeSheet } from "@/components/color-mode-sheet"
 import { Switch } from "@/components/ui/switch"
 import { cn } from "@/lib/cn"
+import { useSidebar } from "@/lib/sidebar-context"
 import { useThemePreference, type ThemePreference } from "@/lib/theme"
 
 /**
- * Sectioned settings landing page. Matches the design reference: grouped
- * cards with icon + title (+ optional subtitle) + right slot rows. Most
- * non-essential rows are visual placeholders for now — they lock the
- * shape of the page so future feature work slots in cleanly.
+ * Settings landing page. Matches the design-system handoff: custom
+ * hamburger / serif title / info header, account card on top, four
+ * grouped cards (Account · Capabilities · Personalization · Behavior).
+ * Rows have no chevrons — the whole row is the affordance.
+ *
+ * Many rows are placeholders — they lock the visual shape so future
+ * feature work slots in cleanly. Real today: API keys (via Connectors),
+ * Usage, Color mode, Haptic feedback.
  */
 export default function SettingsScreen() {
+  const sidebar = useSidebar()
+  const dark = useColorScheme() === "dark"
   const [pref, setPref] = useThemePreference()
   const [colorSheetOpen, setColorSheetOpen] = useState(false)
   const [hapticOn, setHapticOn] = useState(true)
+  const tint = dark ? "#e4e4e7" : "#3f3f46"
+  const tintMuted = dark ? "#a1a1aa" : "#71717a"
 
   return (
     <SafeAreaView
       className="flex-1 bg-chamomile-100 dark:bg-chamomile-900"
-      edges={["bottom"]}
+      edges={["top", "bottom"]}
     >
-      <ScrollView contentContainerClassName="p-4 gap-5">
-        <Group>
-          <Row
-            icon={IconKey}
-            title="API keys"
-            subtitle="Bring your own provider keys."
-            onPress={() => router.push("/byok" as never)}
-          />
-          <Divider />
+      {/* Hide the auto Stack header — we render our own per the design. */}
+      <Stack.Screen options={{ headerShown: false }} />
+
+      <View className="h-14 flex-row items-center px-3">
+        <Pressable
+          onPress={sidebar.open}
+          hitSlop={6}
+          accessibilityLabel="Open menu"
+          className="h-10 w-10 items-center justify-center rounded-md active:bg-zinc-100 dark:active:bg-zinc-800"
+        >
+          <IconMenu2 size={22} color={tint} strokeWidth={1.75} />
+        </Pressable>
+        <View className="flex-1 items-center">
+          <Text
+            className="text-zinc-900 dark:text-zinc-100"
+            style={{
+              fontFamily: "Georgia",
+              fontWeight: "600",
+              fontSize: 20,
+              letterSpacing: 0.2,
+            }}
+          >
+            Settings
+          </Text>
+        </View>
+        <Pressable
+          hitSlop={6}
+          accessibilityLabel="About"
+          className="h-10 w-10 items-center justify-center rounded-md active:bg-zinc-100 dark:active:bg-zinc-800"
+        >
+          <IconInfoCircle size={22} color={tint} strokeWidth={1.75} />
+        </Pressable>
+      </View>
+
+      <ScrollView contentContainerClassName="px-3 pb-8 pt-1">
+        <AccountCard />
+
+        <Card>
+          <Row icon={IconUserCircle} label="Profile" disabled />
+          <Row icon={IconCreditCard} label="Billing" disabled />
           <Row
             icon={IconChartLine}
-            title="Usage"
-            subtitle="Spend and rate limits across providers."
+            label="Usage"
             onPress={() => router.push("/settings/usage" as never)}
           />
-        </Group>
+        </Card>
 
-        <Group>
+        <Card>
+          <Row icon={IconAdjustmentsHorizontal} label="Capabilities" disabled />
           <Row
-            icon={IconMoon}
-            title="Color mode"
-            subtitle={describeTheme(pref)}
+            icon={IconLayoutGrid}
+            label="Connectors"
+            sub="API keys"
+            onPress={() => router.push("/byok" as never)}
+          />
+          <Row icon={IconShield} label="Permissions" disabled />
+        </Card>
+
+        <Card>
+          <Row
+            icon={IconMoonStars}
+            label="Color mode"
+            sub={describeTheme(pref)}
             onPress={() => setColorSheetOpen(true)}
           />
-          <Divider />
-          <Row
-            icon={IconTypography}
-            title="Font scale"
-            subtitle="Default"
-            disabled
-          />
-          <Divider />
-          <Row
-            icon={IconMicrophone}
-            title="Speech voice"
-            subtitle="System default"
-            disabled
-          />
-        </Group>
+          <Row icon={IconTypography} label="Font style" sub="Default" disabled />
+          <Row icon={IconWorld} label="Speech language" sub="English" disabled />
+        </Card>
 
-        <Group>
+        <Card>
           <Row
-            icon={IconDeviceMobile}
-            title="Haptic feedback"
+            icon={IconDeviceMobileVibration}
+            label="Haptic feedback"
             rightSlot={
-              <Switch
-                value={hapticOn}
-                onValueChange={setHapticOn}
-              />
+              <Switch value={hapticOn} onValueChange={setHapticOn} />
             }
           />
-          <Divider />
-          <Row icon={IconBell} title="Notifications" disabled />
-          <Divider />
-          <Row icon={IconShieldLock} title="Privacy" disabled />
-        </Group>
-
-        <Group>
-          <Row
-            icon={IconInfoCircle}
-            title="Version"
-            rightSlot={
-              <Text className="font-mono text-xs text-zinc-500 dark:text-zinc-400">
-                0.0.0
-              </Text>
-            }
-          />
-        </Group>
+          <Row icon={IconBell} label="Notifications" disabled />
+          <Row icon={IconLockSquareRounded} label="Privacy" disabled />
+        </Card>
       </ScrollView>
 
       <ColorModeSheet
@@ -121,73 +147,96 @@ export default function SettingsScreen() {
       />
     </SafeAreaView>
   )
+
+  function AccountCard() {
+    return (
+      <View className="mb-3 overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+        <View className="flex-row items-center gap-3 px-4 py-3">
+          <View className="h-9 w-9 items-center justify-center rounded-full bg-matcha-500/15 dark:bg-matcha-400/20">
+            <Text className="text-[13px] font-semibold text-matcha-700 dark:text-matcha-300">
+              HT
+            </Text>
+          </View>
+          <View className="min-w-0 flex-1">
+            <Text className="truncate text-[15px] text-zinc-900 dark:text-zinc-100">
+              Local mode
+            </Text>
+            <Text
+              className="truncate text-[12px] text-zinc-500 dark:text-zinc-400"
+              numberOfLines={1}
+            >
+              No account yet · sync coming in Phase 2
+            </Text>
+          </View>
+          <IconChevronRight size={16} color={tintMuted} strokeWidth={1.75} />
+        </View>
+      </View>
+    )
+  }
 }
 
-/** White (or zinc-900) rounded card grouping a set of related rows. */
-function Group({ children }: { children: React.ReactNode }) {
+/**
+ * White (or zinc-900) card grouping a set of related rows. Inserts a
+ * thin divider between rows — using a JSX-mapped divider rather than
+ * `last:` border modifiers because RN doesn't expose `:last-child`.
+ */
+function Card({ children }: { children: React.ReactNode }) {
+  const items = (Array.isArray(children) ? children : [children]).filter(
+    (c) => c != null && c !== false,
+  )
   return (
-    <View className="overflow-hidden rounded-2xl bg-white dark:bg-zinc-900">
-      {children}
+    <View className="mb-3 overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+      {items.map((child, i) => (
+        <View key={i}>
+          {i > 0 && <View className="h-px bg-zinc-200 dark:bg-zinc-800" />}
+          {child}
+        </View>
+      ))}
     </View>
   )
 }
 
 interface RowProps {
   icon: Icon
-  title: string
-  subtitle?: string
+  label: string
+  sub?: string
   onPress?: () => void
   rightSlot?: React.ReactNode
   /** Greys the row + suppresses press feedback. Used for placeholders. */
   disabled?: boolean
 }
 
-function Row({
-  icon: IconCmp,
-  title,
-  subtitle,
-  onPress,
-  rightSlot,
-  disabled,
-}: RowProps) {
+function Row({ icon: IconCmp, label, sub, onPress, rightSlot, disabled }: RowProps) {
   const dark = useColorScheme() === "dark"
   const tint = dark ? "#e4e4e7" : "#3f3f46"
-  const showChevron = !!onPress && !rightSlot
+  const interactive = !!onPress && !disabled
   return (
     <Pressable
-      onPress={disabled ? undefined : onPress}
-      disabled={disabled || (!onPress && !rightSlot)}
+      onPress={interactive ? onPress : undefined}
+      disabled={!interactive && !rightSlot}
       className={cn(
-        "flex-row items-center gap-4 px-4 py-3.5",
-        onPress && !disabled && "active:bg-zinc-100 dark:active:bg-zinc-800",
+        "flex-row items-center gap-3 px-4",
+        sub ? "py-2.5" : "py-3",
+        interactive && "active:bg-zinc-100 dark:active:bg-zinc-800",
         disabled && "opacity-60",
       )}
     >
-      <IconCmp size={22} color={tint} strokeWidth={1.75} />
-      <View className="flex-1 gap-0.5">
-        <Text className="text-base text-zinc-900 dark:text-zinc-100">
-          {title}
+      <View className="h-7 w-7 items-center justify-center">
+        <IconCmp size={22} color={tint} strokeWidth={1.75} />
+      </View>
+      <View className="flex-1">
+        <Text className="text-[16px] text-zinc-900 dark:text-zinc-100">
+          {label}
         </Text>
-        {subtitle && (
-          <Text className="text-xs text-zinc-500 dark:text-zinc-400">
-            {subtitle}
+        {sub && (
+          <Text className="mt-0.5 text-[13px] text-zinc-500 dark:text-zinc-400">
+            {sub}
           </Text>
         )}
       </View>
       {rightSlot}
-      {showChevron && (
-        <IconChevronRight
-          size={16}
-          color={dark ? "#52525b" : "#a1a1aa"}
-          strokeWidth={2}
-        />
-      )}
     </Pressable>
   )
-}
-
-function Divider() {
-  return <View className="h-px bg-zinc-100 dark:bg-zinc-800" />
 }
 
 function describeTheme(pref: ThemePreference): string {

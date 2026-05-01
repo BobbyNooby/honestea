@@ -150,9 +150,22 @@ export default function UsageScreen() {
 
 function OpenRouterCard({ usage }: { usage: OpenRouterUsage }) {
   const negative = usage.limitRemaining != null && usage.limitRemaining < 0
+  // Anchor the proportion bars to lifetime spend (the largest period) so
+  // each row's bar fills relative to it.
+  const lifetimeSpend = Math.max(usage.usage, 0.0001)
   return (
     <View className="gap-3">
       <SectionLabel>OpenRouter</SectionLabel>
+
+      {usage.limit != null && (
+        <CreditCapCard
+          used={usage.limit - (usage.limitRemaining ?? usage.limit)}
+          limit={usage.limit}
+          remaining={usage.limitRemaining ?? 0}
+          negative={negative}
+        />
+      )}
+
       <View className="overflow-hidden rounded-2xl bg-white dark:bg-zinc-900">
         <View className="gap-1 px-5 py-4">
           <Text className="text-xs uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
@@ -165,16 +178,29 @@ function OpenRouterCard({ usage }: { usage: OpenRouterUsage }) {
 
         <Divider />
 
-        <UsageRow label="Today" value={formatUsd(usage.usageDaily)} />
+        <UsageRow
+          label="Today"
+          value={formatUsd(usage.usageDaily)}
+          fillFraction={usage.usageDaily / lifetimeSpend}
+        />
         <Divider />
-        <UsageRow label="This week" value={formatUsd(usage.usageWeekly)} />
+        <UsageRow
+          label="This week"
+          value={formatUsd(usage.usageWeekly)}
+          fillFraction={usage.usageWeekly / lifetimeSpend}
+        />
         <Divider />
-        <UsageRow label="This month" value={formatUsd(usage.usageMonthly)} />
+        <UsageRow
+          label="This month"
+          value={formatUsd(usage.usageMonthly)}
+          fillFraction={usage.usageMonthly / lifetimeSpend}
+        />
         <Divider />
         <UsageRow
           label="Lifetime"
           value={formatUsd(usage.usage)}
           emphasized
+          fillFraction={1}
         />
 
         {usage.limit != null && (
@@ -193,8 +219,6 @@ function OpenRouterCard({ usage }: { usage: OpenRouterUsage }) {
                   : undefined
               }
             />
-            <Divider />
-            <UsageRow label="Credit cap" value={formatUsd(usage.limit)} />
           </>
         )}
 
@@ -335,25 +359,102 @@ function UsageRow({
   value,
   emphasized,
   valueClassName,
+  fillFraction,
 }: {
   label: string
   value: string
   emphasized?: boolean
   valueClassName?: string
+  /** 0–1 fraction used to fill an inline bar under the row.
+   *  Visualizes how this period compares to the anchor (typically
+   *  lifetime). Hidden when undefined. */
+  fillFraction?: number
 }) {
+  const clamped =
+    fillFraction != null
+      ? Math.max(0, Math.min(1, fillFraction))
+      : null
   return (
-    <View className="flex-row items-center justify-between px-5 py-3">
-      <Text className="text-sm text-zinc-600 dark:text-zinc-400">{label}</Text>
-      <Text
-        className={
-          valueClassName ??
-          (emphasized
-            ? "text-base font-semibold tabular-nums text-zinc-900 dark:text-zinc-100"
-            : "text-sm font-medium tabular-nums text-zinc-900 dark:text-zinc-100")
-        }
-      >
-        {value}
-      </Text>
+    <View className="gap-1.5 px-5 py-3">
+      <View className="flex-row items-center justify-between">
+        <Text className="text-sm text-zinc-600 dark:text-zinc-400">{label}</Text>
+        <Text
+          className={
+            valueClassName ??
+            (emphasized
+              ? "text-base font-semibold tabular-nums text-zinc-900 dark:text-zinc-100"
+              : "text-sm font-medium tabular-nums text-zinc-900 dark:text-zinc-100")
+          }
+        >
+          {value}
+        </Text>
+      </View>
+      {clamped != null && (
+        <View className="h-1 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
+          <View
+            className="h-full rounded-full bg-matcha-500 dark:bg-matcha-400"
+            style={{ width: `${clamped * 100}%` }}
+          />
+        </View>
+      )}
+    </View>
+  )
+}
+
+/**
+ * Big progress bar showing remaining credit vs cap. Threshold-colored —
+ * green up to 75%, amber between 75-90%, red beyond. Negative-balance
+ * states get a red bar at full width with a warning sign.
+ */
+function CreditCapCard({
+  used,
+  limit,
+  remaining,
+  negative,
+}: {
+  used: number
+  limit: number
+  remaining: number
+  negative: boolean
+}) {
+  const pct = negative ? 1 : Math.max(0, Math.min(1, used / limit))
+  const tone = negative
+    ? "bg-red-500"
+    : pct >= 0.9
+      ? "bg-red-500"
+      : pct >= 0.75
+        ? "bg-amber-500"
+        : "bg-matcha-500 dark:bg-matcha-400"
+  return (
+    <View className="overflow-hidden rounded-2xl bg-white p-4 dark:bg-zinc-900">
+      <View className="mb-2 flex-row items-baseline justify-between">
+        <Text className="text-xs uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+          Credit balance
+        </Text>
+        <Text className="text-[11px] tabular-nums text-zinc-500 dark:text-zinc-400">
+          {formatUsd(used)} of {formatUsd(limit)}
+        </Text>
+      </View>
+      <View className="h-2 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
+        <View
+          className={`h-full rounded-full ${tone}`}
+          style={{ width: `${pct * 100}%` }}
+        />
+      </View>
+      <View className="mt-2 flex-row items-baseline justify-between">
+        <Text className="text-[13px] text-zinc-600 dark:text-zinc-400">
+          {negative ? "Balance is negative" : "Remaining"}
+        </Text>
+        <Text
+          className={
+            negative
+              ? "text-[15px] font-semibold tabular-nums text-red-600 dark:text-red-400"
+              : "text-[15px] font-semibold tabular-nums text-zinc-900 dark:text-zinc-100"
+          }
+        >
+          {formatUsd(remaining)}
+        </Text>
+      </View>
     </View>
   )
 }
