@@ -64,7 +64,14 @@ function useNativeSpeechRecognition(
   const speech =
     require("@jamsch/expo-speech-recognition") as typeof import("@jamsch/expo-speech-recognition")
 
-  const [available] = useState(() => speech.supportsRecording())
+  // We deliberately don't gate on `supportsRecording()` here — that
+  // function returns true only on Android 13+ (Tiramisu) because it's
+  // actually checking *on-device* recognition support. Older Androids
+  // still have working cloud-based STT via SpeechRecognizer; iOS always
+  // works. Setting available=true and letting `start()` surface the real
+  // error if the platform lacks any STT engine gives more permissive +
+  // honest UX than silently greying the button on most phones.
+  const [available] = useState(() => true)
   const [recording, setRecording] = useState(false)
   const [interim, setInterim] = useState("")
   const [error, setError] = useState<string | null>(null)
