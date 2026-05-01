@@ -95,15 +95,12 @@ export default function ChatScreen() {
     return model?.architecture?.input_modalities?.includes("image") ?? false
   }, [registry, modelId])
 
-  // Whether the current model accepts file input (PDFs). Drives the
-  // "Add file" row gate. OR's file-parser plugin can extract PDF text
-  // for any text model, but we keep the gate strict so the picker only
-  // surfaces models that natively understand files.
-  const fileSupported = useMemo(() => {
-    if (!registry) return false
-    const model = findModel(registry, modelId)
-    return model?.architecture?.input_modalities?.includes("file") ?? false
-  }, [registry, modelId])
+  // File attachments are temporarily disabled across all models. The OR
+  // file-parser plugin (cloudflare-ai engine) was returning "failed to
+  // parse" on real PDFs, and we'd rather grey the row out cleanly than
+  // ship a broken pick → grey toast loop. Revisit when we swap engines
+  // or wire native PDF support per-model.
+  const fileSupported = false
   const [renameTarget, setRenameTarget] = useState<{
     id: string
     title: string | null
