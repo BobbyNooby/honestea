@@ -39,6 +39,9 @@ interface Props {
    *  the image / camera / file pickers. */
   attachments: readonly Attachment[]
   onAttachmentsChange: (next: Attachment[]) => void
+  /** Whether the active model accepts image input. Greys the image /
+   *  photo rows in the compose menu when false. */
+  imageSupported: boolean
 }
 
 /**
@@ -61,6 +64,7 @@ export function Composer({
   onChangeStyle,
   attachments,
   onAttachmentsChange,
+  imageSupported,
 }: Props) {
   const [menuOpen, setMenuOpen] = useState(false)
   const hasText = value.trim().length > 0
@@ -74,15 +78,24 @@ export function Composer({
     <View className="border-t border-zinc-200 bg-chamomile-50 px-3 pb-2 pt-2 dark:border-zinc-800 dark:bg-chamomile-900">
       <View className="rounded-[26px] border border-zinc-200 bg-chamomile-50 px-2 pb-1.5 pt-2 dark:border-zinc-800 dark:bg-zinc-900">
         {hasAttachments && (
-          <View className="flex-row flex-wrap gap-2 px-2 pb-2">
-            {attachments.map((att) => (
-              <AttachmentChip
-                key={att.uri}
-                attachment={att}
-                onRemove={() => removeAttachment(att.uri)}
-              />
-            ))}
-          </View>
+          <>
+            <View className="flex-row flex-wrap gap-2 px-2 pb-2">
+              {attachments.map((att) => (
+                <AttachmentChip
+                  key={att.uri}
+                  attachment={att}
+                  onRemove={() => removeAttachment(att.uri)}
+                />
+              ))}
+            </View>
+            {!imageSupported &&
+              attachments.some((a) => a.kind === "image") && (
+                <Text className="px-3 pb-2 text-[11px] text-amber-700 dark:text-amber-400">
+                  This model doesn't accept images — pick a different
+                  model or remove the attachment to send.
+                </Text>
+              )}
+          </>
         )}
         <Input
           value={value}
@@ -159,6 +172,7 @@ export function Composer({
         onAddAttachment={(att) =>
           onAttachmentsChange([...attachments, att])
         }
+        imageSupported={imageSupported}
       />
     </View>
   )

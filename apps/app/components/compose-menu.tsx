@@ -43,6 +43,10 @@ interface Props {
   /** Called when the user picks an image (library or camera). The
    *  composer adds it to its pending-attachments queue. */
   onAddAttachment: (att: Attachment) => void
+  /** Whether the active model accepts image input (architecture has
+   *  `input_modalities` containing "image"). When false the Add image /
+   *  Take photo rows are greyed and untappable, with a hint subtitle. */
+  imageSupported: boolean
 }
 
 /**
@@ -61,6 +65,7 @@ export function ComposeMenu({
   style,
   onChangeStyle,
   onAddAttachment,
+  imageSupported,
 }: Props) {
   const [view, setView] = useState<"top" | "style">("top")
   const dark = useColorScheme() === "dark"
@@ -149,8 +154,14 @@ export function ComposeMenu({
                   icon={IconPhoto}
                   iconColor={tint}
                   title="Add image"
-                  description="Send a photo from your library."
+                  description={
+                    imageSupported
+                      ? "Send a photo from your library."
+                      : "This model doesn't accept image input. Pick a different model to enable."
+                  }
+                  disabled={!imageSupported}
                   onPress={() => {
+                    if (!imageSupported) return
                     void pickImage("library")
                   }}
                 />
@@ -158,8 +169,14 @@ export function ComposeMenu({
                   icon={IconCamera}
                   iconColor={tint}
                   title="Take photo"
-                  description="Capture a new picture with the camera."
+                  description={
+                    imageSupported
+                      ? "Capture a new picture with the camera."
+                      : "This model doesn't accept image input. Pick a different model to enable."
+                  }
+                  disabled={!imageSupported}
                   onPress={() => {
+                    if (!imageSupported) return
                     void pickImage("camera")
                   }}
                 />

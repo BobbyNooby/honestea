@@ -85,6 +85,15 @@ export default function ChatScreen() {
     const model = findModel(registry, modelId)
     return model?.supported_parameters?.includes("tools") ?? false
   }, [registry, modelId])
+
+  // Whether the current model accepts image input. Drives whether the
+  // compose menu's "Add image" / "Take photo" rows are tappable. Read
+  // from the OR registry's `architecture.input_modalities`.
+  const imageSupported = useMemo(() => {
+    if (!registry) return false
+    const model = findModel(registry, modelId)
+    return model?.architecture?.input_modalities?.includes("image") ?? false
+  }, [registry, modelId])
   const [renameTarget, setRenameTarget] = useState<{
     id: string
     title: string | null
@@ -452,6 +461,21 @@ export default function ChatScreen() {
     // common for "what's in this picture?" style turns.
     if ((!text && pendingAttachments.length === 0) || streaming) return
 
+    // Refuse to send images to a model that can't accept them — would
+    // otherwise hit the API and fail with a noisy 4xx. The composer
+    // banner already warns; this is the actual gate.
+    const hasImageAttachments = pendingAttachments.some(
+      (a) => a.kind === "image",
+    )
+    if (hasImageAttachments && !imageSupported) {
+      Toast.show({
+        type: "error",
+        text1: "Model doesn't accept images",
+        text2: "Switch to a vision-capable model or remove the attachment.",
+      })
+      return
+    }
+
     setError(null)
     setStreaming(true)
     setInput("")
@@ -509,6 +533,7 @@ export default function ChatScreen() {
     }
   }, [
     conversations,
+    imageSupported,
     input,
     messages,
     modelId,
@@ -771,6 +796,7 @@ export default function ChatScreen() {
               onChangeStyle={setResponseStyle}
               attachments={pendingAttachments}
               onAttachmentsChange={setPendingAttachments}
+              imageSupported={imageSupported}
             />
           </>
         )}
