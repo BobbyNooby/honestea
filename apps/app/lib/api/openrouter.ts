@@ -1,5 +1,7 @@
 import { fetch as expoFetch } from "expo/fetch"
 
+import type { Citation } from "@honestea/shared"
+
 import type { ChatMessage, ChatResult, ChatUsage } from "./types"
 
 const OPENROUTER_BASE = "https://openrouter.ai/api/v1"
@@ -11,7 +13,10 @@ const OPENROUTER_BASE = "https://openrouter.ai/api/v1"
  *
  * `usage: { include: true }` opts in to OR's usage reporting — the final
  * SSE event arrives with `choices: []` and a populated `usage` object that
- * we capture as the authoritative cost.
+ * we capture as the authoritative cost. When `webSearch` is true, the
+ * `openrouter:web_search` server tool is added — the model decides 0–N
+ * searches per turn and OR rolls the cost into `usage.cost`. Citations
+ * arrive as `delta.annotations[].url_citation` events during streaming.
  */
 export async function streamChatOpenRouter(opts: {
   apiKey: string
@@ -19,7 +24,23 @@ export async function streamChatOpenRouter(opts: {
   messages: ChatMessage[]
   onToken: (chunk: string) => void
   signal?: AbortSignal
+  /** Enable OR's `openrouter:web_search` server tool for this turn. */
+  webSearch?: boolean
 }): Promise<ChatResult> {
+  const body: Record<string, unknown> = {
+    model: opts.model,
+    messages: opts.messages,
+    stream: true,
+    usage: { include: true },
+  }
+  if (opts.webSearch) {
+    // Server-tool form (current). The deprecated `:online` slug suffix and
+    // `plugins: [{ id: "web" }]` both still work but force one search per
+    // turn; the tool form lets the model search 0-N times based on the
+    // question. Default Exa engine — $0.02/turn (5 results × $4/1000).
+    body.tools = [{ type: "openrouter:web_search" }]
+  }
+
   const res = await expoFetch(`${OPENROUTER_BASE}/chat/completions`, {
     method: "POST",
     headers: {
@@ -28,12 +49,7 @@ export async function streamChatOpenRouter(opts: {
       // Cosmetic: shows "Honest AI" in the user's OR dashboard.
       "X-Title": "Honest AI",
     },
-    body: JSON.stringify({
-      model: opts.model,
-      messages: opts.messages,
-      stream: true,
-      usage: { include: true },
-    }),
+    body: JSON.stringify(body),
     signal: opts.signal,
   })
 
@@ -48,6 +64,9 @@ export async function streamChatOpenRouter(opts: {
   let buffer = ""
   let full = ""
   let usage: ChatUsage | null = null
+  // Annotation entries arrive in deltas; dedupe by URL because OR
+  // sometimes re-broadcasts the same citation in successive chunks.
+  const citationMap = new Map<string, Citation>()
 
   while (true) {
     const { value, done } = await reader.read()
@@ -68,7 +87,21 @@ export async function streamChatOpenRouter(opts: {
         if (!data || data === "[DONE]") continue
         try {
           const parsed = JSON.parse(data) as {
-            choices?: Array<{ delta?: { content?: string } }>
+            choices?: Array<{
+              delta?: {
+                content?: string
+                annotations?: Array<{
+                  type?: string
+                  url_citation?: {
+                    url?: string
+                    title?: string
+                    content?: string
+                    start_index?: number
+                    end_index?: number
+                  }
+                }>
+              }
+            }>
             usage?: {
               prompt_tokens?: number
               completion_tokens?: number
@@ -76,10 +109,27 @@ export async function streamChatOpenRouter(opts: {
               cost?: number
             }
           }
-          const delta = parsed.choices?.[0]?.delta?.content
+          const choice = parsed.choices?.[0]
+          const delta = choice?.delta?.content
           if (delta) {
             full += delta
             opts.onToken(delta)
+          }
+          const annotations = choice?.delta?.annotations
+          if (annotations && Array.isArray(annotations)) {
+            for (const ann of annotations) {
+              const c = ann.url_citation
+              if (!c?.url) continue
+              if (!citationMap.has(c.url)) {
+                citationMap.set(c.url, {
+                  url: c.url,
+                  title: c.title,
+                  content: c.content,
+                  startIndex: c.start_index,
+                  endIndex: c.end_index,
+                })
+              }
+            }
           }
           if (parsed.usage) {
             usage = {
@@ -99,5 +149,10 @@ export async function streamChatOpenRouter(opts: {
       }
     }
   }
-  return { content: full, usage, provider: "openrouter" }
+  return {
+    content: full,
+    usage,
+    provider: "openrouter",
+    citations: [...citationMap.values()],
+  }
 }

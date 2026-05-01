@@ -3,9 +3,15 @@ import {
   IconMicrophone,
   IconPlayerStopFilled,
   IconPlus,
+  IconWorld,
 } from "@tabler/icons-react-native"
-import { Pressable, View } from "react-native"
+import { useState } from "react"
+import { Pressable, Text, View } from "react-native"
 
+import {
+  ComposeMenu,
+  type ResponseStyle,
+} from "@/components/compose-menu"
 import { Input } from "@/components/ui/input"
 
 interface Props {
@@ -14,6 +20,16 @@ interface Props {
   onSend: () => void
   streaming: boolean
   dark: boolean
+  /** Web search toggle state — read by the chat screen once the request
+   *  pipeline is wired up. */
+  webSearch: boolean
+  onToggleWebSearch: (next: boolean) => void
+  /** Whether the active model supports OR's tool-calling (and therefore
+   *  web search). Hides the Web pill + greys the menu toggle when false. */
+  webSearchSupported: boolean
+  /** Active response style — placeholder until the prompt prefix lands. */
+  style: ResponseStyle
+  onChangeStyle: (next: ResponseStyle) => void
 }
 
 /**
@@ -23,7 +39,19 @@ interface Props {
  * the right. The send affordance is a round matcha button with an up-arrow;
  * while streaming it becomes a square stop button.
  */
-export function Composer({ value, onChange, onSend, streaming, dark }: Props) {
+export function Composer({
+  value,
+  onChange,
+  onSend,
+  streaming,
+  dark,
+  webSearch,
+  onToggleWebSearch,
+  webSearchSupported,
+  style,
+  onChangeStyle,
+}: Props) {
+  const [menuOpen, setMenuOpen] = useState(false)
   const hasText = value.trim().length > 0
   const iconColor = dark ? "#e4e4e7" : "#3f3f46"
   return (
@@ -42,13 +70,32 @@ export function Composer({ value, onChange, onSend, streaming, dark }: Props) {
           style={{ borderWidth: 0 }}
         />
         <View className="flex-row items-center justify-between">
-          <Pressable
-            hitSlop={6}
-            accessibilityLabel="Add attachment"
-            className="h-9 w-9 items-center justify-center rounded-full active:opacity-70"
-          >
-            <IconPlus size={20} color={iconColor} strokeWidth={1.75} />
-          </Pressable>
+          <View className="flex-row items-center gap-1">
+            <Pressable
+              onPress={() => setMenuOpen(true)}
+              hitSlop={6}
+              accessibilityLabel="Add attachment or change tools"
+              className="h-9 w-9 items-center justify-center rounded-full active:opacity-70"
+            >
+              <IconPlus size={20} color={iconColor} strokeWidth={1.75} />
+            </Pressable>
+            {webSearch && webSearchSupported && (
+              <Pressable
+                onPress={() => onToggleWebSearch(false)}
+                accessibilityLabel="Web search active — tap to disable"
+                className="flex-row items-center gap-1 rounded-full bg-matcha-500/15 px-2.5 py-1 active:opacity-70 dark:bg-matcha-400/20"
+              >
+                <IconWorld
+                  size={14}
+                  color={dark ? "#a8c98a" : "#5b8a3a"}
+                  strokeWidth={2}
+                />
+                <Text className="text-[11px] font-medium text-matcha-700 dark:text-matcha-300">
+                  Web
+                </Text>
+              </Pressable>
+            )}
+          </View>
           <View className="flex-row items-center gap-1">
             {!streaming && !hasText && (
               <Pressable
@@ -74,6 +121,15 @@ export function Composer({ value, onChange, onSend, streaming, dark }: Props) {
           </View>
         </View>
       </View>
+      <ComposeMenu
+        open={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        webSearch={webSearch}
+        onToggleWebSearch={onToggleWebSearch}
+        webSearchSupported={webSearchSupported}
+        style={style}
+        onChangeStyle={onChangeStyle}
+      />
     </View>
   )
 }

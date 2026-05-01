@@ -1,5 +1,7 @@
 import { integer, real, sqliteTable, text } from "drizzle-orm/sqlite-core"
 
+import type { Citation } from "@honestea/shared"
+
 /**
  * SQLite schema for Phase 1 local-only conversation storage.
  *
@@ -88,6 +90,13 @@ export const messages = sqliteTable("messages", {
   provider: text("provider", {
     enum: ["openrouter", "anthropic"],
   }),
+  /**
+   * Web-search sources captured from OR's `annotations[].url_citation`.
+   * Stored as a JSON-encoded `Citation[]`. Null when no search was used
+   * (web search disabled, or model chose not to search even with it on).
+   * Drives the "🌐 N sources" chip on the assistant bubble.
+   */
+  citations: text("citations", { mode: "json" }).$type<Citation[]>(),
   createdAt: integer("created_at").notNull(),
 })
 

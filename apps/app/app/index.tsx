@@ -21,6 +21,7 @@ import { ChatActionsMenu } from "@/components/chat-actions-menu"
 import { ChatMessage } from "@/components/chat-message"
 import { ChatStatusRow } from "@/components/chat-status-row"
 import { Composer } from "@/components/composer"
+import { type ResponseStyle } from "@/components/compose-menu"
 import { EmptyChatState } from "@/components/empty-chat-state"
 import { ModelSelector } from "@/components/model-selector"
 import { NoKeyState } from "@/components/no-key-state"
@@ -58,6 +59,20 @@ export default function ChatScreen() {
   const [input, setInput] = useState("")
   const [streaming, setStreaming] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Compose-menu controls. Web search rides on OR's `openrouter:web_search`
+  // server tool — gated below on tool-calling support. Style is a
+  // placeholder until the prompt prefix layer ships.
+  const [webSearch, setWebSearch] = useState(false)
+  const [responseStyle, setResponseStyle] = useState<ResponseStyle>("normal")
+
+  // Whether the current model supports OR's tool calling (and therefore
+  // the web_search server tool). The compose menu greys the toggle and
+  // the composer hides the Web pill when this is false.
+  const webSearchSupported = useMemo(() => {
+    if (!registry) return false
+    const model = findModel(registry, modelId)
+    return model?.supported_parameters?.includes("tools") ?? false
+  }, [registry, modelId])
   const [renameTarget, setRenameTarget] = useState<{
     id: string
     title: string | null
@@ -245,9 +260,18 @@ export default function ChatScreen() {
       contextMessages: Message[]
       isFirstTurn: boolean
       firstTurnText?: string
+      /** Whether to enable OR's web_search server tool for this turn.
+       *  Captured as a snapshot of the toggle at request time so toggling
+       *  it off mid-stream doesn't cancel an in-flight search. */
+      webSearch: boolean
     }) => {
-      const { conversationId, contextMessages, isFirstTurn, firstTurnText } =
-        params
+      const {
+        conversationId,
+        contextMessages,
+        isFirstTurn,
+        firstTurnText,
+        webSearch,
+      } = params
 
       const assistantRow = await addMessage({
         conversationId,
@@ -298,6 +322,7 @@ export default function ChatScreen() {
             role,
             content,
           })),
+          webSearch,
           onToken: (chunk) => {
             buffer += chunk
             const liveUsd = liveCostFor(buffer)
@@ -322,6 +347,12 @@ export default function ChatScreen() {
             ? result.usage.costUsd
             : liveCostFor(buffer)
 
+        // Persist citations as null when the model didn't search — keeps
+        // the "🌐 N sources" chip from rendering on plain replies that
+        // happened to have web search enabled.
+        const citations =
+          result.citations.length > 0 ? result.citations : null
+
         await updateMessage(assistantRow.id, {
           content: buffer,
           status: "complete",
@@ -330,6 +361,7 @@ export default function ChatScreen() {
           completionTokens,
           costUsd,
           provider: result.provider,
+          citations,
         })
 
         setMessages((m) =>
@@ -343,6 +375,7 @@ export default function ChatScreen() {
                   promptTokens,
                   completionTokens,
                   provider: result.provider,
+                  citations,
                 }
               : msg,
           ),
@@ -433,6 +466,7 @@ export default function ChatScreen() {
         contextMessages: [...before, userRow],
         isFirstTurn: before.filter((m) => m.kind === "normal").length === 0,
         firstTurnText: text,
+        webSearch,
       })
     } finally {
       setStreaming(false)
@@ -446,6 +480,7 @@ export default function ChatScreen() {
     runCompaction,
     streaming,
     streamAssistantTurn,
+    webSearch,
   ])
 
   const regenerate = useCallback(
@@ -489,12 +524,13 @@ export default function ChatScreen() {
           conversationId: target.conversationId,
           contextMessages: context,
           isFirstTurn: false,
+          webSearch,
         })
       } finally {
         setStreaming(false)
       }
     },
-    [messages, streaming, streamAssistantTurn],
+    [messages, streaming, streamAssistantTurn, webSearch],
   )
 
   // ---- Triple-dot menu actions ----
@@ -689,6 +725,11 @@ export default function ChatScreen() {
               onSend={send}
               streaming={streaming}
               dark={dark}
+              webSearch={webSearch}
+              onToggleWebSearch={setWebSearch}
+              webSearchSupported={webSearchSupported}
+              style={responseStyle}
+              onChangeStyle={setResponseStyle}
             />
           </>
         )}

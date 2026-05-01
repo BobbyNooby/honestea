@@ -188,5 +188,8 @@ export async function streamChatAnthropic(opts: {
     costUsd,
   }
 
-  return { content: full, usage, provider: "anthropic" }
+  // Anthropic-direct doesn't use OR's web_search server tool. The
+  // dispatcher routes to OR when the user wants web search, so this
+  // is always empty here.
+  return { content: full, usage, provider: "anthropic", citations: [] }
 }

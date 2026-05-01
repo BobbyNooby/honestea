@@ -28,6 +28,23 @@ export type MessageKind = "normal" | "summary"
  */
 export type ChatProvider = "openrouter" | "anthropic"
 
+/**
+ * One web-search source the model used to answer. Mirrors OpenRouter's
+ * `annotations[].url_citation` shape from `openrouter:web_search` tool
+ * results. Stored on the assistant message so we can render a "N sources"
+ * chip and (later) tap-through to the URLs.
+ */
+export interface Citation {
+  url: string
+  title?: string
+  /** Short snippet of the result content. */
+  content?: string
+  /** Character offsets into the assistant's content where this citation
+   *  applies. Optional — older OR builds didn't include them. */
+  startIndex?: number
+  endIndex?: number
+}
+
 export interface Message {
   id: string
   conversationId: string
@@ -66,6 +83,13 @@ export interface Message {
   kind: MessageKind
   /** Backend the assistant turn was sent to. Null on user/system rows + pre-v5 history. */
   provider: ChatProvider | null
+  /**
+   * Web-search sources the model cited, captured from OR's
+   * `annotations[].url_citation`. Empty/null means no search was used (or
+   * the model chose not to search even with web search enabled). Drives
+   * the "🌐 N sources" chip in the chat view.
+   */
+  citations: Citation[] | null
   /** ms epoch */
   createdAt: number
 }

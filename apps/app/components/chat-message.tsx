@@ -1,6 +1,7 @@
 import {
   IconChevronLeft,
   IconChevronRight,
+  IconWorld,
 } from "@tabler/icons-react-native"
 import { Pressable, Text, useColorScheme, View } from "react-native"
 
@@ -82,6 +83,9 @@ export function ChatMessage({
     <View className="gap-1">
       {showDividerAbove && <CompactedDivider />}
       <View className="self-stretch gap-1.5 px-1">
+        {message.citations && message.citations.length > 0 && (
+          <WebSearchChip count={message.citations.length} />
+        )}
         {message.content ? (
           <MarkdownText>{message.content}</MarkdownText>
         ) : isStreaming ? (
@@ -192,6 +196,29 @@ function VersionPagination({
           strokeWidth={1.75}
         />
       </Pressable>
+    </View>
+  )
+}
+
+/**
+ * Small chip rendered above an assistant message that consumed the
+ * `openrouter:web_search` tool. The count comes from
+ * `message.citations.length` — the number of distinct URLs the model
+ * actually grounded its answer on. Future revision: tap to expand the
+ * full source list.
+ */
+function WebSearchChip({ count }: { count: number }) {
+  const dark = useColorScheme() === "dark"
+  return (
+    <View className="-ml-0.5 flex-row items-center gap-1 self-start rounded-full bg-matcha-500/15 px-2.5 py-1 dark:bg-matcha-400/20">
+      <IconWorld
+        size={12}
+        color={dark ? "#a8c98a" : "#5b8a3a"}
+        strokeWidth={2}
+      />
+      <Text className="text-[11px] font-medium text-matcha-700 dark:text-matcha-300">
+        Searched the web · {count} {count === 1 ? "source" : "sources"}
+      </Text>
     </View>
   )
 }

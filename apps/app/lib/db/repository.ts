@@ -129,6 +129,7 @@ export async function addMessage(input: {
     summarizedInto: null,
     kind: input.kind ?? "normal",
     provider: input.provider ?? null,
+    citations: null,
     createdAt: now(),
   } as const
   await db.insert(messages).values(row)
@@ -152,6 +153,7 @@ export async function updateMessage(
       | "costCents"
       | "modelId"
       | "provider"
+      | "citations"
     >
   >,
 ): Promise<void> {

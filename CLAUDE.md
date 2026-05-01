@@ -75,6 +75,13 @@ Future tier behavior (Stage 2+, when `apps/server` becomes load-bearing):
 - OpenRouter has no realtime voice / no TTS / no Whisper endpoint. Some multimodals (Gemini Pro/Flash, Xiaomi MiMo) accept audio input, but the standard flow doesn't need them.
 - See [`honest-ai-architecture.md`](honest-ai-architecture.md) §"Voice & Audio" for the full pattern.
 
+### OpenRouter tools & plugins
+- For OR-side capabilities (web search, web fetch, image generation, etc.) **use the server-tool form**: `tools: [{ type: "openrouter:web_search" }]`. The `:online` slug suffix and `plugins: [{ id: "web" }]` are deprecated — they still work but force one search per turn instead of letting the model decide 0–N.
+- Server tools require the model to support tool calling. Gate any tool toggle on `model.supported_parameters.includes("tools")` from the OR registry — without that gate OR errors on unsupported models.
+- Tool costs (web search results, image generation outputs, etc.) roll into `usage.cost`. Don't add separate accounting layers — the existing `costUsd` path is the source of truth.
+- When using server tools, force the OpenRouter route even if the curated model has an Anthropic `directRoute`. Anthropic-direct doesn't run OR's `openrouter:*` tools; losing prompt caching is preferable to silently dropping the tool. Handled in `apps/app/lib/chat-route.ts` via `pickRoute(modelId, { webSearch })`.
+- Citations from web search live in `messages.citations` (schema v6, JSON-encoded `Citation[]`). Empty/null = no search ran. Drives the "🌐 N sources" chip in the chat view.
+
 ### Pricing tiers
 - Free Local (no account, BYOK only)
 - Cloud BYOK ($5/mo) — account + sync, you bring keys

@@ -43,6 +43,14 @@ export interface RegistryModel {
     output_modalities?: string[]
     tokenizer?: string
   }
+  /**
+   * List of optional parameters this model accepts (e.g. "tools",
+   * "tool_choice", "structured_outputs", "reasoning"). Used to gate the
+   * web search toggle — OR's `openrouter:web_search` is delivered via the
+   * `tools` parameter, so a model without "tools" in this list can't
+   * search.
+   */
+  supported_parameters?: string[]
   top_provider?: {
     context_length?: number | null
     max_completion_tokens?: number | null

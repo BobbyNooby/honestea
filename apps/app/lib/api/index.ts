@@ -21,8 +21,11 @@ export async function streamChat(opts: {
   messages: ChatMessage[]
   onToken: (chunk: string) => void
   signal?: AbortSignal
+  /** Enable OR's web_search server tool. Forces the OpenRouter route even
+   *  for models that have an Anthropic directRoute. */
+  webSearch?: boolean
 }): Promise<ChatResult> {
-  const route = await pickRoute(opts.model)
+  const route = await pickRoute(opts.model, { webSearch: opts.webSearch })
   if (!route) {
     throw new Error("No API key configured.")
   }
@@ -51,5 +54,6 @@ export async function streamChat(opts: {
     messages: opts.messages,
     onToken: opts.onToken,
     signal: opts.signal,
+    webSearch: opts.webSearch,
   })
 }

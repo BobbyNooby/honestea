@@ -142,6 +142,22 @@ function applyMigrationV5() {
   }
 }
 
+/**
+ * v6: web search citations.
+ *  - `citations TEXT` JSON-encoded `Citation[]` from OR's
+ *    `annotations[].url_citation`. Null when no search ran. Drives the
+ *    "🌐 N sources" chip on assistant messages.
+ */
+function applyMigrationV6() {
+  const cols = sqlite.getAllSync<{ name: string }>(
+    "PRAGMA table_info(messages);",
+  )
+  const hasCitations = cols.some((c) => c.name === "citations")
+  if (!hasCitations) {
+    sqlite.execSync("ALTER TABLE messages ADD COLUMN citations text;")
+  }
+}
+
 let migrated = false
 
 function applyMigrations() {
@@ -151,6 +167,7 @@ function applyMigrations() {
   applyMigrationV3()
   applyMigrationV4()
   applyMigrationV5()
+  applyMigrationV6()
   migrated = true
 }
 
