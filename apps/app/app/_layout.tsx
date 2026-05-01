@@ -15,6 +15,7 @@ import { ConfirmDialogProvider } from "@/lib/confirm-context"
 import { useRunMigrations } from "@/lib/db"
 import { sweepStreamingMessages } from "@/lib/db/repository"
 import { ConversationsProvider } from "@/lib/conversations-context"
+import { SelectedModelProvider } from "@/lib/selected-model"
 import { SidebarProvider } from "@/lib/sidebar-context"
 import "../global.css"
 
@@ -56,6 +57,7 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
+          <SelectedModelProvider>
           <ConversationsProvider>
             <ConfirmDialogProvider>
             <SidebarProvider
@@ -81,6 +83,7 @@ export default function RootLayout() {
             <StatusBar style="auto" />
             </ConfirmDialogProvider>
           </ConversationsProvider>
+          </SelectedModelProvider>
         </ThemeProvider>
       </SafeAreaProvider>
       {/* Pure-JS toast — sits as the last child of the root view so it
