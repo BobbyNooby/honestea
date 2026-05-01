@@ -1,19 +1,18 @@
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import { useCallback, useEffect, useState } from "react"
 
-import { CURATED_MODELS, DEFAULT_CURATED_MODEL_ID } from "@honestea/shared"
+import { DEFAULT_CURATED_MODEL_ID } from "@honestea/shared"
 
 const STORAGE_KEY = "honestea:selected-model"
 
-const VALID_IDS = new Set(CURATED_MODELS.map((m) => m.id))
-
 /**
- * Tracks which curated model the user has chosen for chat. Persisted to
+ * Tracks which model the user has chosen for chat. Persisted to
  * AsyncStorage (not SecureStore — model ID isn't a secret, just a preference).
  *
- * If a stored ID is no longer in the curated list (e.g. a build dropped a
- * model), we fall back to the default rather than silently sending an
- * unsupported slug to OpenRouter.
+ * Any non-empty OpenRouter slug is accepted — selections from the curated
+ * picker AND the full /models browse page both flow through here. If OR
+ * later drops a model the slug will start failing at request time; we don't
+ * pre-validate here because the registry isn't always loaded.
  */
 export function useSelectedModel() {
   const [modelId, setModelIdState] = useState<string>(DEFAULT_CURATED_MODEL_ID)
@@ -23,7 +22,7 @@ export function useSelectedModel() {
     let cancelled = false
     AsyncStorage.getItem(STORAGE_KEY).then((stored) => {
       if (cancelled) return
-      if (stored && VALID_IDS.has(stored)) setModelIdState(stored)
+      if (stored && stored.length > 0) setModelIdState(stored)
       setReady(true)
     })
     return () => {

@@ -11,19 +11,42 @@ const TTL_MS = 24 * 60 * 60 * 1000
 
 /**
  * Subset of the OpenRouter `/api/v1/models` response shape we actually use.
+ * Mirrors fields from https://openrouter.ai/api/v1/models — kept loose
+ * (lots of optional fields) because OR adds new modalities and price keys
+ * over time.
  */
 export interface RegistryModel {
   id: string
   name: string
+  canonical_slug?: string
+  description?: string
+  created?: number
   context_length: number
+  hugging_face_id?: string | null
+  knowledge_cutoff?: string | null
   pricing: {
     prompt: string
     completion: string
     image?: string
     request?: string
+    input_cache_read?: string
+    input_cache_write?: string
+    audio?: string
+    audio_output?: string
+    image_output?: string
+    web_search?: string
+    internal_reasoning?: string
   }
   architecture?: {
     modality?: string
+    input_modalities?: string[]
+    output_modalities?: string[]
+    tokenizer?: string
+  }
+  top_provider?: {
+    context_length?: number | null
+    max_completion_tokens?: number | null
+    is_moderated?: boolean
   }
 }
 
