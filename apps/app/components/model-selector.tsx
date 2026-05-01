@@ -9,7 +9,8 @@ import { Modal, Pressable, Text, useColorScheme, View } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
 import {
-  CURATED_MODELS,
+  curatedModelsByTier,
+  curatedTierLabel,
   findCuratedModel,
   pricePerMillionFromPerToken,
   type CuratedModel,
@@ -77,19 +78,31 @@ export function ModelSelector({ modelId, onChange }: Props) {
           <Pressable className="rounded-t-2xl bg-white dark:bg-zinc-950">
             <SafeAreaView edges={["bottom"]}>
               <View className="mx-auto mb-3 mt-2 h-1 w-10 rounded-full bg-zinc-300 dark:bg-zinc-700" />
-              <Text className="px-5 pb-2 text-xs uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                Choose a model
-              </Text>
-              {CURATED_MODELS.map((m) => (
-                <ModelRow
-                  key={m.id}
-                  model={m}
-                  selected={m.id === modelId}
-                  onPress={() => {
-                    onChange(m.id)
-                    setOpen(false)
-                  }}
-                />
+              {curatedModelsByTier().map((group, idx) => (
+                <View key={group.tier}>
+                  <Text
+                    className={cn(
+                      "px-5 pb-1 text-[11px] uppercase tracking-wider text-zinc-500 dark:text-zinc-400",
+                      idx === 0 ? "pt-1" : "pt-3",
+                    )}
+                  >
+                    {curatedTierLabel(group.tier)}
+                  </Text>
+                  {group.models.map((m) => (
+                    <ModelRow
+                      key={m.id}
+                      model={m}
+                      registryModel={
+                        registry ? findModel(registry, m.id) ?? null : null
+                      }
+                      selected={m.id === modelId}
+                      onPress={() => {
+                        onChange(m.id)
+                        setOpen(false)
+                      }}
+                    />
+                  ))}
+                </View>
               ))}
               {customRegistryModel && (
                 <CustomModelSection
@@ -128,14 +141,26 @@ export function ModelSelector({ modelId, onChange }: Props) {
 
 function ModelRow({
   model,
+  registryModel,
   selected,
   onPress,
 }: {
   model: CuratedModel
+  /** Same model resolved against the live OR registry. Provides context,
+   *  prompt/completion pricing. Null until the registry hydrates or if
+   *  the curated slug isn't in OR's catalog right now. */
+  registryModel: RegistryModel | null
   selected: boolean
   onPress: () => void
 }) {
   const dark = useColorScheme() === "dark"
+  const provider = providerFromId(model.id)
+  const inputUsd = registryModel
+    ? pricePerMillionFromPerToken(registryModel.pricing.prompt)
+    : null
+  const outputUsd = registryModel
+    ? pricePerMillionFromPerToken(registryModel.pricing.completion)
+    : null
   return (
     <Pressable
       onPress={onPress}
@@ -144,13 +169,32 @@ function ModelRow({
         selected && "bg-blue-500/5 dark:bg-blue-400/10",
       )}
     >
-      <View className="flex-1 gap-0.5">
-        <Text className="text-base font-medium text-zinc-900 dark:text-zinc-100">
-          {model.displayName}
-        </Text>
+      <View className="flex-1 gap-1">
+        <View className="flex-row items-center gap-2">
+          <Text className="text-base font-medium text-zinc-900 dark:text-zinc-100">
+            {model.displayName}
+          </Text>
+          {model.speciality && <SpecialityChip label={model.speciality} />}
+        </View>
         <Text className="text-xs text-zinc-500 dark:text-zinc-400">
           {model.description}
         </Text>
+        <View className="mt-0.5 flex-row flex-wrap gap-x-3 gap-y-0.5">
+          <Text className="text-[11px] text-zinc-500 dark:text-zinc-400">
+            by {provider}
+          </Text>
+          {registryModel && registryModel.context_length > 0 && (
+            <Text className="text-[11px] text-zinc-500 dark:text-zinc-400">
+              {formatContext(registryModel.context_length)} context
+            </Text>
+          )}
+          {inputUsd != null && outputUsd != null && (
+            <Text className="text-[11px] text-zinc-500 dark:text-zinc-400">
+              {formatPricePerMillion(inputUsd)}/M in ·{" "}
+              {formatPricePerMillion(outputUsd)}/M out
+            </Text>
+          )}
+        </View>
       </View>
       {selected && (
         <IconCheck
@@ -161,6 +205,26 @@ function ModelRow({
       )}
     </Pressable>
   )
+}
+
+/**
+ * Small pill that calls out a within-tier specialization
+ * (e.g. workhorse · "coding" vs workhorse · "reasoning"). Subtle so it
+ * doesn't fight with the model name.
+ */
+function SpecialityChip({ label }: { label: string }) {
+  return (
+    <View className="rounded-full bg-zinc-100 px-2 py-0.5 dark:bg-zinc-800">
+      <Text className="text-[10px] font-medium uppercase tracking-wider text-zinc-600 dark:text-zinc-400">
+        {label}
+      </Text>
+    </View>
+  )
+}
+
+function providerFromId(id: string): string {
+  const slash = id.indexOf("/")
+  return slash === -1 ? id : id.slice(0, slash)
 }
 
 /**
