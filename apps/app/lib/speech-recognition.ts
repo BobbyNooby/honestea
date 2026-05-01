@@ -84,6 +84,15 @@ function useNativeSpeechRecognition(
   const [interim, setInterim] = useState("")
   const [error, setError] = useState<string | null>(null)
   const cbRef = useRef(opts.onTranscript)
+  // Live ref to the latest interim text. The user's stop() handler reads
+  // this to commit short utterances that never fire an `isFinal=true`
+  // event — without a ref it'd capture the value at the time `stop` was
+  // memoized, which is stale.
+  const latestInterimRef = useRef("")
+  // Tracks whether a final-result event has fired during this session.
+  // If true, the interim has already been committed via the result
+  // handler and we don't double-commit on stop().
+  const finalFiredRef = useRef(false)
   useEffect(() => {
     cbRef.current = opts.onTranscript
   }, [opts.onTranscript])
@@ -91,9 +100,12 @@ function useNativeSpeechRecognition(
   speech.useSpeechRecognitionEvent("result", (event) => {
     const transcript = event.results?.[0]?.transcript ?? ""
     if (event.isFinal) {
+      finalFiredRef.current = true
       if (transcript.trim().length > 0) cbRef.current(transcript)
+      latestInterimRef.current = ""
       setInterim("")
     } else {
+      latestInterimRef.current = transcript
       setInterim(transcript)
     }
   })
@@ -101,11 +113,13 @@ function useNativeSpeechRecognition(
   speech.useSpeechRecognitionEvent("error", (event) => {
     setError(event.message ?? event.error ?? "Speech recognition error")
     setRecording(false)
+    latestInterimRef.current = ""
     setInterim("")
   })
 
   speech.useSpeechRecognitionEvent("end", () => {
     setRecording(false)
+    latestInterimRef.current = ""
     setInterim("")
   })
 
@@ -121,11 +135,19 @@ function useNativeSpeechRecognition(
       setError("Microphone permission is required to use voice input.")
       return
     }
+    finalFiredRef.current = false
+    latestInterimRef.current = ""
     try {
       speech.ExpoSpeechRecognitionModule.start({
         lang: opts.locale ?? "en-US",
         interimResults: true,
-        continuous: false,
+        // continuous=true keeps the recognizer alive until WE tell it to
+        // stop. Without this, Android/iOS auto-terminate on silence —
+        // which often clips short "yes"/"no" utterances under the
+        // EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS threshold (~1s) and
+        // returns no result at all. With continuous=true the user
+        // explicitly stops via the ✓ button.
+        continuous: true,
       })
       setRecording(true)
     } catch (e) {
@@ -135,19 +157,34 @@ function useNativeSpeechRecognition(
   }, [available, opts.locale, speech])
 
   const stop = useCallback(() => {
+    // Commit the latest interim if no final event ever fired this
+    // session. Short utterances on continuous=true don't always trigger
+    // a final result, but the recognizer DID emit interim text — that's
+    // what the user said, even if the engine never confirmed. The user
+    // tapped ✓, so commit.
+    if (
+      !finalFiredRef.current &&
+      latestInterimRef.current.trim().length > 0
+    ) {
+      cbRef.current(latestInterimRef.current)
+    }
+    latestInterimRef.current = ""
+    finalFiredRef.current = false
     try {
       speech.ExpoSpeechRecognitionModule.stop()
     } catch {
       // Best effort — module throws if already stopped.
     }
     setRecording(false)
+    setInterim("")
   }, [speech])
 
   const abort = useCallback(() => {
-    // `abort()` differs from `stop()`: it cancels without committing a
-    // final result. The recognizer's `result` listener with
-    // `isFinal=true` won't fire — so the consumer's `onTranscript`
-    // callback isn't invoked and the partial interim text is discarded.
+    // `abort()` cancels without committing — opposite of stop(). Used
+    // by the recording pill's X button. Discard interim, suppress any
+    // pending final result.
+    finalFiredRef.current = true
+    latestInterimRef.current = ""
     try {
       speech.ExpoSpeechRecognitionModule.abort()
     } catch {
