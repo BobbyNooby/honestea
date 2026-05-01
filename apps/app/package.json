@@ -6,13 +6,18 @@
   "scripts": {
     "start": "expo start",
     "dev": "expo start",
+    "dev:client": "expo start --dev-client",
     "reset-project": "node ./scripts/reset-project.js",
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
+    "run:android": "expo run:android",
+    "run:ios": "expo run:ios",
+    "prebuild": "expo prebuild",
+    "prebuild:clean": "expo prebuild --clean",
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
-    "clean": "rm -rf .expo .turbo node_modules"
+    "clean": "rm -rf .expo .turbo android ios node_modules"
   },
   "dependencies": {
     "@babel/traverse--for-generate-function-map": "npm:@babel/traverse@^7.25.3",

@@ -10,8 +10,13 @@
   "scripts": {
     "dev": "mprocs",
     "dev:app": "pnpm --filter @honestea/app dev",
+    "dev:client": "pnpm --filter @honestea/app dev:client",
     "dev:server": "pnpm --filter @honestea/server dev",
     "dev:web": "pnpm --filter @honestea/web dev",
+    "run:android": "pnpm --filter @honestea/app run:android",
+    "run:ios": "pnpm --filter @honestea/app run:ios",
+    "prebuild": "pnpm --filter @honestea/app prebuild",
+    "prebuild:clean": "pnpm --filter @honestea/app prebuild:clean",
     "build": "turbo run build",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
