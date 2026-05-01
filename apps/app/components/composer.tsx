@@ -107,15 +107,17 @@ export function Composer({
     else void speech.start()
   }
 
-  // When recording, the whole composer turns into the matcha
-  // RecordingPill — replacing input + chips + actions with a focused
-  // X / waveform / ✓ widget. Stop commits, abort discards.
-  if (speech.recording) {
+  // When recording or running the post-stop offline transcription
+  // pass, the whole composer turns into the matcha RecordingPill —
+  // replacing input + chips + actions with a focused X / waveform / ✓
+  // widget (or a "Transcribing…" spinner during the file pass).
+  if (speech.recording || speech.transcribing) {
     return (
       <View className="border-t border-zinc-200 bg-chamomile-50 px-3 pb-2 pt-2 dark:border-zinc-800 dark:bg-chamomile-900">
         <RecordingPill
           onCancel={speech.abort}
           onConfirm={speech.stop}
+          transcribing={speech.transcribing}
         />
       </View>
     )

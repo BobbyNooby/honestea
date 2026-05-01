@@ -1,6 +1,6 @@
 import { IconCheck, IconX } from "@tabler/icons-react-native"
 import { useEffect, useState } from "react"
-import { Pressable, Text, View } from "react-native"
+import { ActivityIndicator, Pressable, Text, View } from "react-native"
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -14,6 +14,10 @@ interface Props {
   onCancel: () => void
   /** Confirm — commits the final transcript and exits recording. */
   onConfirm: () => void
+  /** True when the post-stop offline transcription pass is running.
+   *  Replaces the waveform + timer with a spinner + "Transcribing…"
+   *  label and disables both buttons. */
+  transcribing?: boolean
 }
 
 const BAR_COUNT = 16
@@ -32,29 +36,48 @@ const BAR_MAX_H = 22
  * surface real audio amplitude, so each bar runs its own staggered
  * pulse via Reanimated. Looks "live" without lying about responsiveness.
  */
-export function RecordingPill({ onCancel, onConfirm }: Props) {
-  const elapsed = useElapsedSeconds()
+export function RecordingPill({
+  onCancel,
+  onConfirm,
+  transcribing = false,
+}: Props) {
+  const elapsed = useElapsedSeconds(!transcribing)
   return (
     <View className="flex-row items-center gap-3 rounded-[28px] bg-matcha-600 px-2 py-2 dark:bg-matcha-500">
       <Pressable
         onPress={onCancel}
+        disabled={transcribing}
         accessibilityLabel="Cancel voice input"
         className="h-11 w-11 items-center justify-center rounded-full bg-matcha-700/40 active:opacity-70"
+        style={transcribing ? { opacity: 0.4 } : undefined}
       >
         <IconX size={20} color="#ffffff" strokeWidth={2.5} />
       </Pressable>
 
       <View className="flex-1 flex-row items-center justify-center gap-2">
-        <Waveform />
-        <Text className="text-[15px] font-semibold tabular-nums text-white">
-          {formatElapsed(elapsed)}
-        </Text>
+        {transcribing ? (
+          <>
+            <ActivityIndicator color="#ffffff" />
+            <Text className="text-[14px] font-semibold text-white">
+              Transcribing…
+            </Text>
+          </>
+        ) : (
+          <>
+            <Waveform />
+            <Text className="text-[15px] font-semibold tabular-nums text-white">
+              {formatElapsed(elapsed)}
+            </Text>
+          </>
+        )}
       </View>
 
       <Pressable
         onPress={onConfirm}
+        disabled={transcribing}
         accessibilityLabel="Stop and use transcript"
         className="h-11 w-11 items-center justify-center rounded-full bg-white active:opacity-80"
+        style={transcribing ? { opacity: 0.4 } : undefined}
       >
         <IconCheck size={22} color="#5b8a3a" strokeWidth={3} />
       </Pressable>
@@ -113,15 +136,16 @@ function WaveformBar({ index }: { index: number }) {
   )
 }
 
-function useElapsedSeconds(): number {
+function useElapsedSeconds(active: boolean): number {
   const [seconds, setSeconds] = useState(0)
   useEffect(() => {
+    if (!active) return
     const start = Date.now()
     const id = setInterval(() => {
       setSeconds(Math.floor((Date.now() - start) / 1000))
     }, 250)
     return () => clearInterval(id)
-  }, [])
+  }, [active])
   return seconds
 }
 
