@@ -4,7 +4,15 @@ import {
 } from "@tabler/icons-react-native"
 import { router } from "expo-router"
 import { useState } from "react"
-import { Modal, Pressable, Text, useColorScheme, View } from "react-native"
+import {
+  Dimensions,
+  Modal,
+  Pressable,
+  ScrollView,
+  Text,
+  useColorScheme,
+  View,
+} from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
 import {
@@ -83,67 +91,77 @@ export function ModelSelector({ modelId, onChange }: Props) {
           onPress={() => setOpen(false)}
           className="flex-1 justify-end bg-black/40"
         >
-          {/* Inner Pressable swallows taps so they don't dismiss the sheet. */}
-          <Pressable className="rounded-t-2xl bg-white dark:bg-zinc-950">
-            <SafeAreaView edges={["bottom"]}>
-              <View className="mx-auto mb-3 mt-2 h-1 w-10 rounded-full bg-zinc-300 dark:bg-zinc-700" />
+          {/* Inner Pressable swallows taps so they don't dismiss the sheet.
+           *  Cap the sheet height to 85% of the screen so it can't push
+           *  the handle bar above the visible area on smaller phones —
+           *  the body becomes scrollable instead. */}
+          <Pressable
+            className="rounded-t-2xl bg-white dark:bg-zinc-950"
+            style={{ maxHeight: Dimensions.get("window").height * 0.85 }}
+          >
+            <View className="mx-auto mb-3 mt-2 h-1 w-10 rounded-full bg-zinc-300 dark:bg-zinc-700" />
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              bounces={false}
+            >
+              <SafeAreaView edges={["bottom"]}>
+                {curatedModelsByTier().map((group, idx) => (
+                  <View key={group.tier}>
+                    <Text
+                      className={cn(
+                        "px-5 pb-1 text-[11px] uppercase tracking-wider text-zinc-500 dark:text-zinc-400",
+                        idx === 0 ? "pt-1" : "pt-3",
+                      )}
+                    >
+                      {curatedTierLabel(group.tier)}
+                    </Text>
+                    {group.models.map((m) => (
+                      <CuratedRow
+                        key={m.id}
+                        model={m}
+                        registryModel={
+                          registry ? findModel(registry, m.id) ?? null : null
+                        }
+                        selected={m.id === modelId}
+                        onPress={() => {
+                          onChange(m.id)
+                          setOpen(false)
+                        }}
+                      />
+                    ))}
+                  </View>
+                ))}
 
-              {curatedModelsByTier().map((group, idx) => (
-                <View key={group.tier}>
-                  <Text
-                    className={cn(
-                      "px-5 pb-1 text-[11px] uppercase tracking-wider text-zinc-500 dark:text-zinc-400",
-                      idx === 0 ? "pt-1" : "pt-3",
-                    )}
-                  >
-                    {curatedTierLabel(group.tier)}
-                  </Text>
-                  {group.models.map((m) => (
-                    <CuratedRow
-                      key={m.id}
-                      model={m}
-                      registryModel={
-                        registry ? findModel(registry, m.id) ?? null : null
-                      }
-                      selected={m.id === modelId}
-                      onPress={() => {
-                        onChange(m.id)
-                        setOpen(false)
-                      }}
-                    />
-                  ))}
-                </View>
-              ))}
+                {customRegistryModel && (
+                  <CustomModelSection
+                    model={customRegistryModel}
+                    modelId={modelId}
+                  />
+                )}
 
-              {customRegistryModel && (
-                <CustomModelSection
-                  model={customRegistryModel}
-                  modelId={modelId}
-                />
-              )}
-
-              <Pressable
-                onPress={() => {
-                  setOpen(false)
-                  router.push("/models" as never)
-                }}
-                className="flex-row items-center gap-3 border-t border-zinc-200 px-5 py-3 active:bg-zinc-100 dark:border-zinc-800 dark:active:bg-zinc-900"
-              >
-                <View className="flex-1 gap-0.5">
-                  <Text className="text-base font-medium text-zinc-900 dark:text-zinc-100">
-                    More models
-                  </Text>
-                  <Text className="text-xs text-zinc-500 dark:text-zinc-400">
-                    Browse the full OpenRouter catalog — pricing, context, modalities.
-                  </Text>
-                </View>
-                <IconChevronRight
-                  size={18}
-                  color={dark ? "#a1a1aa" : "#71717a"}
-                  strokeWidth={2}
-                />
-              </Pressable>
-            </SafeAreaView>
+                <Pressable
+                  onPress={() => {
+                    setOpen(false)
+                    router.push("/models" as never)
+                  }}
+                  className="flex-row items-center gap-3 border-t border-zinc-200 px-5 py-3 active:bg-zinc-100 dark:border-zinc-800 dark:active:bg-zinc-900"
+                >
+                  <View className="flex-1 gap-0.5">
+                    <Text className="text-base font-medium text-zinc-900 dark:text-zinc-100">
+                      More models
+                    </Text>
+                    <Text className="text-xs text-zinc-500 dark:text-zinc-400">
+                      Browse the full OpenRouter catalog — pricing, context, modalities.
+                    </Text>
+                  </View>
+                  <IconChevronRight
+                    size={18}
+                    color={dark ? "#a1a1aa" : "#71717a"}
+                    strokeWidth={2}
+                  />
+                </Pressable>
+              </SafeAreaView>
+            </ScrollView>
           </Pressable>
         </Pressable>
       </Modal>

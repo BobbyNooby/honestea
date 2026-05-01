@@ -3,6 +3,7 @@ import { Pressable, Text, useColorScheme, View } from "react-native"
 
 import { type CuratedModel } from "@honestea/shared"
 
+import { ModalityPill, collectModalities } from "@/components/modality-pill"
 import { cn } from "@/lib/cn"
 import {
   formatContext,
@@ -37,6 +38,7 @@ export function CuratedRow({
   const prices = registryModel
     ? pricePartsFromPricing(registryModel.pricing)
     : null
+  const modalities = registryModel ? collectModalities(registryModel) : []
   return (
     <Pressable
       onPress={onPress}
@@ -52,6 +54,13 @@ export function CuratedRow({
           </Text>
           {model.speciality && <SpecialityChip label={model.speciality} />}
         </View>
+        {modalities.length > 0 && (
+          <View className="flex-row flex-wrap gap-1">
+            {modalities.map((m) => (
+              <ModalityPill key={m} name={m} />
+            ))}
+          </View>
+        )}
         <Text className="text-xs text-zinc-500 dark:text-zinc-400">
           {model.description}
         </Text>
