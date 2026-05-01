@@ -15,7 +15,11 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context"
 import Toast from "react-native-toast-message"
 
-import { estimateTokens, type Message } from "@honestea/shared"
+import {
+  estimateTokens,
+  type Attachment,
+  type Message,
+} from "@honestea/shared"
 
 import { ChatActionsMenu } from "@/components/chat-actions-menu"
 import { ChatMessage } from "@/components/chat-message"
@@ -28,6 +32,8 @@ import { NoKeyState } from "@/components/no-key-state"
 import { RenameDialog } from "@/components/rename-dialog"
 import { StorageToggle } from "@/components/storage-toggle"
 import { streamChat } from "@/lib/api"
+import type { ChatMessage as ApiChatMessage } from "@/lib/api/types"
+import { buildMessageContent } from "@/lib/attachments"
 import { useBrewingPhrase } from "@/lib/brewing-phrases"
 import { useByokStatus } from "@/lib/byok"
 import { compact, projectPromptTokens } from "@/lib/compaction"
@@ -44,6 +50,7 @@ import {
 import { findModel, pricingFor, useModelRegistry } from "@/lib/model-registry"
 import { useSelectedModel } from "@/lib/selected-model"
 import { useSidebar } from "@/lib/sidebar-context"
+import { styleSystemPrompt } from "@/lib/style-prompts"
 import { generateTitle } from "@/lib/title-gen"
 
 export default function ChatScreen() {
@@ -66,6 +73,9 @@ export default function ChatScreen() {
   // the toggle stays visually disabled and no search is sent.
   const [webSearch, setWebSearch] = useState(true)
   const [responseStyle, setResponseStyle] = useState<ResponseStyle>("normal")
+  // Attachments queued for the next send. Cleared after the user message
+  // row is written to the DB. Composer renders chips for each.
+  const [pendingAttachments, setPendingAttachments] = useState<Attachment[]>([])
 
   // Whether the current model supports OR's tool calling (and therefore
   // the web_search server tool). The compose menu greys the toggle and
@@ -266,6 +276,8 @@ export default function ChatScreen() {
        *  Captured as a snapshot of the toggle at request time so toggling
        *  it off mid-stream doesn't cancel an in-flight search. */
       webSearch: boolean
+      /** Response style snapshot — drives the system-prompt prefix. */
+      style: ResponseStyle
     }) => {
       const {
         conversationId,
@@ -273,6 +285,7 @@ export default function ChatScreen() {
         isFirstTurn,
         firstTurnText,
         webSearch,
+        style,
       } = params
 
       const assistantRow = await addMessage({
@@ -313,17 +326,29 @@ export default function ChatScreen() {
         )
       }
 
+      // Build the request-side message list. For each visible message,
+      // construct content blocks if it carries attachments — otherwise
+      // pass plain text. Resolved sequentially because reading
+      // attachment files is async (FileSystem.readAsStringAsync).
+      const apiMessages: ApiChatMessage[] = []
+      const styleDirective = styleSystemPrompt(style)
+      if (styleDirective) {
+        // Style prompt rides as a system message in front of the
+        // conversation. Lives in the request only — never written to
+        // the DB — so the user can swap styles between turns and the
+        // same history applies cleanly under whichever directive.
+        apiMessages.push({ role: "system", content: styleDirective })
+      }
+      for (const m of visibleContext) {
+        const content = await buildMessageContent(m.content, m.attachments)
+        apiMessages.push({ role: m.role, content })
+      }
+
       let buffer = ""
       try {
         const result = await streamChat({
           model: modelId,
-          // Only send non-superseded messages — superseded rows are old
-          // regenerated turns hidden from the UI and irrelevant to the
-          // model.
-          messages: visibleContext.map(({ role, content }) => ({
-            role,
-            content,
-          })),
+          messages: apiMessages,
           webSearch,
           onToken: (chunk) => {
             buffer += chunk
@@ -423,11 +448,18 @@ export default function ChatScreen() {
 
   const send = useCallback(async () => {
     const text = input.trim()
-    if (!text || streaming) return
+    // Allow sending when text is empty BUT attachments are present —
+    // common for "what's in this picture?" style turns.
+    if ((!text && pendingAttachments.length === 0) || streaming) return
 
     setError(null)
     setStreaming(true)
     setInput("")
+    // Capture attachments before clearing — used for the user row's
+    // `attachments` column, then cleared from the composer.
+    const sendAttachments =
+      pendingAttachments.length > 0 ? pendingAttachments : null
+    setPendingAttachments([])
 
     try {
       const conversationId =
@@ -458,6 +490,7 @@ export default function ChatScreen() {
         conversationId,
         role: "user",
         content: text,
+        attachments: sendAttachments,
       })
 
       const before = reloaded
@@ -469,6 +502,7 @@ export default function ChatScreen() {
         isFirstTurn: before.filter((m) => m.kind === "normal").length === 0,
         firstTurnText: text,
         webSearch,
+        style: responseStyle,
       })
     } finally {
       setStreaming(false)
@@ -478,7 +512,9 @@ export default function ChatScreen() {
     input,
     messages,
     modelId,
+    pendingAttachments,
     registry,
+    responseStyle,
     runCompaction,
     streaming,
     streamAssistantTurn,
@@ -527,12 +563,13 @@ export default function ChatScreen() {
           contextMessages: context,
           isFirstTurn: false,
           webSearch,
+          style: responseStyle,
         })
       } finally {
         setStreaming(false)
       }
     },
-    [messages, streaming, streamAssistantTurn, webSearch],
+    [messages, responseStyle, streaming, streamAssistantTurn, webSearch],
   )
 
   // ---- Triple-dot menu actions ----
@@ -732,6 +769,8 @@ export default function ChatScreen() {
               webSearchSupported={webSearchSupported}
               style={responseStyle}
               onChangeStyle={setResponseStyle}
+              attachments={pendingAttachments}
+              onAttachmentsChange={setPendingAttachments}
             />
           </>
         )}

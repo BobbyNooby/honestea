@@ -158,6 +158,22 @@ function applyMigrationV6() {
   }
 }
 
+/**
+ * v7: user-attached images/files on user messages.
+ *  - `attachments TEXT` JSON-encoded `Attachment[]`. Null on assistant +
+ *    system rows + user rows that had no attachments. Drives image
+ *    rendering inside user bubbles.
+ */
+function applyMigrationV7() {
+  const cols = sqlite.getAllSync<{ name: string }>(
+    "PRAGMA table_info(messages);",
+  )
+  const hasAttachments = cols.some((c) => c.name === "attachments")
+  if (!hasAttachments) {
+    sqlite.execSync("ALTER TABLE messages ADD COLUMN attachments text;")
+  }
+}
+
 let migrated = false
 
 function applyMigrations() {
@@ -168,6 +184,7 @@ function applyMigrations() {
   applyMigrationV4()
   applyMigrationV5()
   applyMigrationV6()
+  applyMigrationV7()
   migrated = true
 }
 

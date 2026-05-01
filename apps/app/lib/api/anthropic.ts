@@ -1,6 +1,42 @@
 import { fetch as expoFetch } from "expo/fetch"
 
-import type { ChatMessage, ChatResult, ChatUsage } from "./types"
+import type {
+  ChatMessage,
+  ChatResult,
+  ChatUsage,
+  ContentBlock,
+} from "./types"
+
+/**
+ * Translate an OpenAI-style content array into Anthropic's content-array
+ * shape. Anthropic uses `type: "image"` with a nested `source` object
+ * (base64 + media_type, or url) instead of OpenAI's `type: "image_url"`
+ * with a flat URL.
+ */
+function translateContent(
+  blocks: ContentBlock[],
+): Array<{ type: string; [k: string]: unknown }> {
+  return blocks.map((b) => {
+    if (b.type === "text") return { type: "text", text: b.text }
+    // image_url
+    const url = b.image_url.url
+    if (url.startsWith("data:")) {
+      const match = url.match(/^data:([^;]+);base64,(.*)$/)
+      if (!match) {
+        throw new Error("Malformed data URI on image content block")
+      }
+      return {
+        type: "image",
+        source: {
+          type: "base64",
+          media_type: match[1],
+          data: match[2],
+        },
+      }
+    }
+    return { type: "image", source: { type: "url", url } }
+  })
+}
 
 const ANTHROPIC_BASE = "https://api.anthropic.com/v1"
 const MAX_OUTPUT_TOKENS = 4096
@@ -58,11 +94,32 @@ export async function streamChatAnthropic(opts: {
   signal?: AbortSignal
 }): Promise<ChatResult> {
   const systemRows = opts.messages.filter((m) => m.role === "system")
-  const conversationRows = opts.messages.filter((m) => m.role !== "system")
+  const conversationRows = opts.messages.filter(
+    (m): m is ChatMessage & { role: "user" | "assistant" } =>
+      m.role !== "system",
+  )
+  // System rows in our app are always plain text (style prompt +
+  // compaction summary). Defensive flatten in case a block-array ever
+  // sneaks in: stringify text blocks, drop image blocks (Anthropic
+  // doesn't accept images in `system`).
   const systemText = systemRows
-    .map((m) => m.content)
+    .map((m) => {
+      if (typeof m.content === "string") return m.content
+      return m.content
+        .filter((b): b is { type: "text"; text: string } => b.type === "text")
+        .map((b) => b.text)
+        .join("\n\n")
+    })
     .join("\n\n")
     .trim()
+
+  // Translate any OpenAI-style image_url blocks into Anthropic's
+  // image-source shape so the native API accepts them.
+  const translatedConversation = conversationRows.map((m) => ({
+    role: m.role,
+    content:
+      typeof m.content === "string" ? m.content : translateContent(m.content),
+  }))
 
   const body: {
     model: string
@@ -73,12 +130,12 @@ export async function streamChatAnthropic(opts: {
       text: string
       cache_control?: { type: "ephemeral" }
     }>
-    messages: ChatMessage[]
+    messages: typeof translatedConversation
   } = {
     model: opts.nativeModelId,
     max_tokens: MAX_OUTPUT_TOKENS,
     stream: true,
-    messages: conversationRows,
+    messages: translatedConversation,
   }
   if (systemText) {
     body.system = [

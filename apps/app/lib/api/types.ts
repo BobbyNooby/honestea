@@ -2,9 +2,25 @@ import type { ChatProvider, Citation } from "@honestea/shared"
 
 export type ChatRole = "user" | "assistant" | "system"
 
+/**
+ * A single content block on a chat message. Mirrors OpenAI / OR's content-
+ * array shape. We only build this representation at request time — the
+ * DB stores plain text + a separate `attachments` column, and the
+ * dispatcher merges them into blocks before sending.
+ */
+export type ContentBlock =
+  | { type: "text"; text: string }
+  | { type: "image_url"; image_url: { url: string } }
+
 export interface ChatMessage {
   role: ChatRole
-  content: string
+  /**
+   * Plain text for the common case, or an array of content blocks when
+   * the turn carries an image / file attachment. The dispatcher passes
+   * either through to OR; the Anthropic streamer translates blocks
+   * into Anthropic's content-array shape.
+   */
+  content: string | ContentBlock[]
 }
 
 /**

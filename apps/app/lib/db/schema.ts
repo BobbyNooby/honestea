@@ -1,6 +1,6 @@
 import { integer, real, sqliteTable, text } from "drizzle-orm/sqlite-core"
 
-import type { Citation } from "@honestea/shared"
+import type { Attachment, Citation } from "@honestea/shared"
 
 /**
  * SQLite schema for Phase 1 local-only conversation storage.
@@ -97,6 +97,13 @@ export const messages = sqliteTable("messages", {
    * Drives the "🌐 N sources" chip on the assistant bubble.
    */
   citations: text("citations", { mode: "json" }).$type<Citation[]>(),
+  /**
+   * User-attached images / files for this message. Stored as a JSON-
+   * encoded `Attachment[]`. Always null on assistant + system rows.
+   * Local file URIs (file://) — image data is read at request time and
+   * base64-packed into the API content blocks.
+   */
+  attachments: text("attachments", { mode: "json" }).$type<Attachment[]>(),
   createdAt: integer("created_at").notNull(),
 })
 

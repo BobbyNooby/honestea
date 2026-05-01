@@ -8,11 +8,16 @@ import {
   IconWriting,
   type Icon,
 } from "@tabler/icons-react-native"
+import * as ImagePicker from "expo-image-picker"
 import { useState } from "react"
 import { Modal, Pressable, Switch, Text, useColorScheme, View } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
+import Toast from "react-native-toast-message"
+
+import type { Attachment } from "@honestea/shared"
 
 import { cn } from "@/lib/cn"
+import { persistPickedAttachment } from "@/lib/attachments"
 
 export type ResponseStyle =
   | "normal"
@@ -35,6 +40,9 @@ interface Props {
    *  layer is wired up. */
   style: ResponseStyle
   onChangeStyle: (next: ResponseStyle) => void
+  /** Called when the user picks an image (library or camera). The
+   *  composer adds it to its pending-attachments queue. */
+  onAddAttachment: (att: Attachment) => void
 }
 
 /**
@@ -52,6 +60,7 @@ export function ComposeMenu({
   webSearchSupported,
   style,
   onChangeStyle,
+  onAddAttachment,
 }: Props) {
   const [view, setView] = useState<"top" | "style">("top")
   const dark = useColorScheme() === "dark"
@@ -61,6 +70,60 @@ export function ComposeMenu({
   const handleRequestClose = () => {
     setView("top")
     onClose()
+  }
+
+  /**
+   * Run an `ImagePicker` flow (library or camera), persist the picked
+   * file into the app's documents dir, and hand the resulting
+   * `Attachment` back to the composer. Closes the sheet on success or
+   * cancel; surfaces a toast on permission denial / read failure.
+   */
+  const pickImage = async (source: "library" | "camera") => {
+    try {
+      const perm =
+        source === "camera"
+          ? await ImagePicker.requestCameraPermissionsAsync()
+          : await ImagePicker.requestMediaLibraryPermissionsAsync()
+      if (!perm.granted) {
+        Toast.show({
+          type: "error",
+          text1:
+            source === "camera" ? "Camera access denied" : "Photos access denied",
+          text2: "Enable permission in system settings to attach images.",
+        })
+        return
+      }
+      const result =
+        source === "camera"
+          ? await ImagePicker.launchCameraAsync({
+              mediaTypes: ImagePicker.MediaTypeOptions.Images,
+              quality: 0.85,
+            })
+          : await ImagePicker.launchImageLibraryAsync({
+              mediaTypes: ImagePicker.MediaTypeOptions.Images,
+              quality: 0.85,
+            })
+      if (result.canceled) return
+      const asset = result.assets[0]
+      if (!asset) return
+      const mimeType = asset.mimeType ?? guessMimeFromUri(asset.uri)
+      const persistedUri = await persistPickedAttachment(asset.uri, mimeType)
+      onAddAttachment({
+        kind: "image",
+        uri: persistedUri,
+        mimeType,
+        width: asset.width,
+        height: asset.height,
+        filename: asset.fileName ?? undefined,
+      })
+      handleRequestClose()
+    } catch (e) {
+      Toast.show({
+        type: "error",
+        text1: "Couldn't attach image",
+        text2: e instanceof Error ? e.message : "Unknown error",
+      })
+    }
   }
 
   return (
@@ -88,7 +151,7 @@ export function ComposeMenu({
                   title="Add image"
                   description="Send a photo from your library."
                   onPress={() => {
-                    /* placeholder — image picker lands later */
+                    void pickImage("library")
                   }}
                 />
                 <MenuRow
@@ -97,7 +160,7 @@ export function ComposeMenu({
                   title="Take photo"
                   description="Capture a new picture with the camera."
                   onPress={() => {
-                    /* placeholder */
+                    void pickImage("camera")
                   }}
                 />
                 <MenuRow
@@ -348,6 +411,21 @@ const STYLES: readonly StyleOption[] = [
     description: "Clear and well-structured responses.",
   },
 ]
+
+/**
+ * Best-effort MIME type from a URI extension. expo-image-picker usually
+ * returns `mimeType` directly but it's `null` on some Android builds —
+ * fall back to extension sniffing so the upload still works.
+ */
+function guessMimeFromUri(uri: string): string {
+  const lower = uri.toLowerCase()
+  if (lower.endsWith(".png")) return "image/png"
+  if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg"
+  if (lower.endsWith(".webp")) return "image/webp"
+  if (lower.endsWith(".gif")) return "image/gif"
+  if (lower.endsWith(".heic")) return "image/heic"
+  return "image/jpeg"
+}
 
 function describeStyle(style: ResponseStyle): string {
   switch (style) {

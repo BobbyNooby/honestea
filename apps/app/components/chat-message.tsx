@@ -3,9 +3,15 @@ import {
   IconChevronRight,
   IconWorld,
 } from "@tabler/icons-react-native"
+import { Image } from "expo-image"
 import { Pressable, Text, useColorScheme, View } from "react-native"
 
-import { formatUsd, type ChatProvider, type Message } from "@honestea/shared"
+import {
+  formatUsd,
+  type Attachment,
+  type ChatProvider,
+  type Message,
+} from "@honestea/shared"
 
 import { BrewingMark } from "@/components/brand/brewing-mark"
 import { LogoMark } from "@/components/brand/logo-mark"
@@ -63,16 +69,29 @@ export function ChatMessage({
   const hasVersions = versions.length > 1 && versionIdx !== -1
 
   if (isUser) {
+    const hasAttachments =
+      message.attachments != null && message.attachments.length > 0
     return (
       <View className="gap-2.5">
         {showDividerAbove && <CompactedDivider />}
-        <Pressable
-          onLongPress={() => onCopyText(message.content)}
-          delayLongPress={400}
-          className="self-end max-w-[85%] rounded-[22px] bg-matcha-600 px-3.5 py-2 dark:bg-matcha-400"
-        >
-          <Text className="text-base text-white">{message.content}</Text>
-        </Pressable>
+        <View className="self-end max-w-[85%] gap-1">
+          {hasAttachments && (
+            <View className="flex-row flex-wrap justify-end gap-2">
+              {message.attachments!.map((att) => (
+                <UserAttachmentThumb key={att.uri} attachment={att} />
+              ))}
+            </View>
+          )}
+          {message.content.length > 0 && (
+            <Pressable
+              onLongPress={() => onCopyText(message.content)}
+              delayLongPress={400}
+              className="self-end rounded-[22px] bg-matcha-600 px-3.5 py-2 dark:bg-matcha-400"
+            >
+              <Text className="text-base text-white">{message.content}</Text>
+            </Pressable>
+          )}
+        </View>
       </View>
     )
   }
@@ -196,6 +215,34 @@ function VersionPagination({
           strokeWidth={1.75}
         />
       </Pressable>
+    </View>
+  )
+}
+
+/**
+ * Image thumbnail attached to a user message. Sized at 160px max so a
+ * stack of attachments doesn't blow out the bubble width but each one
+ * is still legible. Aspect ratio comes from the captured width/height,
+ * falling back to 1:1 when the picker didn't return them.
+ */
+function UserAttachmentThumb({ attachment }: { attachment: Attachment }) {
+  if (attachment.kind !== "image") return null
+  const aspect =
+    attachment.width && attachment.height
+      ? attachment.width / attachment.height
+      : 1
+  return (
+    <View className="overflow-hidden rounded-2xl">
+      <Image
+        source={{ uri: attachment.uri }}
+        style={{
+          width: 160,
+          height: 160 / aspect,
+          maxHeight: 240,
+          borderRadius: 16,
+        }}
+        contentFit="cover"
+      />
     </View>
   )
 }

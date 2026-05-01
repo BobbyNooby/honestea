@@ -40,6 +40,13 @@
           }
         }
       ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "HonesTea needs access to your photos to attach images to a chat.",
+          "cameraPermission": "HonesTea needs camera access to take photos and ask the AI about them."
+        }
+      ],
       "expo-image",
       "expo-web-browser"
     ],

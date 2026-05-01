@@ -45,6 +45,31 @@ export interface Citation {
   endIndex?: number
 }
 
+/**
+ * One attachment the user added to a message via the compose menu — an
+ * image from the library, a photo from the camera, or (later) a PDF.
+ * Stored on the user message so re-renders + cloud sync (Phase 2) get
+ * back the same content the model saw.
+ *
+ * `uri` is a local file path (file:// or content://). The chat dispatcher
+ * reads it as base64 at request time and packs it into the OpenAI
+ * `image_url` content block. We deliberately don't store base64 in the
+ * DB — image data would balloon row sizes and re-encode on every read.
+ */
+export interface Attachment {
+  kind: "image" | "file"
+  /** Local file URI — what `<Image>` and `expo-file-system` read from. */
+  uri: string
+  /** MIME type ("image/png", "image/jpeg", "application/pdf", …). */
+  mimeType: string
+  /** Original filename, useful for `file` attachments. */
+  filename?: string
+  /** Image dimensions captured by the picker — sized so the bubble
+   *  doesn't reflow once the image loads. */
+  width?: number
+  height?: number
+}
+
 export interface Message {
   id: string
   conversationId: string
@@ -90,6 +115,11 @@ export interface Message {
    * the "🌐 N sources" chip in the chat view.
    */
   citations: Citation[] | null
+  /**
+   * User-attached images / files for this message. Empty/null on
+   * assistant + system rows and on user rows that were plain text.
+   */
+  attachments: Attachment[] | null
   /** ms epoch */
   createdAt: number
 }

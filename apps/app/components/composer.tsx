@@ -4,9 +4,13 @@ import {
   IconPlayerStopFilled,
   IconPlus,
   IconWorld,
+  IconX,
 } from "@tabler/icons-react-native"
+import { Image } from "expo-image"
 import { useState } from "react"
 import { Pressable, Text, View } from "react-native"
+
+import { type Attachment } from "@honestea/shared"
 
 import {
   ComposeMenu,
@@ -30,6 +34,11 @@ interface Props {
   /** Active response style — placeholder until the prompt prefix lands. */
   style: ResponseStyle
   onChangeStyle: (next: ResponseStyle) => void
+  /** Attachments queued for the next send. Renders as chips above the
+   *  input row with an X to remove. The compose menu populates this via
+   *  the image / camera / file pickers. */
+  attachments: readonly Attachment[]
+  onAttachmentsChange: (next: Attachment[]) => void
 }
 
 /**
@@ -50,13 +59,31 @@ export function Composer({
   webSearchSupported,
   style,
   onChangeStyle,
+  attachments,
+  onAttachmentsChange,
 }: Props) {
   const [menuOpen, setMenuOpen] = useState(false)
   const hasText = value.trim().length > 0
+  const hasAttachments = attachments.length > 0
   const iconColor = dark ? "#e4e4e7" : "#3f3f46"
+
+  const removeAttachment = (uri: string) => {
+    onAttachmentsChange(attachments.filter((a) => a.uri !== uri))
+  }
   return (
     <View className="border-t border-zinc-200 bg-chamomile-50 px-3 pb-2 pt-2 dark:border-zinc-800 dark:bg-chamomile-900">
       <View className="rounded-[26px] border border-zinc-200 bg-chamomile-50 px-2 pb-1.5 pt-2 dark:border-zinc-800 dark:bg-zinc-900">
+        {hasAttachments && (
+          <View className="flex-row flex-wrap gap-2 px-2 pb-2">
+            {attachments.map((att) => (
+              <AttachmentChip
+                key={att.uri}
+                attachment={att}
+                onRemove={() => removeAttachment(att.uri)}
+              />
+            ))}
+          </View>
+        )}
         <Input
           value={value}
           onChangeText={onChange}
@@ -108,7 +135,7 @@ export function Composer({
             )}
             <Pressable
               onPress={streaming ? undefined : onSend}
-              disabled={streaming ? false : !hasText}
+              disabled={streaming ? false : !hasText && !hasAttachments}
               accessibilityLabel={streaming ? "Streaming" : "Send"}
               className="h-9 w-9 items-center justify-center rounded-full bg-matcha-600 active:opacity-80 dark:bg-matcha-400"
             >
@@ -129,7 +156,63 @@ export function Composer({
         webSearchSupported={webSearchSupported}
         style={style}
         onChangeStyle={onChangeStyle}
+        onAddAttachment={(att) =>
+          onAttachmentsChange([...attachments, att])
+        }
       />
+    </View>
+  )
+}
+
+/**
+ * Pending-attachment chip rendered above the input. For images: shows a
+ * 56px thumbnail. For other kinds (PDFs land in a follow-up): a small
+ * file pill with the name. The X button removes from the queue.
+ */
+function AttachmentChip({
+  attachment,
+  onRemove,
+}: {
+  attachment: Attachment
+  onRemove: () => void
+}) {
+  if (attachment.kind === "image") {
+    return (
+      <View className="overflow-hidden rounded-lg">
+        <Image
+          source={{ uri: attachment.uri }}
+          style={{ width: 56, height: 56, borderRadius: 8 }}
+          contentFit="cover"
+        />
+        <Pressable
+          onPress={onRemove}
+          accessibilityLabel="Remove attachment"
+          hitSlop={4}
+          className="absolute right-1 top-1 h-5 w-5 items-center justify-center rounded-full bg-black/60"
+        >
+          <IconX size={12} color="#ffffff" strokeWidth={2.5} />
+        </Pressable>
+      </View>
+    )
+  }
+  // File chip — image attachments are above; this branch covers any
+  // future kind (PDF, audio, etc.) so the composer survives the
+  // commit-2 file-picker addition without another edit.
+  return (
+    <View className="flex-row items-center gap-2 rounded-full bg-zinc-100 px-3 py-1.5 dark:bg-zinc-800">
+      <Text
+        className="max-w-[120px] text-xs text-zinc-700 dark:text-zinc-300"
+        numberOfLines={1}
+      >
+        {attachment.filename ?? "file"}
+      </Text>
+      <Pressable
+        onPress={onRemove}
+        hitSlop={4}
+        accessibilityLabel="Remove attachment"
+      >
+        <IconX size={14} color="#71717a" strokeWidth={2.5} />
+      </Pressable>
     </View>
   )
 }

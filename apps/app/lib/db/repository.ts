@@ -2,6 +2,7 @@ import { randomUUID } from "expo-crypto"
 import { and, asc, desc, eq, gte, isNull } from "drizzle-orm"
 
 import type {
+  Attachment,
   ChatProvider,
   Conversation,
   Message,
@@ -112,6 +113,7 @@ export async function addMessage(input: {
   status?: MessageStatus
   kind?: MessageKind
   provider?: ChatProvider | null
+  attachments?: Attachment[] | null
 }): Promise<Message> {
   const row = {
     id: randomUUID(),
@@ -130,6 +132,7 @@ export async function addMessage(input: {
     kind: input.kind ?? "normal",
     provider: input.provider ?? null,
     citations: null,
+    attachments: input.attachments ?? null,
     createdAt: now(),
   } as const
   await db.insert(messages).values(row)
