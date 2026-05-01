@@ -26,6 +26,10 @@ export async function streamChatOpenRouter(opts: {
   signal?: AbortSignal
   /** Enable OR's `openrouter:web_search` server tool for this turn. */
   webSearch?: boolean
+  /** True when any user message in `messages` carries a `type: "file"`
+   *  content block — triggers OR's `file-parser` plugin so the PDF text
+   *  is extracted before the model sees the request. */
+  hasFileAttachments?: boolean
 }): Promise<ChatResult> {
   const body: Record<string, unknown> = {
     model: opts.model,
@@ -39,6 +43,16 @@ export async function streamChatOpenRouter(opts: {
     // turn; the tool form lets the model search 0-N times based on the
     // question. Default Exa engine — $0.02/turn (5 results × $4/1000).
     body.tools = [{ type: "openrouter:web_search" }]
+  }
+  if (opts.hasFileAttachments) {
+    // OR's file-parser plugin extracts text from PDF blocks before the
+    // request reaches the model. cloudflare-ai engine is free (returns
+    // markdown). Models that natively accept PDFs would also work without
+    // this plugin via the `native` engine, but routing through cloudflare
+    // means even text-only models can read a PDF the user attached.
+    body.plugins = [
+      { id: "file-parser", pdf: { engine: "cloudflare-ai" } },
+    ]
   }
 
   const res = await expoFetch(`${OPENROUTER_BASE}/chat/completions`, {

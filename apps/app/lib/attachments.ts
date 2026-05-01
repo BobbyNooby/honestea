@@ -11,30 +11,40 @@ import type { ContentBlock } from "@/lib/api/types"
 
 /**
  * Read a single attachment off the local filesystem and turn it into the
- * OpenAI / OR `image_url` content-block shape (data URI). The chat
- * dispatcher then either sends this verbatim (OR route) or hands it to
- * the Anthropic streamer's translator.
+ * OpenAI / OR content-block shape (image_url for images, file for PDFs).
+ * The chat dispatcher then either sends this verbatim (OR route) or
+ * hands it to the Anthropic streamer's translator.
  *
  * Failures bubble up — the caller should surface a toast. Common cause
  * is the picker URI getting evicted before the user actually sends.
  */
 async function attachmentToBlock(att: Attachment): Promise<ContentBlock> {
-  if (att.kind !== "image") {
-    throw new Error(`Unsupported attachment kind for image block: ${att.kind}`)
-  }
   const base64 = await FileSystem.readAsStringAsync(att.uri, {
     encoding: FileSystem.EncodingType.Base64,
   })
   const dataUri = `data:${att.mimeType};base64,${base64}`
-  return { type: "image_url", image_url: { url: dataUri } }
+  if (att.kind === "image") {
+    return { type: "image_url", image_url: { url: dataUri } }
+  }
+  // file (PDF) — OR's file-parser plugin reads `type: "file"` blocks
+  // and replaces them with extracted text before the model sees the
+  // request. Fall back to a generic filename when the picker didn't
+  // surface one.
+  return {
+    type: "file",
+    file: {
+      filename: att.filename ?? "attachment.pdf",
+      file_data: dataUri,
+    },
+  }
 }
 
 /**
  * Build the request-side content for a message that may carry attached
- * images. When there are no attachments, returns the plain text — keeps
- * the request body small for the common case. When attachments exist,
- * returns the OpenAI content-array shape: text block first (if any),
- * then one image_url block per attachment.
+ * images / files. When there are no attachments, returns the plain text
+ * — keeps the request body small for the common case. When attachments
+ * exist, returns the OpenAI content-array shape: text block first (if
+ * any), then one block per attachment.
  */
 export async function buildMessageContent(
   text: string,
@@ -46,11 +56,7 @@ export async function buildMessageContent(
     blocks.push({ type: "text", text })
   }
   for (const att of attachments) {
-    if (att.kind === "image") {
-      blocks.push(await attachmentToBlock(att))
-    }
-    // file/PDF attachments land in a follow-up commit — they need OR's
-    // file-parser plugin and a different content-block shape.
+    blocks.push(await attachmentToBlock(att))
   }
   return blocks
 }

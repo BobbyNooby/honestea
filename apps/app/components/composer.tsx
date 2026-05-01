@@ -7,8 +7,9 @@ import {
   IconX,
 } from "@tabler/icons-react-native"
 import { Image } from "expo-image"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Pressable, Text, View } from "react-native"
+import Toast from "react-native-toast-message"
 
 import { type Attachment } from "@honestea/shared"
 
@@ -17,6 +18,7 @@ import {
   type ResponseStyle,
 } from "@/components/compose-menu"
 import { Input } from "@/components/ui/input"
+import { useSpeechRecognition } from "@/lib/speech-recognition"
 
 interface Props {
   value: string
@@ -42,6 +44,9 @@ interface Props {
   /** Whether the active model accepts image input. Greys the image /
    *  photo rows in the compose menu when false. */
   imageSupported: boolean
+  /** Whether the active model accepts file input (PDFs). Greys the
+   *  Add file row when false. */
+  fileSupported: boolean
 }
 
 /**
@@ -65,6 +70,7 @@ export function Composer({
   attachments,
   onAttachmentsChange,
   imageSupported,
+  fileSupported,
 }: Props) {
   const [menuOpen, setMenuOpen] = useState(false)
   const hasText = value.trim().length > 0
@@ -74,9 +80,39 @@ export function Composer({
   const removeAttachment = (uri: string) => {
     onAttachmentsChange(attachments.filter((a) => a.uri !== uri))
   }
+
+  const speech = useSpeechRecognition({
+    onTranscript: (transcript) => {
+      // Append a space + the recognized chunk to whatever the user
+      // already typed. Trim the leading space when input is empty so
+      // the composer starts cleanly.
+      const next = value.length === 0 ? transcript : `${value} ${transcript}`
+      onChange(next)
+    },
+  })
+
+  useEffect(() => {
+    if (speech.error) {
+      Toast.show({
+        type: "error",
+        text1: "Voice input",
+        text2: speech.error,
+      })
+    }
+  }, [speech.error])
+
+  const toggleMic = () => {
+    if (speech.recording) speech.stop()
+    else void speech.start()
+  }
   return (
     <View className="border-t border-zinc-200 bg-chamomile-50 px-3 pb-2 pt-2 dark:border-zinc-800 dark:bg-chamomile-900">
       <View className="rounded-[26px] border border-zinc-200 bg-chamomile-50 px-2 pb-1.5 pt-2 dark:border-zinc-800 dark:bg-zinc-900">
+        {speech.recording && speech.interim.length > 0 && (
+          <Text className="px-3 pb-1 text-[12px] italic text-matcha-700 dark:text-matcha-300">
+            {speech.interim}…
+          </Text>
+        )}
         {hasAttachments && (
           <>
             <View className="flex-row flex-wrap gap-2 px-2 pb-2">
@@ -92,6 +128,13 @@ export function Composer({
               attachments.some((a) => a.kind === "image") && (
                 <Text className="px-3 pb-2 text-[11px] text-amber-700 dark:text-amber-400">
                   This model doesn't accept images — pick a different
+                  model or remove the attachment to send.
+                </Text>
+              )}
+            {!fileSupported &&
+              attachments.some((a) => a.kind === "file") && (
+                <Text className="px-3 pb-2 text-[11px] text-amber-700 dark:text-amber-400">
+                  This model doesn't accept files — pick a different
                   model or remove the attachment to send.
                 </Text>
               )}
@@ -137,13 +180,35 @@ export function Composer({
             )}
           </View>
           <View className="flex-row items-center gap-1">
-            {!streaming && !hasText && (
+            {!streaming && (!hasText || speech.recording) && (
               <Pressable
+                onPress={toggleMic}
                 hitSlop={6}
-                accessibilityLabel="Voice"
-                className="h-9 w-9 items-center justify-center rounded-full active:opacity-70"
+                disabled={!speech.available && !speech.recording}
+                accessibilityLabel={
+                  speech.recording ? "Stop voice input" : "Voice input"
+                }
+                className={
+                  speech.recording
+                    ? "h-9 w-9 items-center justify-center rounded-full bg-matcha-500/20 active:opacity-70 dark:bg-matcha-400/25"
+                    : "h-9 w-9 items-center justify-center rounded-full active:opacity-70"
+                }
               >
-                <IconMicrophone size={18} color={iconColor} strokeWidth={1.75} />
+                <IconMicrophone
+                  size={18}
+                  color={
+                    speech.recording
+                      ? dark
+                        ? "#a8c98a"
+                        : "#5b8a3a"
+                      : speech.available
+                        ? iconColor
+                        : dark
+                          ? "#52525b"
+                          : "#a1a1aa"
+                  }
+                  strokeWidth={1.75}
+                />
               </Pressable>
             )}
             <Pressable
@@ -173,6 +238,7 @@ export function Composer({
           onAttachmentsChange([...attachments, att])
         }
         imageSupported={imageSupported}
+        fileSupported={fileSupported}
       />
     </View>
   )

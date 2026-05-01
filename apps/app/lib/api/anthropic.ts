@@ -18,23 +18,41 @@ function translateContent(
 ): Array<{ type: string; [k: string]: unknown }> {
   return blocks.map((b) => {
     if (b.type === "text") return { type: "text", text: b.text }
-    // image_url
-    const url = b.image_url.url
-    if (url.startsWith("data:")) {
-      const match = url.match(/^data:([^;]+);base64,(.*)$/)
-      if (!match) {
-        throw new Error("Malformed data URI on image content block")
+    if (b.type === "image_url") {
+      const url = b.image_url.url
+      if (url.startsWith("data:")) {
+        const match = url.match(/^data:([^;]+);base64,(.*)$/)
+        if (!match) {
+          throw new Error("Malformed data URI on image content block")
+        }
+        return {
+          type: "image",
+          source: {
+            type: "base64",
+            media_type: match[1],
+            data: match[2],
+          },
+        }
       }
-      return {
-        type: "image",
-        source: {
-          type: "base64",
-          media_type: match[1],
-          data: match[2],
-        },
-      }
+      return { type: "image", source: { type: "url", url } }
     }
-    return { type: "image", source: { type: "url", url } }
+    // file (PDF) — Anthropic's native shape is `{type: "document",
+    // source: {type: "base64", media_type: "application/pdf", data}}`.
+    // In practice this branch is unreachable: the chat dispatcher forces
+    // the OR route whenever files are attached (Anthropic-direct
+    // doesn't run OR's file-parser plugin), but we translate
+    // defensively in case routing rules ever change.
+    const url = b.file.file_data
+    const match = url.match(/^data:([^;]+);base64,(.*)$/)
+    if (!match) throw new Error("Malformed data URI on file content block")
+    return {
+      type: "document",
+      source: {
+        type: "base64",
+        media_type: match[1],
+        data: match[2],
+      },
+    }
   })
 }
 

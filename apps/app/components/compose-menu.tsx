@@ -8,6 +8,7 @@ import {
   IconWriting,
   type Icon,
 } from "@tabler/icons-react-native"
+import * as DocumentPicker from "expo-document-picker"
 import * as ImagePicker from "expo-image-picker"
 import { useState } from "react"
 import { Modal, Pressable, Switch, Text, useColorScheme, View } from "react-native"
@@ -47,6 +48,12 @@ interface Props {
    *  `input_modalities` containing "image"). When false the Add image /
    *  Take photo rows are greyed and untappable, with a hint subtitle. */
   imageSupported: boolean
+  /** Whether the active model accepts file input (`input_modalities`
+   *  contains "file"). When false the Add file row is greyed. The OR
+   *  file-parser plugin can technically extract PDF text into context for
+   *  any text model, but we keep the gate strict so the user knows when
+   *  the model has native file understanding vs plugin extraction. */
+  fileSupported: boolean
 }
 
 /**
@@ -66,6 +73,7 @@ export function ComposeMenu({
   onChangeStyle,
   onAddAttachment,
   imageSupported,
+  fileSupported,
 }: Props) {
   const [view, setView] = useState<"top" | "style">("top")
   const dark = useColorScheme() === "dark"
@@ -131,6 +139,40 @@ export function ComposeMenu({
     }
   }
 
+  /**
+   * Pick a PDF via the system document picker, persist it into the
+   * docs dir, and hand back as a `kind: "file"` attachment. Currently
+   * limited to PDFs — extending to other doc types waits on shaping
+   * the OR file-parser response per type.
+   */
+  const pickFile = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: "application/pdf",
+        copyToCacheDirectory: true,
+        multiple: false,
+      })
+      if (result.canceled) return
+      const asset = result.assets[0]
+      if (!asset) return
+      const mimeType = asset.mimeType ?? "application/pdf"
+      const persistedUri = await persistPickedAttachment(asset.uri, mimeType)
+      onAddAttachment({
+        kind: "file",
+        uri: persistedUri,
+        mimeType,
+        filename: asset.name ?? undefined,
+      })
+      handleRequestClose()
+    } catch (e) {
+      Toast.show({
+        type: "error",
+        text1: "Couldn't attach file",
+        text2: e instanceof Error ? e.message : "Unknown error",
+      })
+    }
+  }
+
   return (
     <Modal
       visible={open}
@@ -184,9 +226,15 @@ export function ComposeMenu({
                   icon={IconPaperclip}
                   iconColor={tint}
                   title="Add file"
-                  description="Attach a document or PDF for context."
+                  description={
+                    fileSupported
+                      ? "Attach a PDF for the model to read."
+                      : "This model doesn't accept file input. Pick a different model to enable."
+                  }
+                  disabled={!fileSupported}
                   onPress={() => {
-                    /* placeholder */
+                    if (!fileSupported) return
+                    void pickFile()
                   }}
                 />
                 <View className="my-2 h-px bg-zinc-200 dark:bg-zinc-800" />

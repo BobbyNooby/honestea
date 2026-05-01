@@ -20,22 +20,23 @@ export type ChatRoute =
  * Preference order:
  *   1. Native direct (currently Anthropic only) — when the model declares
  *      a `directRoute` AND the matching BYOK key is on file. Skips OR's
- *      markup + unlocks prompt caching. Skipped when `webSearch` is
- *      requested — Anthropic-direct doesn't run OR's `openrouter:web_search`
- *      server tool, and we'd rather lose prompt caching than silently drop
- *      the search.
+ *      markup + unlocks prompt caching. Skipped when `webSearch` or
+ *      `hasFiles` is requested — Anthropic-direct doesn't run OR's
+ *      server tools or the file-parser plugin, and we'd rather lose
+ *      prompt caching than silently drop the search / drop the PDF.
  *   2. OpenRouter — fallback for everything else, requires OR key.
  *   3. Null — caller is gated upstream (chat input is disabled when no
  *      key exists), so this is just defensive.
  */
 export async function pickRoute(
   modelId: string,
-  opts?: { webSearch?: boolean },
+  opts?: { webSearch?: boolean; hasFiles?: boolean },
 ): Promise<ChatRoute | null> {
   const curated = findCuratedModel(modelId)
   const direct = curated?.directRoute
+  const forceOpenRouter = opts?.webSearch || opts?.hasFiles
 
-  if (direct?.provider === "anthropic" && !opts?.webSearch) {
+  if (direct?.provider === "anthropic" && !forceOpenRouter) {
     const key = await SecureStore.getItemAsync("byok_anthropic")
     if (key) {
       return {

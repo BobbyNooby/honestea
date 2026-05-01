@@ -1,6 +1,7 @@
 import {
   IconChevronLeft,
   IconChevronRight,
+  IconPaperclip,
   IconWorld,
 } from "@tabler/icons-react-native"
 import { Image } from "expo-image"
@@ -220,29 +221,45 @@ function VersionPagination({
 }
 
 /**
- * Image thumbnail attached to a user message. Sized at 160px max so a
- * stack of attachments doesn't blow out the bubble width but each one
- * is still legible. Aspect ratio comes from the captured width/height,
- * falling back to 1:1 when the picker didn't return them.
+ * Attachment thumbnail / chip attached to a user message. Images render
+ * as 160px-wide thumbs (aspect-preserved); files render as a small
+ * paperclip + filename chip. Stack of these sits above the text bubble.
  */
 function UserAttachmentThumb({ attachment }: { attachment: Attachment }) {
-  if (attachment.kind !== "image") return null
-  const aspect =
-    attachment.width && attachment.height
-      ? attachment.width / attachment.height
-      : 1
+  if (attachment.kind === "image") {
+    const aspect =
+      attachment.width && attachment.height
+        ? attachment.width / attachment.height
+        : 1
+    return (
+      <View className="overflow-hidden rounded-2xl">
+        <Image
+          source={{ uri: attachment.uri }}
+          style={{
+            width: 160,
+            height: 160 / aspect,
+            maxHeight: 240,
+            borderRadius: 16,
+          }}
+          contentFit="cover"
+        />
+      </View>
+    )
+  }
+  // file (PDF) — paperclip + filename chip
   return (
-    <View className="overflow-hidden rounded-2xl">
-      <Image
-        source={{ uri: attachment.uri }}
-        style={{
-          width: 160,
-          height: 160 / aspect,
-          maxHeight: 240,
-          borderRadius: 16,
-        }}
-        contentFit="cover"
+    <View className="flex-row items-center gap-2 self-end rounded-full bg-matcha-600/15 px-3 py-1.5 dark:bg-matcha-400/20">
+      <IconPaperclip
+        size={13}
+        color="#5b8a3a"
+        strokeWidth={2}
       />
+      <Text
+        className="max-w-[180px] text-xs font-medium text-matcha-700 dark:text-matcha-300"
+        numberOfLines={1}
+      >
+        {attachment.filename ?? "PDF"}
+      </Text>
     </View>
   )
 }

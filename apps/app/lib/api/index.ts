@@ -25,7 +25,17 @@ export async function streamChat(opts: {
    *  for models that have an Anthropic directRoute. */
   webSearch?: boolean
 }): Promise<ChatResult> {
-  const route = await pickRoute(opts.model, { webSearch: opts.webSearch })
+  // Detect file attachments by walking the content blocks. Used for two
+  // things: routing (force OR), and triggering OR's file-parser plugin.
+  const hasFileAttachments = opts.messages.some(
+    (m) =>
+      Array.isArray(m.content) &&
+      m.content.some((b) => b.type === "file"),
+  )
+  const route = await pickRoute(opts.model, {
+    webSearch: opts.webSearch,
+    hasFiles: hasFileAttachments,
+  })
   if (!route) {
     throw new Error("No API key configured.")
   }
@@ -55,5 +65,6 @@ export async function streamChat(opts: {
     onToken: opts.onToken,
     signal: opts.signal,
     webSearch: opts.webSearch,
+    hasFileAttachments,
   })
 }

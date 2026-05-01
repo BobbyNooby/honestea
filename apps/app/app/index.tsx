@@ -94,6 +94,16 @@ export default function ChatScreen() {
     const model = findModel(registry, modelId)
     return model?.architecture?.input_modalities?.includes("image") ?? false
   }, [registry, modelId])
+
+  // Whether the current model accepts file input (PDFs). Drives the
+  // "Add file" row gate. OR's file-parser plugin can extract PDF text
+  // for any text model, but we keep the gate strict so the picker only
+  // surfaces models that natively understand files.
+  const fileSupported = useMemo(() => {
+    if (!registry) return false
+    const model = findModel(registry, modelId)
+    return model?.architecture?.input_modalities?.includes("file") ?? false
+  }, [registry, modelId])
   const [renameTarget, setRenameTarget] = useState<{
     id: string
     title: string | null
@@ -461,17 +471,29 @@ export default function ChatScreen() {
     // common for "what's in this picture?" style turns.
     if ((!text && pendingAttachments.length === 0) || streaming) return
 
-    // Refuse to send images to a model that can't accept them — would
-    // otherwise hit the API and fail with a noisy 4xx. The composer
-    // banner already warns; this is the actual gate.
+    // Refuse to send incompatible attachments to a model that can't
+    // accept them — would otherwise hit the API and fail with a noisy
+    // 4xx. The composer banner already warns; this is the actual gate.
     const hasImageAttachments = pendingAttachments.some(
       (a) => a.kind === "image",
+    )
+    const hasFileAttachments = pendingAttachments.some(
+      (a) => a.kind === "file",
     )
     if (hasImageAttachments && !imageSupported) {
       Toast.show({
         type: "error",
         text1: "Model doesn't accept images",
         text2: "Switch to a vision-capable model or remove the attachment.",
+      })
+      return
+    }
+    if (hasFileAttachments && !fileSupported) {
+      Toast.show({
+        type: "error",
+        text1: "Model doesn't accept files",
+        text2:
+          "Switch to a file-capable model or remove the PDF attachment.",
       })
       return
     }
@@ -533,6 +555,7 @@ export default function ChatScreen() {
     }
   }, [
     conversations,
+    fileSupported,
     imageSupported,
     input,
     messages,
@@ -797,6 +820,7 @@ export default function ChatScreen() {
               attachments={pendingAttachments}
               onAttachmentsChange={setPendingAttachments}
               imageSupported={imageSupported}
+              fileSupported={fileSupported}
             />
           </>
         )}

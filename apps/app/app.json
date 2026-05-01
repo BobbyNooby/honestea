@@ -47,6 +47,14 @@
           "cameraPermission": "HonesTea needs camera access to take photos and ask the AI about them."
         }
       ],
+      [
+        "@jamsch/expo-speech-recognition",
+        {
+          "microphonePermission": "HonesTea needs microphone access to transcribe your voice into the chat.",
+          "speechRecognitionPermission": "HonesTea uses on-device speech recognition to convert your voice to text.",
+          "androidSpeechServicePackages": ["com.google.android.googlequicksearchbox"]
+        }
+      ],
       "expo-image",
       "expo-web-browser"
     ],

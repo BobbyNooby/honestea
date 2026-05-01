@@ -11,6 +11,14 @@ export type ChatRole = "user" | "assistant" | "system"
 export type ContentBlock =
   | { type: "text"; text: string }
   | { type: "image_url"; image_url: { url: string } }
+  | {
+      type: "file"
+      file: {
+        filename: string
+        /** `data:application/pdf;base64,...` data URI. */
+        file_data: string
+      }
+    }
 
 export interface ChatMessage {
   role: ChatRole
