@@ -72,7 +72,8 @@ export default function RootLayout() {
                 >
                   <Stack screenOptions={{ headerShown: false }}>
                     <Stack.Screen name="index" />
-                    <Stack.Screen name="settings" options={{ headerShown: true, title: "Settings" }} />
+                    <Stack.Screen name="settings/index" options={{ headerShown: true, title: "Settings" }} />
+                    <Stack.Screen name="settings/usage" options={{ headerShown: true, title: "Usage" }} />
                     <Stack.Screen name="byok" options={{ headerShown: true, title: "API Keys" }} />
                     <Stack.Screen name="models/index" options={{ headerShown: true, title: "Models" }} />
                     <Stack.Screen name="models/[id]" options={{ headerShown: true, title: "Model" }} />
