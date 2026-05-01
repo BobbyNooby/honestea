@@ -62,3 +62,27 @@ export interface ChatResult {
    */
   citations: Citation[]
 }
+
+/**
+ * One server-tool invocation surfaced during streaming. The activity
+ * panel rendering on the assistant bubble reads from these.
+ *
+ * `index` is OpenAI's call-position index (the only field reliably
+ * present across delta chunks). `name` is the function name —
+ * "web_search" / "web_fetch" / "datetime" — which surfaces once the
+ * first chunk for this index arrives. `args` is the (possibly
+ * partial) JSON-encoded arguments string built up across deltas.
+ *
+ * `phase`:
+ *  - "streaming": args are still arriving
+ *  - "running":   `finish_reason: "tool_calls"` has fired; server is
+ *                 executing the tool; no further progress events
+ *  - "done":      the model has resumed `delta.content` (answering)
+ */
+export interface ToolCallEvent {
+  index: number
+  id?: string
+  name: string
+  args: string
+  phase: "streaming" | "running" | "done"
+}

@@ -18,6 +18,8 @@ import { BrewingMark } from "@/components/brand/brewing-mark"
 import { LogoMark } from "@/components/brand/logo-mark"
 import { MarkdownText } from "@/components/markdown-text"
 import { MessageActions } from "@/components/message-actions"
+import { ToolActivityPanel } from "@/components/tool-activity-panel"
+import type { ToolCallEvent } from "@/lib/api"
 
 interface Props {
   message: Message
@@ -36,6 +38,10 @@ interface Props {
   versions: readonly Message[]
   /** Position of this message within `versions` (0-indexed). -1 if no group. */
   versionIdx: number
+  /** Live server-tool calls for THIS message while it's streaming. Caller
+   *  populates from the OR streamer's onToolEvent callback; clears on
+   *  completion. Empty/undefined → activity panel doesn't render. */
+  toolCalls?: readonly ToolCallEvent[]
   onCopyText: (text: string) => Promise<void> | void
   onRegenerate: (assistantId: string) => void
   /** old → new ids of versions to swap. */
@@ -56,6 +62,7 @@ export function ChatMessage({
   globallyStreaming,
   versions,
   versionIdx,
+  toolCalls,
   onCopyText,
   onRegenerate,
   onSwitchVersion,
@@ -103,6 +110,9 @@ export function ChatMessage({
     <View className="gap-1">
       {showDividerAbove && <CompactedDivider />}
       <View className="self-stretch gap-1.5 px-1">
+        {toolCalls && toolCalls.length > 0 && (
+          <ToolActivityPanel calls={toolCalls} />
+        )}
         {message.citations && message.citations.length > 0 && (
           <WebSearchChip count={message.citations.length} />
         )}

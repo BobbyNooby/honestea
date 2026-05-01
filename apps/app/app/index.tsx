@@ -32,7 +32,10 @@ import { NoKeyState } from "@/components/no-key-state"
 import { RenameDialog } from "@/components/rename-dialog"
 import { StorageToggle } from "@/components/storage-toggle"
 import { streamChat } from "@/lib/api"
-import type { ChatMessage as ApiChatMessage } from "@/lib/api/types"
+import type {
+  ChatMessage as ApiChatMessage,
+  ToolCallEvent,
+} from "@/lib/api/types"
 import { buildMessageContent } from "@/lib/attachments"
 import { useBrewingPhrase } from "@/lib/brewing-phrases"
 import { useByokStatus } from "@/lib/byok"
@@ -76,6 +79,14 @@ export default function ChatScreen() {
   // Attachments queued for the next send. Cleared after the user message
   // row is written to the DB. Composer renders chips for each.
   const [pendingAttachments, setPendingAttachments] = useState<Attachment[]>([])
+
+  // Live tool-call activity per assistant message id. Populated from the
+  // OR streamer's onToolEvent callback while a turn is streaming;
+  // cleared on completion (citations chip + answer text take over).
+  // Map<messageId, Map<callIndex, ToolCallEvent>>.
+  const [toolActivity, setToolActivity] = useState<
+    Map<string, Map<number, ToolCallEvent>>
+  >(new Map())
 
   // Whether the current model supports OR's tool calling (and therefore
   // the web_search server tool). The compose menu greys the toggle and
@@ -377,6 +388,19 @@ export default function ChatScreen() {
               ),
             )
           },
+          onToolEvent: (event) => {
+            // Update the per-message tool-call map. We mutate via
+            // replacement to keep React's identity-based equality
+            // happy. Indexed by call.index so the same call updating
+            // its phase/args overwrites in place.
+            setToolActivity((prev) => {
+              const next = new Map(prev)
+              const forMsg = new Map(next.get(assistantRow.id) ?? [])
+              forMsg.set(event.index, event)
+              next.set(assistantRow.id, forMsg)
+              return next
+            })
+          },
         })
 
         const promptTokens =
@@ -423,6 +447,15 @@ export default function ChatScreen() {
               : msg,
           ),
         )
+        // Tool calls have all hit `done` (or never existed). Drop the
+        // entry so the panel stops rendering — citations chip + content
+        // take over for retro display.
+        setToolActivity((prev) => {
+          if (!prev.has(assistantRow.id)) return prev
+          const next = new Map(prev)
+          next.delete(assistantRow.id)
+          return next
+        })
 
         if (isFirstTurn && firstTurnText) {
           void generateTitle({
@@ -457,6 +490,12 @@ export default function ChatScreen() {
               : msg,
           ),
         )
+        setToolActivity((prev) => {
+          if (!prev.has(assistantRow.id)) return prev
+          const next = new Map(prev)
+          next.delete(assistantRow.id)
+          return next
+        })
       }
     },
     [conversations, modelId, registry],
@@ -682,6 +721,7 @@ export default function ChatScreen() {
       const anchorId = anchorByAssistant.get(item.id)
       const versions = anchorId ? versionsByAnchor.get(anchorId) ?? [] : []
       const versionIdx = versions.findIndex((v) => v.id === item.id)
+      const calls = toolActivity.get(item.id)
       return (
         <ChatMessage
           message={item}
@@ -691,6 +731,7 @@ export default function ChatScreen() {
           globallyStreaming={streaming}
           versions={versions}
           versionIdx={versionIdx}
+          toolCalls={calls ? [...calls.values()] : undefined}
           onCopyText={copyMessage}
           onRegenerate={(id) => {
             void regenerate(id)
@@ -710,6 +751,7 @@ export default function ChatScreen() {
       regenerate,
       streaming,
       switchVersion,
+      toolActivity,
       versionsByAnchor,
     ],
   )

@@ -2,7 +2,12 @@ import { fetch as expoFetch } from "expo/fetch"
 
 import type { Citation } from "@honestea/shared"
 
-import type { ChatMessage, ChatResult, ChatUsage } from "./types"
+import type {
+  ChatMessage,
+  ChatResult,
+  ChatUsage,
+  ToolCallEvent,
+} from "./types"
 
 const OPENROUTER_BASE = "https://openrouter.ai/api/v1"
 
@@ -26,10 +31,26 @@ export async function streamChatOpenRouter(opts: {
   signal?: AbortSignal
   /** Enable OR's `openrouter:web_search` server tool for this turn. */
   webSearch?: boolean
+  /** Enable OR's `openrouter:web_fetch` (free via openrouter engine).
+   *  Lets the model open specific URLs from web_search results or
+   *  user-provided links. */
+  webFetch?: boolean
+  /** Enable OR's `openrouter:datetime` (free). Lets the model query
+   *  the current date / time when answering "what's today's date" or
+   *  scheduling-style questions. Pass the user's IANA timezone so
+   *  results are local to them. */
+  datetime?: boolean
+  /** IANA timezone for the datetime tool. Falls back to UTC when
+   *  unset. */
+  timezone?: string
   /** True when any user message in `messages` carries a `type: "file"`
    *  content block — triggers OR's `file-parser` plugin so the PDF text
    *  is extracted before the model sees the request. */
   hasFileAttachments?: boolean
+  /** Live progress callback for the tool activity panel. Fires on
+   *  every change to a tool call's state — first arrival, args
+   *  streamed in, finished, or eclipsed by the answer phase. */
+  onToolEvent?: (event: ToolCallEvent) => void
 }): Promise<ChatResult> {
   const body: Record<string, unknown> = {
     model: opts.model,
@@ -37,12 +58,31 @@ export async function streamChatOpenRouter(opts: {
     stream: true,
     usage: { include: true },
   }
+  const tools: Array<Record<string, unknown>> = []
   if (opts.webSearch) {
     // Server-tool form (current). The deprecated `:online` slug suffix and
     // `plugins: [{ id: "web" }]` both still work but force one search per
     // turn; the tool form lets the model search 0-N times based on the
     // question. Default Exa engine — $0.02/turn (5 results × $4/1000).
-    body.tools = [{ type: "openrouter:web_search" }]
+    tools.push({ type: "openrouter:web_search" })
+  }
+  if (opts.webFetch) {
+    // openrouter engine is free. The model decides when to fetch a
+    // specific URL — typically follows up a web_search by opening the
+    // most relevant result.
+    tools.push({
+      type: "openrouter:web_fetch",
+      parameters: { engine: "openrouter" },
+    })
+  }
+  if (opts.datetime) {
+    tools.push({
+      type: "openrouter:datetime",
+      parameters: { timezone: opts.timezone ?? "UTC" },
+    })
+  }
+  if (tools.length > 0) {
+    body.tools = tools
   }
   if (opts.hasFileAttachments) {
     // OR's file-parser plugin extracts text from PDF blocks before the
@@ -81,6 +121,18 @@ export async function streamChatOpenRouter(opts: {
   // Annotation entries arrive in deltas; dedupe by URL because OR
   // sometimes re-broadcasts the same citation in successive chunks.
   const citationMap = new Map<string, Citation>()
+  // Tool-call buffer keyed by OpenAI's `index` field. function.name
+  // arrives once on first chunk; arguments stream as JSON fragments
+  // appended across many chunks. Buffer until finish_reason="tool_calls"
+  // freezes the call list, then re-fire as "running".
+  const toolCalls = new Map<number, ToolCallEvent>()
+  // Has the answering phase started? Set when delta.content first
+  // arrives after a tool_calls finish. We bulk-mark all running calls
+  // as "done" at that point so the UI panel collapses.
+  let answerStarted = false
+  const fireToolEvent = (e: ToolCallEvent) => {
+    opts.onToolEvent?.(e)
+  }
 
   while (true) {
     const { value, done } = await reader.read()
@@ -114,7 +166,14 @@ export async function streamChatOpenRouter(opts: {
                     end_index?: number
                   }
                 }>
+                tool_calls?: Array<{
+                  index?: number
+                  id?: string
+                  type?: string
+                  function?: { name?: string; arguments?: string }
+                }>
               }
+              finish_reason?: string
             }>
             usage?: {
               prompt_tokens?: number
@@ -127,7 +186,56 @@ export async function streamChatOpenRouter(opts: {
           const delta = choice?.delta?.content
           if (delta) {
             full += delta
+            // First content after a tool-calls phase = answer started.
+            // Mark any "running" tools as done so the UI can collapse.
+            if (!answerStarted && toolCalls.size > 0) {
+              answerStarted = true
+              for (const tc of toolCalls.values()) {
+                if (tc.phase !== "done") {
+                  tc.phase = "done"
+                  fireToolEvent({ ...tc })
+                }
+              }
+            }
             opts.onToken(delta)
+          }
+          const toolDeltas = choice?.delta?.tool_calls
+          if (toolDeltas && Array.isArray(toolDeltas)) {
+            for (const td of toolDeltas) {
+              const idx = td.index ?? 0
+              const existing =
+                toolCalls.get(idx) ?? {
+                  index: idx,
+                  id: td.id,
+                  // Strip OR's `openrouter:` prefix if present so the
+                  // UI matches on plain names.
+                  name: stripPrefix(td.function?.name ?? ""),
+                  args: "",
+                  phase: "streaming" as const,
+                }
+              if (td.id && !existing.id) existing.id = td.id
+              if (td.function?.name && !existing.name) {
+                existing.name = stripPrefix(td.function.name)
+              }
+              if (td.function?.arguments) {
+                existing.args += td.function.arguments
+              }
+              toolCalls.set(idx, existing)
+              if (existing.name) {
+                fireToolEvent({ ...existing })
+              }
+            }
+          }
+          if (choice?.finish_reason === "tool_calls") {
+            // Server is about to execute the buffered tools. No further
+            // SSE progress events arrive during execution — we'll only
+            // know they're done once `delta.content` resumes.
+            for (const tc of toolCalls.values()) {
+              if (tc.phase === "streaming") {
+                tc.phase = "running"
+                fireToolEvent({ ...tc })
+              }
+            }
           }
           const annotations = choice?.delta?.annotations
           if (annotations && Array.isArray(annotations)) {
@@ -169,4 +277,13 @@ export async function streamChatOpenRouter(opts: {
     provider: "openrouter",
     citations: [...citationMap.values()],
   }
+}
+
+/**
+ * Server tools surface in `function.name` either prefixed (e.g.
+ * `"openrouter:web_search"`) or stripped (e.g. `"web_search"`) depending
+ * on OR's translation layer. Normalize to bare name so the UI matches.
+ */
+function stripPrefix(name: string): string {
+  return name.startsWith("openrouter:") ? name.slice("openrouter:".length) : name
 }

@@ -4,9 +4,15 @@ import {
   streamChatAnthropic,
 } from "./anthropic"
 import { streamChatOpenRouter } from "./openrouter"
-import type { ChatMessage, ChatResult } from "./types"
+import type { ChatMessage, ChatResult, ToolCallEvent } from "./types"
 
-export type { ChatMessage, ChatResult, ChatUsage, ChatRole } from "./types"
+export type {
+  ChatMessage,
+  ChatResult,
+  ChatUsage,
+  ChatRole,
+  ToolCallEvent,
+} from "./types"
 
 /**
  * Public chat dispatcher. Resolves the user's preferred route for the given
@@ -24,6 +30,9 @@ export async function streamChat(opts: {
   /** Enable OR's web_search server tool. Forces the OpenRouter route even
    *  for models that have an Anthropic directRoute. */
   webSearch?: boolean
+  /** Live progress callback for the tool activity panel. Fires on
+   *  every change to a tool call's lifecycle. */
+  onToolEvent?: (event: ToolCallEvent) => void
 }): Promise<ChatResult> {
   // Detect file attachments by walking the content blocks. Used for two
   // things: routing (force OR), and triggering OR's file-parser plugin.
@@ -32,6 +41,9 @@ export async function streamChat(opts: {
       Array.isArray(m.content) &&
       m.content.some((b) => b.type === "file"),
   )
+  // Forced OR routing whenever ANY server tool is in play. Anthropic-direct
+  // doesn't run OR's `openrouter:*` tools, and we'd rather lose prompt
+  // caching than silently skip the user's tool requests.
   const route = await pickRoute(opts.model, {
     webSearch: opts.webSearch,
     hasFiles: hasFileAttachments,
@@ -58,6 +70,18 @@ export async function streamChat(opts: {
     })
   }
 
+  // When web search is on, also auto-enable web_fetch (free) and
+  // datetime (free) so the model has the full toolkit. Both are
+  // server-side, agentic — the model decides when to call. Adding them
+  // costs nothing extra unless the model actually invokes them.
+  const datetimeTimezone = (() => {
+    try {
+      return Intl.DateTimeFormat().resolvedOptions().timeZone
+    } catch {
+      return "UTC"
+    }
+  })()
+
   return streamChatOpenRouter({
     apiKey: route.key,
     model: opts.model,
@@ -65,6 +89,10 @@ export async function streamChat(opts: {
     onToken: opts.onToken,
     signal: opts.signal,
     webSearch: opts.webSearch,
+    webFetch: opts.webSearch,
+    datetime: opts.webSearch,
+    timezone: datetimeTimezone,
     hasFileAttachments,
+    onToolEvent: opts.onToolEvent,
   })
 }
