@@ -60,9 +60,11 @@ export default function ChatScreen() {
   const [streaming, setStreaming] = useState(false)
   const [error, setError] = useState<string | null>(null)
   // Compose-menu controls. Web search rides on OR's `openrouter:web_search`
-  // server tool — gated below on tool-calling support. Style is a
-  // placeholder until the prompt prefix layer ships.
-  const [webSearch, setWebSearch] = useState(false)
+  // server tool — defaults on (the model decides 0-N searches per turn,
+  // so a search only runs when the question actually benefits from it).
+  // Gated on tool-calling support: when the active model can't use tools
+  // the toggle stays visually disabled and no search is sent.
+  const [webSearch, setWebSearch] = useState(true)
   const [responseStyle, setResponseStyle] = useState<ResponseStyle>("normal")
 
   // Whether the current model supports OR's tool calling (and therefore
