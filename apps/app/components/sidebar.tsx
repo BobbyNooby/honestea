@@ -61,11 +61,19 @@ export function Sidebar({ onClose }: SidebarProps) {
   const handleNewChat = async () => {
     await startNew(modelId)
     onClose()
+    // Bounce back to chat — without this, tapping "New chat" from
+    // /settings or /models just changes the conversation context but
+    // leaves the user on the wrong screen.
+    router.dismissTo("/")
   }
 
   const handleSelect = (id: string) => {
     select(id)
     onClose()
+    // Same: ensure the chat screen is what's actually visible after a
+    // pick from the sidebar, regardless of which screen the user
+    // opened the sidebar from.
+    router.dismissTo("/")
   }
 
   const confirmDelete = async (convo: Conversation) => {
