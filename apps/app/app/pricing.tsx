@@ -3,6 +3,7 @@ import {
   IconArrowRight,
   IconCheck,
   IconChevronDown,
+  IconCircleCheckFilled,
   IconCloud,
   IconCoin,
   IconInfinity,
@@ -41,8 +42,14 @@ import { LogoMark } from "@/components/brand/logo-mark"
  *
  * Stage 2 work — no Stripe checkout wired today; CTAs are visual.
  */
+type PlanId = "payg" | "subscription" | "byok"
+
 export default function PricingScreen() {
   const dark = useColorScheme() === "dark"
+  // One-of selection. Not wired to checkout (Stage 2) — today the
+  // selection drives the bottom "Notify me" CTA copy so the user can
+  // express which plan they're interested in for telemetry later.
+  const [selected, setSelected] = useState<PlanId | null>(null)
   return (
     <SafeAreaView
       className="flex-1 bg-chamomile-50 dark:bg-zinc-950"
@@ -50,7 +57,13 @@ export default function PricingScreen() {
     >
       <View className="flex-row items-center px-2 pt-1">
         <Pressable
-          onPress={() => router.back()}
+          onPress={() => {
+            // Onboarding reaches /pricing via router.replace, so the
+            // back stack is empty when arriving from there. Fall through
+            // to /onboarding so the user lands somewhere sensible.
+            if (router.canGoBack()) router.back()
+            else router.replace("/onboarding" as never)
+          }}
           hitSlop={12}
           className="h-10 w-10 items-center justify-center rounded-full active:bg-zinc-100 dark:active:bg-zinc-900"
         >
@@ -91,13 +104,19 @@ export default function PricingScreen() {
           unit="/mo + credits"
           tagline="Top up, only pay for what you use"
           bullets={[
+            "Conversations sync across devices",
             "Credits never expire",
             "~28-30% markup, billed from balance",
             "$7.99 minimum first deposit",
           ]}
+          selected={selected === "payg"}
+          onSelect={() => setSelected("payg")}
         />
 
-        <ExpandableSubscriptionCard />
+        <ExpandableSubscriptionCard
+          selected={selected === "subscription"}
+          onSelect={() => setSelected("subscription")}
+        />
 
         <PlanCard
           Icon={IconCloud}
@@ -111,7 +130,29 @@ export default function PricingScreen() {
             "Niche: only if you want sync without hosting",
           ]}
           compact
+          selected={selected === "byok"}
+          onSelect={() => setSelected("byok")}
         />
+
+        {selected && (
+          <Pressable
+            className="mt-1 flex-row items-center justify-center gap-2 rounded-2xl bg-zinc-900 py-3.5 active:opacity-90 dark:bg-white"
+          >
+            <IconCircleCheckFilled
+              size={16}
+              color={dark ? "#18181b" : "#ffffff"}
+            />
+            <Text
+              className={
+                dark
+                  ? "text-[14.5px] font-semibold text-zinc-900"
+                  : "text-[14.5px] font-semibold text-white"
+              }
+            >
+              Notify me when {planLabel(selected)} launches
+            </Text>
+          </Pressable>
+        )}
 
         <View className="mt-2 gap-2.5 rounded-3xl border border-chamomile-100 bg-chamomile-100 p-4 dark:border-zinc-800 dark:bg-zinc-900/40">
           <View className="flex-row items-center gap-2">
@@ -155,8 +196,17 @@ export default function PricingScreen() {
  *
  * The chevron rotation + height reveal use Reanimated `withTiming`
  * for a 200ms ease-in/out — matching the design's "see plans ⌄" motion.
+ *
+ * Tap on the card body (outside the expand toggle) selects the plan;
+ * the chevron row toggles the expanded view independently.
  */
-function ExpandableSubscriptionCard() {
+function ExpandableSubscriptionCard({
+  selected,
+  onSelect,
+}: {
+  selected: boolean
+  onSelect: () => void
+}) {
   const [open, setOpen] = useState(false)
   const dark = useColorScheme() === "dark"
   const tint = dark ? "#a8c98a" : "#466b2c"
@@ -166,14 +216,20 @@ function ExpandableSubscriptionCard() {
     transform: [{ rotate: `${rotation.value}deg` }],
   }))
 
-  const toggle = () => {
+  const toggleExpand = () => {
     rotation.value = withTiming(open ? 0 : 180, { duration: 200 })
     setOpen((o) => !o)
   }
 
   return (
-    <View className="overflow-hidden rounded-3xl border-2 border-matcha-500 bg-white dark:bg-zinc-900">
-      <Pressable onPress={toggle} className="gap-3 p-[18px] active:opacity-90">
+    <View
+      className={
+        selected
+          ? "overflow-hidden rounded-3xl border-[3px] border-matcha-600 bg-matcha-500/5 dark:border-matcha-400 dark:bg-matcha-400/10"
+          : "overflow-hidden rounded-3xl border-2 border-matcha-500 bg-white dark:bg-zinc-900"
+      }
+    >
+      <Pressable onPress={onSelect} className="gap-3 p-[18px] active:opacity-90">
         <View className="flex-row items-start gap-3">
           <View className="h-10 w-10 items-center justify-center rounded-xl bg-matcha-500/15 dark:bg-matcha-400/20">
             <IconInfinity
@@ -209,9 +265,10 @@ function ExpandableSubscriptionCard() {
                   Most popular
                 </Text>
               </View>
+              {selected && <SelectedCheck color={tint} />}
             </View>
             <Text className="mt-0.5 text-[12px] text-zinc-500 dark:text-zinc-400">
-              Unlimited hosted chat
+              Generous monthly hosted chat · synced
             </Text>
           </View>
           <View className="items-end">
@@ -236,17 +293,21 @@ function ExpandableSubscriptionCard() {
           </View>
         </View>
 
-        <View className="flex-row items-center justify-between pt-1">
-          <Text
-            className="text-[13px] font-semibold"
-            style={{ color: tint }}
-          >
-            See plans
-          </Text>
-          <Animated.View style={chevronStyle}>
-            <IconChevronDown size={16} color={tint} strokeWidth={2} />
-          </Animated.View>
-        </View>
+      </Pressable>
+
+      <Pressable
+        onPress={toggleExpand}
+        className="flex-row items-center justify-between border-t border-matcha-500/20 px-[18px] py-2.5 active:opacity-70 dark:border-matcha-400/20"
+      >
+        <Text
+          className="text-[13px] font-semibold"
+          style={{ color: tint }}
+        >
+          See plans
+        </Text>
+        <Animated.View style={chevronStyle}>
+          <IconChevronDown size={16} color={tint} strokeWidth={2} />
+        </Animated.View>
       </Pressable>
 
       {open && (
@@ -323,6 +384,10 @@ function SubTierMini({
  * Standard plan card. `compact` reduces the visual weight (smaller
  * title, slight opacity drop) — used for Cloud BYOK to telegraph that
  * it's an option rather than a primary recommendation.
+ *
+ * When `selected` is true the card grows a thicker matcha border + a
+ * matcha tint and shows a check badge next to the title. The whole
+ * card is the selection target.
  */
 function PlanCard({
   Icon: IconCmp,
@@ -332,6 +397,8 @@ function PlanCard({
   tagline,
   bullets,
   compact,
+  selected,
+  onSelect,
 }: {
   Icon: Icon
   title: string
@@ -340,30 +407,40 @@ function PlanCard({
   tagline: string
   bullets: readonly string[]
   compact?: boolean
+  selected: boolean
+  onSelect: () => void
 }) {
   const dark = useColorScheme() === "dark"
   const tint = dark ? "#a8c98a" : "#5b8a3a"
   return (
-    <View
-      style={{ opacity: compact ? 0.95 : 1 }}
-      className="gap-3 rounded-3xl border border-chamomile-100 bg-white p-[18px] dark:border-zinc-800 dark:bg-zinc-900"
+    <Pressable
+      onPress={onSelect}
+      style={{ opacity: compact && !selected ? 0.95 : 1 }}
+      className={
+        selected
+          ? "gap-3 rounded-3xl border-[3px] border-matcha-600 bg-matcha-500/5 p-[18px] active:opacity-90 dark:border-matcha-400 dark:bg-matcha-400/10"
+          : "gap-3 rounded-3xl border border-chamomile-100 bg-white p-[18px] active:opacity-90 dark:border-zinc-800 dark:bg-zinc-900"
+      }
     >
       <View className="flex-row items-start gap-3">
         <View className="h-10 w-10 items-center justify-center rounded-xl bg-matcha-500/15 dark:bg-matcha-400/20">
           <IconCmp size={20} color={tint} strokeWidth={1.75} />
         </View>
         <View className="min-w-0 flex-1">
-          <Text
-            className="text-zinc-900 dark:text-zinc-100"
-            style={{
-              fontFamily: "Georgia",
-              fontWeight: "600",
-              fontSize: compact ? 18 : 22,
-              letterSpacing: -0.4,
-            }}
-          >
-            {title}
-          </Text>
+          <View className="flex-row items-center gap-2">
+            <Text
+              className="text-zinc-900 dark:text-zinc-100"
+              style={{
+                fontFamily: "Georgia",
+                fontWeight: "600",
+                fontSize: compact ? 18 : 22,
+                letterSpacing: -0.4,
+              }}
+            >
+              {title}
+            </Text>
+            {selected && <SelectedCheck color={tint} />}
+          </View>
           <Text className="mt-px text-[12px] text-zinc-500 dark:text-zinc-400">
             {tagline}
           </Text>
@@ -401,6 +478,33 @@ function PlanCard({
           </View>
         ))}
       </View>
+    </Pressable>
+  )
+}
+
+/**
+ * Small filled-circle check badge rendered next to a card title when
+ * the card is the active selection. Sits inline with the title so it
+ * reads as part of the heading, not a separate UI control.
+ */
+function SelectedCheck({ color }: { color: string }) {
+  return (
+    <View
+      className="h-5 w-5 items-center justify-center rounded-full"
+      style={{ backgroundColor: color }}
+    >
+      <IconCheck size={12} color="#ffffff" strokeWidth={3} />
     </View>
   )
+}
+
+function planLabel(p: PlanId): string {
+  switch (p) {
+    case "payg":
+      return "Pay-as-you-go"
+    case "subscription":
+      return "Subscription"
+    case "byok":
+      return "Cloud BYOK"
+  }
 }

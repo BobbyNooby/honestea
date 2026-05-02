@@ -33,7 +33,10 @@ export default function SubscriptionPlansScreen() {
     >
       <View className="flex-row items-center px-2 pt-1">
         <Pressable
-          onPress={() => router.back()}
+          onPress={() => {
+            if (router.canGoBack()) router.back()
+            else router.replace("/pricing" as never)
+          }}
           hitSlop={12}
           className="h-10 w-10 items-center justify-center rounded-full active:bg-zinc-100 dark:active:bg-zinc-900"
         >
@@ -82,8 +85,8 @@ export default function SubscriptionPlansScreen() {
             Pick your size
           </Text>
           <Text className="mx-auto mt-2 max-w-[280px] text-center text-[13.5px] leading-5 text-zinc-600 dark:text-zinc-400">
-            All tiers unlimited on the curated set. Larger tiers raise quotas
-            on premium models.
+            All tiers include generous monthly chat on the curated set. Larger
+            tiers raise quotas on premium models.
           </Text>
         </View>
 
@@ -93,7 +96,7 @@ export default function SubscriptionPlansScreen() {
           quota="1×"
           tagline="Solid daily use"
           bullets={[
-            "Unlimited curated-set chat",
+            "Generous monthly chat on the curated set",
             "Standard quota on premium models",
             "All core features",
           ]}

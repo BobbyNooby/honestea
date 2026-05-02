@@ -95,7 +95,7 @@ export default function OnboardingScreen() {
           bullets={[
             "Direct to OpenRouter, Claude, GPT, Gemini & more",
             "Zero markup — pay providers directly",
-            "Keys encrypted on-device",
+            "Local-only — chats + keys stay on this device",
           ]}
           cta="Use my own key"
           Icon={IconKey}

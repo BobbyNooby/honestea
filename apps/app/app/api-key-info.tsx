@@ -30,7 +30,10 @@ export default function ApiKeyInfoScreen() {
     >
       <View className="h-12 flex-row items-center justify-between px-2">
         <Pressable
-          onPress={() => router.back()}
+          onPress={() => {
+            if (router.canGoBack()) router.back()
+            else router.replace("/onboarding" as never)
+          }}
           hitSlop={12}
           className="h-10 w-10 items-center justify-center rounded-full active:bg-zinc-100 dark:active:bg-zinc-900"
         >
@@ -107,7 +110,10 @@ export default function ApiKeyInfoScreen() {
         </View>
 
         <Pressable
-          onPress={() => router.back()}
+          onPress={() => {
+            if (router.canGoBack()) router.back()
+            else router.replace("/onboarding" as never)
+          }}
           className="mt-2 items-center justify-center rounded-2xl bg-matcha-600 py-3.5 active:opacity-90 dark:bg-matcha-500"
         >
           <Text className="text-[15px] font-semibold text-white">Got it</Text>
