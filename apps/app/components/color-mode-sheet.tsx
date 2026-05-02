@@ -64,7 +64,7 @@ export function ColorModeSheet({
                 }}
                 className={cn(
                   "flex-row items-center gap-3 px-5 py-3 active:bg-zinc-100 dark:active:bg-zinc-900",
-                  current === opt.id && "bg-blue-500/5 dark:bg-blue-400/10",
+                  current === opt.id && "bg-matcha-500/10 dark:bg-matcha-400/15",
                 )}
               >
                 <View className="flex-1 gap-0.5">
@@ -78,7 +78,7 @@ export function ColorModeSheet({
                 {current === opt.id && (
                   <IconCheck
                     size={20}
-                    color={dark ? "#60a5fa" : "#3b82f6"}
+                    color={dark ? "#a8c98a" : "#5b8a3a"}
                     strokeWidth={2.5}
                   />
                 )}

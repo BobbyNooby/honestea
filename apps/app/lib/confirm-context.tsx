@@ -73,8 +73,16 @@ export function ConfirmDialogProvider({ children }: { children: React.ReactNode 
             onPress={() => close(false)}
             className="flex-1 items-center justify-center bg-black/40 px-8"
           >
-            <Pressable className="w-full max-w-sm gap-3 rounded-2xl bg-white p-5 dark:bg-zinc-900">
-              <Text className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+            <Pressable className="w-full max-w-sm gap-3 rounded-3xl border border-chamomile-100 bg-chamomile-50 p-5 dark:border-zinc-800 dark:bg-zinc-950">
+              <Text
+                className="text-zinc-900 dark:text-zinc-100"
+                style={{
+                  fontFamily: "Georgia",
+                  fontWeight: "600",
+                  fontSize: 20,
+                  letterSpacing: -0.4,
+                }}
+              >
                 {opts?.title ?? ""}
               </Text>
               {opts?.message ? (

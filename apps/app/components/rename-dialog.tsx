@@ -48,8 +48,16 @@ export function RenameDialog({ initial, onCancel, onSubmit }: Props) {
           onPress={onCancel}
           className="flex-1 items-center justify-center bg-black/40 px-8"
         >
-          <Pressable className="w-full max-w-sm gap-3 rounded-2xl bg-white p-5 dark:bg-zinc-900">
-            <Text className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+          <Pressable className="w-full max-w-sm gap-3 rounded-3xl border border-chamomile-100 bg-chamomile-50 p-5 dark:border-zinc-800 dark:bg-zinc-950">
+            <Text
+              className="text-zinc-900 dark:text-zinc-100"
+              style={{
+                fontFamily: "Georgia",
+                fontWeight: "600",
+                fontSize: 20,
+                letterSpacing: -0.4,
+              }}
+            >
               Rename chat
             </Text>
             <TextInput
@@ -59,7 +67,7 @@ export function RenameDialog({ initial, onCancel, onSubmit }: Props) {
               placeholder="Chat title"
               placeholderTextColor="#71717a"
               selectTextOnFocus
-              className="rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-base text-zinc-900 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+              className="rounded-xl border border-chamomile-100 bg-white px-3 py-2.5 text-base text-zinc-900 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100"
             />
             <View className="mt-1 flex-row justify-end gap-2">
               <Button variant="outline" size="sm" onPress={onCancel}>

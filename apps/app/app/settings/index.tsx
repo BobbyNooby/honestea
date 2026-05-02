@@ -7,7 +7,7 @@ import {
   IconDeviceMobileVibration,
   IconHelpCircle,
   IconInfoCircle,
-  IconLayoutGrid,
+  IconKey,
   IconLockSquareRounded,
   IconMenu2,
   IconMoonStars,
@@ -114,9 +114,9 @@ export default function SettingsScreen() {
         <Card>
           <Row icon={IconAdjustmentsHorizontal} label="Capabilities" disabled />
           <Row
-            icon={IconLayoutGrid}
-            label="Connectors"
-            sub="API keys"
+            icon={IconKey}
+            label="API Keys"
+            sub="OpenRouter, Claude, GPT, Gemini"
             onPress={() => router.push("/byok" as never)}
           />
           <Row icon={IconShield} label="Permissions" disabled />
