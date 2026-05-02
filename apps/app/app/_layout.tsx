@@ -72,6 +72,10 @@ export default function RootLayout() {
                 >
                   <Stack screenOptions={{ headerShown: false }}>
                     <Stack.Screen name="index" />
+                    <Stack.Screen name="onboarding" options={{ headerShown: false, gestureEnabled: false }} />
+                    <Stack.Screen name="pricing" options={{ headerShown: false }} />
+                    <Stack.Screen name="subscription-plans" options={{ headerShown: false }} />
+                    <Stack.Screen name="api-key-info" options={{ headerShown: false }} />
                     <Stack.Screen name="settings/index" options={{ headerShown: true, title: "Settings" }} />
                     <Stack.Screen name="settings/usage" options={{ headerShown: true, title: "Usage" }} />
                     <Stack.Screen name="byok" options={{ headerShown: true, title: "API Keys" }} />
