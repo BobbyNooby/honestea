@@ -83,10 +83,13 @@ Future tier behavior (Stage 2+, when `apps/server` becomes load-bearing):
 - Citations from web search live in `messages.citations` (schema v6, JSON-encoded `Citation[]`). Empty/null = no search ran. Drives the "🌐 N sources" chip in the chat view.
 
 ### Pricing tiers
-- Free Local (no account, BYOK only)
-- Cloud BYOK ($5/mo) — account + sync, you bring keys
-- Cloud + Credits — $5/mo + 25-30% markup credits via Stripe. **First-time PAYG activation requires a $7.99 minimum deposit** as an anti-fraud floor; the $7.99 lands as marked-up balance the user spends down. Subsequent top-ups can be any amount.
-- Subscription ($15/mo) — unlimited hosted tokens
+- **Free Local** (no account, BYOK only)
+- **Pay-as-you-go** — $0/mo + 25-30% markup credits via Stripe. Zero monthly fee — markup is the entire revenue stream. **First-time PAYG activation requires a $7.99 minimum deposit** as an anti-fraud floor; the $7.99 lands as marked-up balance the user spends down. Subsequent top-ups can be any amount.
+- **Subscription** — flat monthly with three sub-tiers (Pro $15 / Max 5× $60 / Max 10× $100). Unlimited hosted tokens within the tier's quota multiplier; premium models (Opus, GPT-5 Ultra, etc.) still draw from credit balance.
+- **Cloud BYOK** ($5/mo) — account + sync, you bring keys. Niche tier for heavy users who want to dodge the PAYG markup.
+
+### Why PAYG is $0/mo
+PAYG used to carry a $5/mo flat fee on top of the markup, but that's structurally redundant — Cloud BYOK exists to charge for sync when there's no markup revenue, so PAYG charging both the markup AND a sync fee was double-billing. The $7.99 first-deposit floor still pre-funds enough markup to cover several months of light-user infra. Markup bumps to 28-30% (from 25%) to absorb infra costs the flat fee used to cover.
 
 ### Wallet semantics
 Credit balance lives on the account, not on the active tier. **Switching tiers never touches the balance** — it's the user's money. PAYG → Subscription preserves leftover balance (sits as fallback for fair-use overage / premium models). Subscription → PAYG: balance is still spendable. Anyone can top up at any time, no minimum on top-ups (the $7.99 floor is only on first-time PAYG activation). Balance doesn't expire; refunds are explicit-only.
@@ -94,7 +97,7 @@ Credit balance lives on the account, not on the active tier. **Switching tiers n
 ### BYOK gating rule
 BYOK is allowed only when our revenue isn't tied to token volume:
 - ✓ Free Local, Cloud BYOK, Subscription (revenue is $0 or flat)
-- ✗ Cloud + Credits / PAYG (revenue = token markup; BYOK here = free cloud-infra rider, structural loss)
+- ✗ Pay-as-you-go (revenue = token markup; BYOK here = free cloud-infra rider, structural loss)
 
 So the BYOK settings page must be hidden or gated for PAYG users. In Subscription tier users mix freely.
 
@@ -144,6 +147,21 @@ docs: update phase 1 implementation order
 - Don't mock the database for integration tests; hit a real Postgres
 - Don't run `expo prebuild` casually — it generates `ios/`/`android/` and breaks Expo Go workflow
 - **Phase 1: don't route BYOK requests through `apps/server`.** Call OpenRouter directly from the app. The server's `/api/chat` and `/api/models` are Stage 2 scaffolding — they exist but are not in the request path yet.
+
+## Post-release rules (does NOT apply yet — pre-launch)
+
+These rules turn on **after** the first store release ships. While we're pre-launch, schema changes can be made freely — we wipe the dev DB and move on. Once real users have data on their phones, that escape hatch is gone.
+
+### Database migrations
+- **Every schema change ships with a forward migration.** Never edit a previous migration in place; always add a new one (`applyMigrationVN` in `apps/app/lib/db/index.ts`, mirrored later for the server's Postgres). Old installs can be on any prior version, so the migration ladder must run cleanly from any starting point.
+- **Every migration is idempotent.** Use `IF NOT EXISTS` for tables, `PRAGMA table_info` existence checks for columns. App launch re-runs the full ladder.
+- **Never drop or rename a column without a multi-step deprecation.** Add the new column, dual-write for a release or two, then drop the old one in a later migration once telemetry shows nobody is on the old client. A user can install version N, skip versions, and open version N+5 — that path must work.
+- **Backfills run inside the migration**, not in random app code. If the new column needs values derived from old rows, populate it in the same migration that adds it.
+- **Test the migration on a real prior-version DB** before shipping, not just on a fresh install. The fresh-install path won't catch ALTER-on-populated-table bugs.
+
+### Server-side data (Stage 2+)
+- Same rules apply to Postgres in `apps/server` once it's load-bearing. Use a real migration tool (drizzle-kit, atlas, or sqlx-style ladder) — no hand-rolled `CREATE TABLE IF NOT EXISTS` strings.
+- Migrations run on deploy, before the new code starts serving traffic. Roll-forward only — write the next migration to undo a mistake, don't roll back.
 
 ## Phase 1 scope (current)
 
