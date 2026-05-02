@@ -1,9 +1,13 @@
 import {
-  IconChevronRight,
+  IconChartLine,
   IconCloud,
   IconDeviceMobile,
+  IconKey,
+  IconLayoutGrid,
   IconPencil,
+  IconPlus,
   IconRefresh,
+  IconSettings,
   IconStarFilled,
   IconTrash,
 } from "@tabler/icons-react-native"
@@ -25,23 +29,35 @@ import { ActionSheet } from "@/components/action-sheet"
 import { LogoMark } from "@/components/brand/logo-mark"
 import { Wordmark } from "@/components/brand/wordmark"
 import { RenameDialog } from "@/components/rename-dialog"
-import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/cn"
 import { useConfirm } from "@/lib/confirm-context"
 import { useConversations } from "@/lib/conversations-context"
 import { listMessages, renameConversation } from "@/lib/db/repository"
 import { useSelectedModel } from "@/lib/selected-model"
 import { generateTitle } from "@/lib/title-gen"
+import { TYPE_EYEBROW } from "@/lib/typography"
 
 export interface SidebarProps {
   onClose: () => void
 }
 
+/**
+ * App drawer. Sections, top to bottom:
+ *  • Brand header — logo + wordmark + "Local mode" badge to telegraph
+ *    that nothing's synced yet (Phase 1).
+ *  • Matcha "New chat" pill — primary CTA, brand-leading.
+ *  • "Recent" eyebrow + conversation list.
+ *  • Footer quick-link grid: Models · API Keys · Usage · Settings.
+ *
+ * Footer entries are stacked icon-text rows rather than chevron rows so
+ * the sidebar feels like a dock of tools, not a settings list.
+ */
 export function Sidebar({ onClose }: SidebarProps) {
   const { conversations, currentId, refresh, startNew, select, remove } =
     useConversations()
   const { modelId } = useSelectedModel()
   const confirm = useConfirm()
+  const dark = useColorScheme() === "dark"
   const [renameTarget, setRenameTarget] = useState<Conversation | null>(null)
   const [actionsTarget, setActionsTarget] = useState<Conversation | null>(null)
 
@@ -53,9 +69,9 @@ export function Sidebar({ onClose }: SidebarProps) {
     }, [refresh]),
   )
 
-  const goToSettings = () => {
+  const goTo = (path: string) => {
     onClose()
-    router.push("/settings")
+    router.push(path as never)
   }
 
   const handleNewChat = async () => {
@@ -118,25 +134,45 @@ export function Sidebar({ onClose }: SidebarProps) {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-chamomile-50 dark:bg-chamomile-900" edges={["top", "bottom"]}>
-      <View className="flex-1 px-4 py-3">
-        <View className="mb-6 flex-row items-center gap-2">
-          <LogoMark size={28} />
+    <SafeAreaView
+      className="flex-1 bg-chamomile-50 dark:bg-chamomile-900"
+      edges={["top", "bottom"]}
+    >
+      <View className="flex-1 px-3 py-3">
+        <View className="mb-5 flex-row items-center gap-2.5 px-1">
+          <LogoMark size={32} />
           <Wordmark size={20} />
+          <View className="ml-1 rounded-full bg-matcha-500/15 px-2 py-0.5 dark:bg-matcha-400/20">
+            <Text
+              className="text-matcha-700 dark:text-matcha-300"
+              style={{ ...TYPE_EYEBROW, fontSize: 9 }}
+            >
+              Local
+            </Text>
+          </View>
         </View>
 
-        <Button onPress={handleNewChat} variant="outline" className="mb-6">
-          + New chat
-        </Button>
+        <Pressable
+          onPress={handleNewChat}
+          className="mb-5 flex-row items-center justify-center gap-2 rounded-2xl bg-matcha-600 py-3 active:opacity-90 dark:bg-matcha-500"
+        >
+          <IconPlus size={16} color="#ffffff" strokeWidth={2.5} />
+          <Text className="text-[14.5px] font-semibold text-white">
+            New chat
+          </Text>
+        </Pressable>
 
-        <Text className="mb-2 px-1 text-xs uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+        <Text
+          className="mb-2 px-2 text-zinc-500 dark:text-zinc-400"
+          style={TYPE_EYEBROW}
+        >
           Recent
         </Text>
 
         {conversations.length === 0 ? (
           <View className="flex-1 items-center justify-center px-2">
             <Text className="text-center text-sm text-zinc-500 dark:text-zinc-400">
-              No conversations yet. Tap + New chat to start one.
+              No conversations yet. Tap New chat to start one.
             </Text>
           </View>
         ) : (
@@ -155,18 +191,32 @@ export function Sidebar({ onClose }: SidebarProps) {
           />
         )}
 
-        <View className="border-t border-zinc-200 pt-3 dark:border-zinc-800">
-          <Pressable
-            onPress={goToSettings}
-            className="flex-row items-center justify-between rounded-md px-2 py-3 active:bg-zinc-100 dark:active:bg-zinc-900"
+        <View className="border-t border-chamomile-100 pt-2.5 dark:border-zinc-800">
+          <FooterLink
+            Icon={IconLayoutGrid}
+            label="Models"
+            onPress={() => goTo("/models")}
+          />
+          <FooterLink
+            Icon={IconKey}
+            label="API Keys"
+            onPress={() => goTo("/byok")}
+          />
+          <FooterLink
+            Icon={IconChartLine}
+            label="Usage"
+            onPress={() => goTo("/settings/usage")}
+          />
+          <FooterLink
+            Icon={IconSettings}
+            label="Settings"
+            onPress={() => goTo("/settings")}
+          />
+          <Text
+            className="mt-2 px-3 text-zinc-400 dark:text-zinc-600"
+            style={{ fontSize: 10, fontWeight: "500" }}
           >
-            <Text className="text-base text-zinc-900 dark:text-zinc-100">
-              Settings
-            </Text>
-            <SettingsChevron />
-          </Pressable>
-          <Text className="mt-1 px-2 text-xs text-zinc-400 dark:text-zinc-500">
-            v0.0.0
+            v0.0.0 · made with care
           </Text>
         </View>
       </View>
@@ -216,6 +266,36 @@ export function Sidebar({ onClose }: SidebarProps) {
   )
 }
 
+/**
+ * Footer quick-link row — icon + label + subtle press feedback. Sits in
+ * the bottom dock alongside Models / API Keys / Usage / Settings. Visually
+ * lighter than a normal nav row so the conversation list stays the
+ * primary focus.
+ */
+function FooterLink({
+  Icon: IconCmp,
+  label,
+  onPress,
+}: {
+  Icon: typeof IconSettings
+  label: string
+  onPress: () => void
+}) {
+  const dark = useColorScheme() === "dark"
+  const tint = dark ? "#a1a1aa" : "#52525b"
+  return (
+    <Pressable
+      onPress={onPress}
+      className="flex-row items-center gap-3 rounded-xl px-3 py-2 active:bg-chamomile-100 dark:active:bg-zinc-900"
+    >
+      <IconCmp size={18} color={tint} strokeWidth={1.75} />
+      <Text className="text-[14px] text-zinc-700 dark:text-zinc-300">
+        {label}
+      </Text>
+    </Pressable>
+  )
+}
+
 function ConversationRow({
   convo,
   active,
@@ -232,39 +312,36 @@ function ConversationRow({
   // start having a non-null userId.
   const isCloud = convo.userId !== null
   const Icon = isCloud ? IconCloud : IconDeviceMobile
-  const tint = dark ? "#71717a" : "#a1a1aa" // zinc-500 / zinc-400 to match prior text tone
+  const tint = dark ? "#71717a" : "#a1a1aa"
   return (
     <Pressable
       onPress={onPress}
       onLongPress={onLongPress}
       delayLongPress={400}
       className={cn(
-        "flex-row items-center gap-2 rounded-md px-2 py-2.5 active:bg-zinc-100 dark:active:bg-zinc-900",
-        active && "bg-zinc-100 dark:bg-zinc-900",
+        "flex-row items-center gap-2 rounded-xl px-2.5 py-2.5 active:bg-chamomile-100 dark:active:bg-zinc-900",
+        active && "bg-matcha-500/10 dark:bg-matcha-400/15",
       )}
     >
-      <Icon size={16} color={tint} strokeWidth={1.75} />
+      <Icon
+        size={14}
+        color={active ? (dark ? "#a8c98a" : "#5b8a3a") : tint}
+        strokeWidth={1.75}
+      />
       <Text
         numberOfLines={1}
-        className="flex-1 text-sm text-zinc-900 dark:text-zinc-100"
+        className={cn(
+          "flex-1 text-[14px]",
+          active
+            ? "font-medium text-matcha-800 dark:text-matcha-200"
+            : "text-zinc-900 dark:text-zinc-100",
+        )}
       >
         {convo.title ?? "New chat"}
       </Text>
       {convo.starred && (
-        <IconStarFilled size={13} color="#eab308" />
+        <IconStarFilled size={13} color={dark ? "#facc15" : "#eab308"} />
       )}
     </Pressable>
   )
 }
-
-function SettingsChevron() {
-  const dark = useColorScheme() === "dark"
-  return (
-    <IconChevronRight
-      size={18}
-      color={dark ? "#71717a" : "#a1a1aa"}
-      strokeWidth={1.75}
-    />
-  )
-}
-
