@@ -46,6 +46,24 @@ export interface Citation {
 }
 
 /**
+ * Snapshot of one server tool the model invoked during an assistant turn,
+ * captured at completion time and persisted on the message row. Drives the
+ * expandable "Searched the web" history panel — without this, past turns
+ * have no record of which queries ran.
+ *
+ * `args` is whatever the model emitted as the tool's JSON argument string.
+ * For `web_search` the relevant key is `query`; for `web_fetch` it's `url`;
+ * for `datetime` there's typically no useful payload. We store the raw
+ * string and let the UI parse, since OR's exact arg shape varies by tool.
+ */
+export interface PersistedToolCall {
+  /** Bare tool name with any `openrouter:` prefix stripped. */
+  name: string
+  /** Raw JSON-string payload the model emitted as the tool's args. */
+  args: string
+}
+
+/**
  * One attachment the user added to a message via the compose menu — an
  * image from the library, a photo from the camera, or (later) a PDF.
  * Stored on the user message so re-renders + cloud sync (Phase 2) get
@@ -115,6 +133,14 @@ export interface Message {
    * the "🌐 N sources" chip in the chat view.
    */
   citations: Citation[] | null
+  /**
+   * Server tools the model invoked during this turn (web_search,
+   * web_fetch, datetime). Captured at completion time so the chat history
+   * can render the "Searched the web" expandable panel after the fact.
+   * Null on user/system rows and on assistant rows that didn't use any
+   * server tools.
+   */
+  toolCalls: PersistedToolCall[] | null
   /**
    * User-attached images / files for this message. Empty/null on
    * assistant + system rows and on user rows that were plain text.

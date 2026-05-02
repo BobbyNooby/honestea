@@ -2,7 +2,6 @@ import {
   IconChevronLeft,
   IconChevronRight,
   IconPaperclip,
-  IconWorld,
 } from "@tabler/icons-react-native"
 import { Image } from "expo-image"
 import { Pressable, Text, useColorScheme, View } from "react-native"
@@ -19,6 +18,7 @@ import { LogoMark } from "@/components/brand/logo-mark"
 import { MarkdownText } from "@/components/markdown-text"
 import { MessageActions } from "@/components/message-actions"
 import { ToolActivityPanel } from "@/components/tool-activity-panel"
+import { WebActivityPanel } from "@/components/web-activity-panel"
 import type { ToolCallEvent } from "@/lib/api"
 
 interface Props {
@@ -105,16 +105,25 @@ export function ChatMessage({
   }
 
   const showActions = message.status === "complete" || message.status === "error"
+  // Live tool activity (during streaming) wins over the persisted history
+  // panel — the persisted panel only renders after the turn completes.
+  const liveToolCalls = toolCalls && toolCalls.length > 0
+  const persistedToolCalls = message.toolCalls ?? []
+  const persistedCitations = message.citations ?? []
+  const showHistoryPanel =
+    !liveToolCalls &&
+    (persistedToolCalls.length > 0 || persistedCitations.length > 0)
 
   return (
     <View className="gap-1">
       {showDividerAbove && <CompactedDivider />}
       <View className="self-stretch gap-1.5 px-1">
-        {toolCalls && toolCalls.length > 0 && (
-          <ToolActivityPanel calls={toolCalls} />
-        )}
-        {message.citations && message.citations.length > 0 && (
-          <WebSearchChip count={message.citations.length} />
+        {liveToolCalls && <ToolActivityPanel calls={toolCalls!} />}
+        {showHistoryPanel && (
+          <WebActivityPanel
+            toolCalls={persistedToolCalls}
+            citations={persistedCitations}
+          />
         )}
         {message.content ? (
           <MarkdownText>{message.content}</MarkdownText>
@@ -269,29 +278,6 @@ function UserAttachmentThumb({ attachment }: { attachment: Attachment }) {
         numberOfLines={1}
       >
         {attachment.filename ?? "PDF"}
-      </Text>
-    </View>
-  )
-}
-
-/**
- * Small chip rendered above an assistant message that consumed the
- * `openrouter:web_search` tool. The count comes from
- * `message.citations.length` — the number of distinct URLs the model
- * actually grounded its answer on. Future revision: tap to expand the
- * full source list.
- */
-function WebSearchChip({ count }: { count: number }) {
-  const dark = useColorScheme() === "dark"
-  return (
-    <View className="-ml-0.5 flex-row items-center gap-1 self-start rounded-full bg-matcha-500/15 px-2.5 py-1 dark:bg-matcha-400/20">
-      <IconWorld
-        size={12}
-        color={dark ? "#a8c98a" : "#5b8a3a"}
-        strokeWidth={2}
-      />
-      <Text className="text-[11px] font-medium text-matcha-700 dark:text-matcha-300">
-        Searched the web · {count} {count === 1 ? "source" : "sources"}
       </Text>
     </View>
   )

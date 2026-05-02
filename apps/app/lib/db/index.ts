@@ -174,6 +174,23 @@ function applyMigrationV7() {
   }
 }
 
+/**
+ * v8: persisted server-tool calls per assistant turn.
+ *  - `tool_calls TEXT` JSON-encoded `PersistedToolCall[]`. Null on
+ *    user/system rows + assistant rows that didn't run any server tools.
+ *    Lets the chat history render the expandable "Searched the web"
+ *    panel after streaming completes.
+ */
+function applyMigrationV8() {
+  const cols = sqlite.getAllSync<{ name: string }>(
+    "PRAGMA table_info(messages);",
+  )
+  const hasToolCalls = cols.some((c) => c.name === "tool_calls")
+  if (!hasToolCalls) {
+    sqlite.execSync("ALTER TABLE messages ADD COLUMN tool_calls text;")
+  }
+}
+
 let migrated = false
 
 function applyMigrations() {
@@ -185,6 +202,7 @@ function applyMigrations() {
   applyMigrationV5()
   applyMigrationV6()
   applyMigrationV7()
+  applyMigrationV8()
   migrated = true
 }
 

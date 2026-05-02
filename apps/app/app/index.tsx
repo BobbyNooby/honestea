@@ -1,6 +1,7 @@
 import { IconMenu2 } from "@tabler/icons-react-native"
 import * as Clipboard from "expo-clipboard"
 import * as Haptics from "expo-haptics"
+import { Redirect } from "expo-router"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   ActivityIndicator,
@@ -19,6 +20,7 @@ import {
   estimateTokens,
   type Attachment,
   type Message,
+  type PersistedToolCall,
 } from "@honestea/shared"
 
 import { ChatActionsMenu } from "@/components/chat-actions-menu"
@@ -51,12 +53,23 @@ import {
   updateMessage,
 } from "@/lib/db/repository"
 import { findModel, pricingFor, useModelRegistry } from "@/lib/model-registry"
+import { useOnboardingSeen } from "@/lib/onboarding-state"
 import { useSelectedModel } from "@/lib/selected-model"
 import { useSidebar } from "@/lib/sidebar-context"
 import { styleSystemPrompt } from "@/lib/style-prompts"
 import { generateTitle } from "@/lib/title-gen"
 
 export default function ChatScreen() {
+  // First-launch gate. While the flag is loading we render nothing —
+  // beats flashing the empty chat for a frame before the redirect kicks
+  // in. Once seen, falls through to the normal chat tree.
+  const onboardingSeen = useOnboardingSeen()
+  if (onboardingSeen === false) return <Redirect href={"/onboarding" as never} />
+  if (onboardingSeen === null) return null
+  return <ChatScreenInner />
+}
+
+function ChatScreenInner() {
   const sidebar = useSidebar()
   const byok = useByokStatus()
   const { registry } = useModelRegistry()
@@ -372,6 +385,10 @@ export default function ChatScreen() {
       }
 
       let buffer = ""
+      // Local snapshot of tool calls for this turn. Mirrors the React
+      // state so we can serialize it at completion without racing the
+      // setState batcher.
+      const turnToolCalls = new Map<number, ToolCallEvent>()
       try {
         const result = await streamChat({
           model: modelId,
@@ -389,6 +406,7 @@ export default function ChatScreen() {
             )
           },
           onToolEvent: (event) => {
+            turnToolCalls.set(event.index, event)
             // Update the per-message tool-call map. We mutate via
             // replacement to keep React's identity-based equality
             // happy. Indexed by call.index so the same call updating
@@ -420,6 +438,16 @@ export default function ChatScreen() {
         const citations =
           result.citations.length > 0 ? result.citations : null
 
+        // Snapshot tool calls (web_search/web_fetch/datetime) so the
+        // expandable history panel can replay them on past turns. Null
+        // when no tools ran — keeps the panel hidden on plain replies.
+        const persistedToolCalls: PersistedToolCall[] | null =
+          turnToolCalls.size > 0
+            ? [...turnToolCalls.values()]
+                .sort((a, b) => a.index - b.index)
+                .map((c) => ({ name: c.name, args: c.args }))
+            : null
+
         await updateMessage(assistantRow.id, {
           content: buffer,
           status: "complete",
@@ -429,6 +457,7 @@ export default function ChatScreen() {
           costUsd,
           provider: result.provider,
           citations,
+          toolCalls: persistedToolCalls,
         })
 
         setMessages((m) =>
@@ -443,13 +472,14 @@ export default function ChatScreen() {
                   completionTokens,
                   provider: result.provider,
                   citations,
+                  toolCalls: persistedToolCalls,
                 }
               : msg,
           ),
         )
-        // Tool calls have all hit `done` (or never existed). Drop the
-        // entry so the panel stops rendering — citations chip + content
-        // take over for retro display.
+        // Live activity panel hands off to the persisted history panel
+        // backed by `message.toolCalls`. Drop the live entry so we don't
+        // double-render.
         setToolActivity((prev) => {
           if (!prev.has(assistantRow.id)) return prev
           const next = new Map(prev)

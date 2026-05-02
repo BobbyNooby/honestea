@@ -1,6 +1,6 @@
 import { integer, real, sqliteTable, text } from "drizzle-orm/sqlite-core"
 
-import type { Attachment, Citation } from "@honestea/shared"
+import type { Attachment, Citation, PersistedToolCall } from "@honestea/shared"
 
 /**
  * SQLite schema for Phase 1 local-only conversation storage.
@@ -97,6 +97,13 @@ export const messages = sqliteTable("messages", {
    * Drives the "🌐 N sources" chip on the assistant bubble.
    */
   citations: text("citations", { mode: "json" }).$type<Citation[]>(),
+  /**
+   * Server tools (web_search, web_fetch, datetime) the model invoked
+   * during this turn. JSON-encoded `PersistedToolCall[]`. Null on
+   * user/system rows + on assistant rows that didn't run any tools.
+   * Drives the expandable "Searched the web" history panel.
+   */
+  toolCalls: text("tool_calls", { mode: "json" }).$type<PersistedToolCall[]>(),
   /**
    * User-attached images / files for this message. Stored as a JSON-
    * encoded `Attachment[]`. Always null on assistant + system rows.

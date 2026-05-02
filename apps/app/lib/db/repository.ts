@@ -132,6 +132,7 @@ export async function addMessage(input: {
     kind: input.kind ?? "normal",
     provider: input.provider ?? null,
     citations: null,
+    toolCalls: null,
     attachments: input.attachments ?? null,
     createdAt: now(),
   } as const
@@ -157,6 +158,7 @@ export async function updateMessage(
       | "modelId"
       | "provider"
       | "citations"
+      | "toolCalls"
     >
   >,
 ): Promise<void> {
