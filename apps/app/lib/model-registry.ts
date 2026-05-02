@@ -94,6 +94,20 @@ async function saveToAsyncStorage(data: RegistryModel[]): Promise<void> {
 }
 
 /**
+ * Wipes the AsyncStorage registry cache. Used by the Developer section
+ * of Settings to force the next app launch to refetch the OpenRouter
+ * model list. Doesn't drop the in-memory cache held by `useModelRegistry`
+ * — a relaunch is the cleanest way to apply.
+ */
+export async function clearRegistryCache(): Promise<void> {
+  try {
+    await AsyncStorage.removeItem(STORAGE_KEY)
+  } catch {
+    // non-critical
+  }
+}
+
+/**
  * Loads the model registry, preferring fresh > stale > empty.
  *
  * - If memory cache is fresh, return it

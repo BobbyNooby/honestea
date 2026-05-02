@@ -5,12 +5,16 @@ import {
   IconChevronRight,
   IconCreditCard,
   IconDeviceMobileVibration,
+  IconHelpCircle,
   IconInfoCircle,
   IconLayoutGrid,
   IconLockSquareRounded,
   IconMenu2,
   IconMoonStars,
+  IconRefresh,
   IconShield,
+  IconSparkles,
+  IconStarFilled,
   IconTypography,
   IconUserCircle,
   IconWorld,
@@ -18,6 +22,7 @@ import {
 } from "@tabler/icons-react-native"
 import { Stack, router } from "expo-router"
 import { useState } from "react"
+import Toast from "react-native-toast-message"
 import {
   Pressable,
   ScrollView,
@@ -30,6 +35,8 @@ import { SafeAreaView } from "react-native-safe-area-context"
 import { ColorModeSheet } from "@/components/color-mode-sheet"
 import { Switch } from "@/components/ui/switch"
 import { cn } from "@/lib/cn"
+import { clearRegistryCache } from "@/lib/model-registry"
+import { resetOnboarding } from "@/lib/onboarding-state"
 import { useSidebar } from "@/lib/sidebar-context"
 import { useThemePreference, type ThemePreference } from "@/lib/theme"
 
@@ -137,6 +144,44 @@ export default function SettingsScreen() {
           <Row icon={IconBell} label="Notifications" disabled />
           <Row icon={IconLockSquareRounded} label="Privacy" disabled />
         </Card>
+
+        <SectionLabel>Developer</SectionLabel>
+        <Card>
+          <Row
+            icon={IconStarFilled}
+            label="Show onboarding again"
+            sub="Resets the first-launch flag"
+            onPress={async () => {
+              await resetOnboarding()
+              router.replace("/onboarding" as never)
+            }}
+          />
+          <Row
+            icon={IconSparkles}
+            label="Open pricing page"
+            sub="Preview the hosted-tier landing"
+            onPress={() => router.push("/pricing" as never)}
+          />
+          <Row
+            icon={IconHelpCircle}
+            label="Open API key explainer"
+            onPress={() => router.push("/api-key-info" as never)}
+          />
+          <Row
+            icon={IconRefresh}
+            label="Refresh model registry"
+            sub="Re-fetches OpenRouter's model list on next launch"
+            onPress={async () => {
+              await clearRegistryCache()
+              Toast.show({
+                type: "success",
+                text1: "Model cache cleared",
+                text2: "Restart the app to refetch.",
+                position: "bottom",
+              })
+            }}
+          />
+        </Card>
       </ScrollView>
 
       <ColorModeSheet
@@ -173,6 +218,19 @@ export default function SettingsScreen() {
       </View>
     )
   }
+}
+
+/**
+ * Small uppercase eyebrow rendered above a Card group. Used by the
+ * Developer section so the card reads as a deliberate utility area
+ * rather than another anonymous group.
+ */
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <Text className="mb-1.5 mt-1 px-3 text-[11px] font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+      {children}
+    </Text>
+  )
 }
 
 /**
