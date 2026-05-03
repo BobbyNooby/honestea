@@ -176,8 +176,13 @@ async function validateOpenAI(key: string): Promise<ValidationResult> {
 
 async function validateGoogle(key: string): Promise<ValidationResult> {
   try {
+    // Google AI accepts the key in either `?key=` or the
+    // `x-goog-api-key` header. Header form keeps the key out of TLS-
+    // terminating proxy logs and any URL-capturing telemetry — the
+    // query-string form leaks it into both. Always use the header.
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(key)}`,
+      "https://generativelanguage.googleapis.com/v1beta/models",
+      { headers: { "x-goog-api-key": key } },
     )
     if (res.status === 400 || res.status === 401 || res.status === 403) {
       return { valid: false, error: "Invalid Google AI key" }
