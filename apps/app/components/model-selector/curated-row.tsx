@@ -3,7 +3,7 @@ import { Pressable, Text, useColorScheme, View } from "react-native"
 
 import { type CuratedModel } from "@honestea/shared"
 
-import { ModalityPill, collectModalities } from "@/components/modality-pill"
+import { ModalityPill, collectModalities } from "@/components/models/modality-pill"
 import { cn } from "@/lib/cn"
 import {
   formatContext,

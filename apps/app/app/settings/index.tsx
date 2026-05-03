@@ -32,7 +32,7 @@ import {
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
-import { ColorModeSheet } from "@/components/color-mode-sheet"
+import { ColorModeSheet } from "@/components/settings/color-mode-sheet"
 import { Switch } from "@/components/ui/switch"
 import { cn } from "@/lib/cn"
 import { clearRegistryCache } from "@/lib/model-registry"

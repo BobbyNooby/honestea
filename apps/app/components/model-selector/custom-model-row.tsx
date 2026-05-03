@@ -1,7 +1,7 @@
 import { IconCheck } from "@tabler/icons-react-native"
 import { Text, useColorScheme, View } from "react-native"
 
-import { ModalityPill, collectModalities } from "@/components/modality-pill"
+import { ModalityPill, collectModalities } from "@/components/models/modality-pill"
 import {
   formatContext,
   formatPricePerMillion,

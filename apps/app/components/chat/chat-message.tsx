@@ -15,10 +15,10 @@ import {
 
 import { BrewingMark } from "@/components/brand/brewing-mark"
 import { LogoMark } from "@/components/brand/logo-mark"
-import { MarkdownText } from "@/components/markdown-text"
-import { MessageActions } from "@/components/message-actions"
-import { ToolActivityPanel } from "@/components/tool-activity-panel"
-import { WebActivityPanel } from "@/components/web-activity-panel"
+import { MarkdownText } from "@/components/chat/markdown-text"
+import { MessageActions } from "@/components/chat/message-actions"
+import { ToolActivityPanel } from "@/components/chat/tool-activity-panel"
+import { WebActivityPanel } from "@/components/chat/web-activity-panel"
 import type { ToolCallEvent } from "@/lib/api"
 
 interface Props {

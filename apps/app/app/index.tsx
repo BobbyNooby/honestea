@@ -23,16 +23,16 @@ import {
   type PersistedToolCall,
 } from "@honestea/shared"
 
-import { ChatActionsMenu } from "@/components/chat-actions-menu"
-import { ChatMessage } from "@/components/chat-message"
-import { ChatStatusRow } from "@/components/chat-status-row"
-import { Composer } from "@/components/composer"
-import { type ResponseStyle } from "@/components/compose-menu"
-import { EmptyChatState } from "@/components/empty-chat-state"
+import { ChatActionsMenu } from "@/components/chat/chat-actions-menu"
+import { ChatMessage } from "@/components/chat/chat-message"
+import { ChatStatusRow } from "@/components/chat/chat-status-row"
+import { EmptyChatState } from "@/components/chat/empty-chat-state"
+import { NoKeyState } from "@/components/chat/no-key-state"
+import { Composer } from "@/components/composer/composer"
+import { type ResponseStyle } from "@/components/composer/compose-menu"
 import { ModelSelector } from "@/components/model-selector"
-import { NoKeyState } from "@/components/no-key-state"
-import { RenameDialog } from "@/components/rename-dialog"
-import { StorageToggle } from "@/components/storage-toggle"
+import { StorageToggle } from "@/components/settings/storage-toggle"
+import { RenameDialog } from "@/components/ui/rename-dialog"
 import { streamChat } from "@/lib/api"
 import type {
   ChatMessage as ApiChatMessage,

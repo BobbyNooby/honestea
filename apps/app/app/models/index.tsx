@@ -12,7 +12,7 @@ import {
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
-import { ModelListRow } from "@/components/model-list-row"
+import { ModelListRow } from "@/components/models/model-list-row"
 import { useModelRegistry } from "@/lib/model-registry"
 
 /**

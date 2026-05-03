@@ -16,8 +16,8 @@ import { type Attachment } from "@honestea/shared"
 import {
   ComposeMenu,
   type ResponseStyle,
-} from "@/components/compose-menu"
-import { RecordingPill } from "@/components/recording-pill"
+} from "@/components/composer/compose-menu"
+import { RecordingPill } from "@/components/composer/recording-pill"
 import { Input } from "@/components/ui/input"
 import { useSpeechRecognition } from "@/lib/speech-recognition"
 

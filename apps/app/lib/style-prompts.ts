@@ -1,4 +1,4 @@
-import type { ResponseStyle } from "@/components/compose-menu"
+import type { ResponseStyle } from "@/components/composer/compose-menu"
 
 /**
  * System-prompt prefixes the chat dispatcher prepends per response style.

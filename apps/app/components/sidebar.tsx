@@ -25,10 +25,10 @@ import Toast from "react-native-toast-message"
 
 import type { Conversation } from "@honestea/shared"
 
-import { ActionSheet } from "@/components/action-sheet"
+import { ActionSheet } from "@/components/ui/action-sheet"
 import { LogoMark } from "@/components/brand/logo-mark"
 import { Wordmark } from "@/components/brand/wordmark"
-import { RenameDialog } from "@/components/rename-dialog"
+import { RenameDialog } from "@/components/ui/rename-dialog"
 import { cn } from "@/lib/cn"
 import { useConfirm } from "@/lib/confirm-context"
 import { useConversations } from "@/lib/conversations-context"
