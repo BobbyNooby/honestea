@@ -139,6 +139,14 @@ export async function streamChatOpenRouter(opts: {
     if (done) break
     buffer += decoder.decode(value, { stream: true })
 
+    // Bound a single SSE event. A pathological upstream (one giant
+    // `data:` line, missing `\n\n`, or hostile MITM) could otherwise
+    // grow `buffer` until OOM. 1 MB per event is far above any
+    // legitimate payload — SSE events are typically a few KB.
+    if (buffer.length > 1_000_000 && !buffer.includes("\n\n")) {
+      throw new Error("Stream framing error: SSE event exceeded 1 MB")
+    }
+
     // SSE events are delimited by a blank line (\n\n). Drain every complete
     // event from the buffer; leave any partial trailing event for the next
     // chunk.

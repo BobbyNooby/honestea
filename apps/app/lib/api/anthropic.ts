@@ -197,6 +197,12 @@ export async function streamChatAnthropic(opts: {
     if (done) break
     buffer += decoder.decode(value, { stream: true })
 
+    // Bound a single SSE event so a malformed/hostile stream can't grow
+    // `buffer` to OOM. 1 MB is far above any legitimate event size.
+    if (buffer.length > 1_000_000 && !buffer.includes("\n\n")) {
+      throw new Error("Stream framing error: SSE event exceeded 1 MB")
+    }
+
     let sep: number
     while ((sep = buffer.indexOf("\n\n")) !== -1) {
       const event = buffer.slice(0, sep)

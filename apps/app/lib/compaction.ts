@@ -133,8 +133,20 @@ export async function compact(opts: {
     return { ok: false, error: "No OpenRouter key configured." }
   }
 
+  // Per-message truncation guards against a single pasted log
+  // ballooning the summarizer prompt (and OOM/4xx-ing the request).
+  // 4 KB per message × ~30 messages = ~120 KB worst case; well under
+  // even Haiku's input window. The summary is meant to be a sketch,
+  // not a verbatim record.
+  const PER_MESSAGE_LIMIT = 4000
   const transcript = prefix
-    .map((m) => `${m.role.toUpperCase()}: ${m.content}`)
+    .map((m) => {
+      const body =
+        m.content.length > PER_MESSAGE_LIMIT
+          ? `${m.content.slice(0, PER_MESSAGE_LIMIT)}… [truncated]`
+          : m.content
+      return `${m.role.toUpperCase()}: ${body}`
+    })
     .join("\n\n")
 
   const userPrompt = `${SUMMARIZE_PROMPT}\n\nConversation to summarize:\n\n${transcript}`

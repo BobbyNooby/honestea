@@ -61,12 +61,26 @@ export async function buildMessageContent(
   return blocks
 }
 
+/** Reject images larger than this — base64-encoded blob would be ~14 MB. */
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024
+/** Reject PDFs larger than this; we re-pack on every send so this is a hot path. */
+const MAX_FILE_BYTES = 5 * 1024 * 1024
+
 /**
  * Copy a picker-returned URI (often a temp cache file) into a stable
  * location under the app's documents directory so re-renders after an
  * app restart still find the image. The picker's original URI may be
  * cleaned up by the OS at any time — we don't want chat history to
  * silently lose images.
+ *
+ * Throws if the file exceeds the per-kind size cap. Bounds JS-heap
+ * pressure: every send re-reads + base64-encodes attached files, so a
+ * 20 MB image becomes a ~27 MB blob in memory each turn.
+ *
+ * Filename safety note: the destination filename is generated server-
+ * side (`att-${Date.now()}-${random}${ext}`) so no path-injection risk
+ * here. If a future caller starts deriving filenames from picker input,
+ * sanitize via `.replace(/[^\w.-]/g, "_")`.
  */
 export async function persistPickedAttachment(
   pickedUri: string,
@@ -78,6 +92,20 @@ export async function persistPickedAttachment(
     // browser already keeps blob URIs alive for the session.
     return pickedUri
   }
+
+  // Size check before copy — fail fast and avoid wasting disk on a
+  // file we'll reject anyway. `getInfoAsync` populates `size` on the
+  // result whenever the file exists.
+  const info = await FileSystem.getInfoAsync(pickedUri)
+  const limit = mimeType.startsWith("image/") ? MAX_IMAGE_BYTES : MAX_FILE_BYTES
+  if (info.exists && typeof info.size === "number" && info.size > limit) {
+    const limitMb = (limit / (1024 * 1024)).toFixed(0)
+    throw new Error(
+      `Attachment too large (${(info.size / (1024 * 1024)).toFixed(1)} MB). ` +
+        `Max ${limitMb} MB.`,
+    )
+  }
+
   const dir = `${docs}attachments/`
   await FileSystem.makeDirectoryAsync(dir, { intermediates: true }).catch(
     () => {},
