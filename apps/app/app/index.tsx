@@ -77,10 +77,13 @@ function ChatScreenInner() {
   const conversations = useConversations()
   const confirm = useConfirm()
   const dark = useColorScheme() === "dark"
-  const brewingPhrase = useBrewingPhrase(true)
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState("")
   const [streaming, setStreaming] = useState(false)
+  // Phrase rotates ~every 2.2s while the hook is active. Gate on
+  // `streaming` so the entire chat screen doesn't re-render on a timer
+  // when nothing's happening.
+  const brewingPhrase = useBrewingPhrase(streaming)
   const [error, setError] = useState<string | null>(null)
   // Compose-menu controls. Web search rides on OR's `openrouter:web_search`
   // server tool — defaults on (the model decides 0-N searches per turn,

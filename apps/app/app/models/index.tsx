@@ -1,6 +1,6 @@
 import { IconSearch, IconX } from "@tabler/icons-react-native"
 import { Stack } from "expo-router"
-import { useMemo, useState } from "react"
+import { useDeferredValue, useMemo, useState } from "react"
 import {
   ActivityIndicator,
   FlatList,
@@ -30,13 +30,18 @@ export default function ModelsBrowseScreen() {
   const dark = useColorScheme() === "dark"
   const { ready, registry, error } = useModelRegistry()
   const [query, setQuery] = useState("")
+  // Defer the actual filter pass — keystrokes stay snappy while the
+  // 330-model filter runs on the trailing edge. Sorting is hoisted into
+  // its own memo so it isn't redone per keystroke.
+  const deferredQuery = useDeferredValue(query)
+
+  const sorted = useMemo(() => {
+    if (!registry) return []
+    return [...registry].sort((a, b) => (b.created ?? 0) - (a.created ?? 0))
+  }, [registry])
 
   const filtered = useMemo(() => {
-    if (!registry) return []
-    const q = query.trim().toLowerCase()
-    const sorted = [...registry].sort(
-      (a, b) => (b.created ?? 0) - (a.created ?? 0),
-    )
+    const q = deferredQuery.trim().toLowerCase()
     if (!q) return sorted
     return sorted.filter(
       (m) =>
@@ -44,7 +49,7 @@ export default function ModelsBrowseScreen() {
         m.name.toLowerCase().includes(q) ||
         (m.description?.toLowerCase().includes(q) ?? false),
     )
-  }, [registry, query])
+  }, [sorted, deferredQuery])
 
   return (
     <SafeAreaView

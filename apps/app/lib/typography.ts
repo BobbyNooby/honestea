@@ -1,4 +1,4 @@
-import type { TextStyle } from "react-native"
+import { Platform, type TextStyle } from "react-native"
 
 /**
  * HonesTea typography tokens — mirrored from
@@ -10,20 +10,32 @@ import type { TextStyle } from "react-native"
  * (NativeWind classes for dark-mode swap), so these tokens deliberately
  * omit `color`.
  *
- * Display + heading styles use Georgia for the serif voice (the design
- * mockups all rendered in Georgia via `ui-serif` fallback). Body and
- * eyebrow text use the system sans, which on iOS/Android resolves to
- * SF Pro / Roboto — the closest free substitute for Geist Sans.
+ * Platform notes:
+ *  - iOS / macOS ship Georgia as a system font; we name it directly.
+ *  - Android does NOT have Georgia. Without `Platform.select` the name
+ *    silently falls back to Roboto sans-serif — which means every
+ *    "serif headline" rendered as sans on Android until this fix. The
+ *    `"serif"` keyword resolves to Noto Serif on Android, the system
+ *    serif. Visual ≠ identical to iOS Georgia but both are real serifs.
+ *  - Mono follows the same pattern: Menlo on iOS, `monospace` keyword
+ *    on Android (resolves to Droid Sans Mono / Roboto Mono).
+ *
+ * TODO (Stage 2 polish): bundle a single serif via expo-font so iOS
+ * and Android render identically. Lora (`@expo-google-fonts/lora`) is
+ * the closest OFL-licensed substitute for Georgia.
  */
 
-const SERIF =
-  // RN doesn't honor `ui-serif`, so name Georgia explicitly. Bundling
-  // Geist as a custom font is a Stage 2 polish step.
-  "Georgia"
+const SERIF = Platform.select({
+  ios: "Georgia",
+  android: "serif",
+  default: "Georgia",
+})
 
-const MONO =
-  // Closest free pre-bundled mono on both platforms.
-  "Menlo"
+const MONO = Platform.select({
+  ios: "Menlo",
+  android: "monospace",
+  default: "Menlo",
+})
 
 /** Hero — onboarding tagline, pricing/landing splash. */
 export const TYPE_DISPLAY: TextStyle = {
