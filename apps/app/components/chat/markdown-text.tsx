@@ -1,5 +1,5 @@
 import { useMemo } from "react"
-import { useColorScheme } from "react-native"
+import { Linking, useColorScheme } from "react-native"
 import Markdown from "react-native-markdown-display"
 
 interface Props {
@@ -13,6 +13,13 @@ interface Props {
  * Only applied to assistant messages — user messages stay plain text since
  * users typically don't write markdown and we don't want their input to
  * accidentally render formatted.
+ *
+ * Links are scheme-allowlisted to https/http/mailto. The default
+ * `react-native-markdown-display` behavior is `Linking.openURL(url)` with
+ * no validation, which lets the model emit `[click](javascript:…)`,
+ * `[x](file:///…)`, `[y](intent://…)` and tap-launch them. Since model
+ * output (and web-search citations baked into it) is untrusted, we gate
+ * the open-call.
  */
 export function MarkdownText({ children }: Props) {
   const scheme = useColorScheme()
@@ -20,7 +27,24 @@ export function MarkdownText({ children }: Props) {
 
   const styles = useMemo(() => buildStyles(dark), [dark])
 
-  return <Markdown style={styles}>{children}</Markdown>
+  return (
+    <Markdown style={styles} onLinkPress={handleLinkPress}>
+      {children}
+    </Markdown>
+  )
+}
+
+/**
+ * Allow only http(s) and mailto links from rendered markdown. Returning
+ * `false` cancels the library's default `Linking.openURL`; returning
+ * `true` lets the default fire (we open it ourselves so the gate is
+ * obvious in code).
+ */
+function handleLinkPress(url: string): boolean {
+  if (/^https?:\/\//i.test(url) || /^mailto:/i.test(url)) {
+    void Linking.openURL(url)
+  }
+  return false
 }
 
 function buildStyles(dark: boolean) {

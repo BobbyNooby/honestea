@@ -134,7 +134,7 @@ function CitationRow({
 }) {
   return (
     <Pressable
-      onPress={() => void Linking.openURL(citation.url)}
+      onPress={() => openSafeUrl(citation.url)}
       hitSlop={2}
       className="flex-row items-center gap-2 rounded-md px-1.5 py-1 active:bg-zinc-100 dark:active:bg-zinc-900"
     >
@@ -212,4 +212,16 @@ function tryParseArgs(s: string): Record<string, unknown> | null {
 
 function hostname(url: string): string {
   return url.replace(/^https?:\/\//, "").replace(/\/.*$/, "")
+}
+
+/**
+ * Allow only http(s) and mailto when opening a citation. The model can
+ * emit any URL into a citation; the panel can't render unsafe schemes
+ * directly but we still gate the open call so a tap can't deep-link
+ * out of the app via `intent://`, `file://`, etc.
+ */
+function openSafeUrl(url: string): void {
+  if (/^https?:\/\//i.test(url) || /^mailto:/i.test(url)) {
+    void Linking.openURL(url)
+  }
 }
