@@ -393,10 +393,14 @@ function SavingsCard({
       </View>
 
       <Text className="px-2 text-[11px] leading-4 text-zinc-500 dark:text-zinc-500">
-        Counterfactual based on the OpenRouter registry's listed token
-        prices. Real spend on a flagship would also depend on caching,
-        tools, and the model's actual reply length — treat this as an
-        estimate, not an invoice.
+        Your spend above is the real number — it already includes any
+        extras that ran on top of tokens (web search adds ~$0.02 per
+        turn that uses it, image generation has its own per-image fee,
+        cached prompt reads cost less than fresh reads). The
+        counterfactual rows only price the same token volume against
+        each flagship's listed prompt + completion rates — those models
+        would tack on similar tool fees if they ran the same searches.
+        Treat this as a directional estimate, not an invoice.
       </Text>
     </View>
   )
