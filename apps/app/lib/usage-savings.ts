@@ -32,12 +32,12 @@ export interface ComparisonModel {
  */
 export const COMPARISON_MODELS: readonly ComparisonModel[] = [
   {
-    slug: "anthropic/claude-opus-4",
-    display: "Claude Opus 4",
+    slug: "anthropic/claude-opus-4.7",
+    display: "Claude Opus 4.7",
     lab: "Anthropic",
   },
-  { slug: "openai/gpt-5", display: "GPT-5", lab: "OpenAI" },
-  { slug: "google/gemini-2.5-pro", display: "Gemini 2.5 Pro", lab: "Google" },
+  { slug: "openai/gpt-5.5", display: "GPT-5.5", lab: "OpenAI" },
+  { slug: "google/gemini-3.5-pro", display: "Gemini 3.5 Pro", lab: "Google" },
 ] as const
 
 export interface CounterfactualRow {
