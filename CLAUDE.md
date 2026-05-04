@@ -101,6 +101,19 @@ BYOK is allowed only when our revenue isn't tied to token volume:
 
 So the BYOK settings page must be hidden or gated for PAYG users. In Subscription tier users mix freely.
 
+### Privacy & data retention (the commitment)
+Three tiers of data flow, ordered by what we can see:
+
+1. **Free Local (BYOK on device)** — chat content and keys never leave the device. We see nothing. Period.
+2. **Hosted (PAYG / Subscription, no sync)** — request flows: device → our server → provider → response back. We **log only billing metadata** (model id, prompt/completion token counts, cost, timestamp, optional tool-call count). Prompt and response **content are not persisted server-side past serving the request** — the request body is held only as long as needed to forward + bill, then discarded. Same for tool fees: we record what was spent, not what was searched for.
+3. **Sync (Cloud BYOK, or opt-in on Subscription)** — chat history is stored on our server so it can sync across devices. **Encrypted client-side before upload** (target: AES-256, key derived from the user's account password and never sent to us). We serve the encrypted blobs back; we can't read them. Sync is **opt-in, never enabled by default.**
+
+Engineering rules that fall out of this:
+- `apps/server` MUST NOT log request bodies for hosted-tier traffic. Log `model | tokens-in | tokens-out | cost | tool-call-count` and nothing else.
+- The usage ledger (`usage_events` table on the client today, mirrored server-side in Stage 2) is the canonical analytics source. Per-user analytics queries hit only this table, never the chat content.
+- Aggregate analytics across users (e.g. "average token spend per Pro user") must compute without retaining per-user identifiers in the report.
+- We never train on user content. We don't have it to train on, and we won't change that.
+
 ## Git conventions
 
 ### Commit messages
