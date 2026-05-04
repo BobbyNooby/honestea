@@ -1,5 +1,5 @@
 import { randomUUID } from "expo-crypto"
-import { and, asc, desc, eq, gte, isNull } from "drizzle-orm"
+import { and, asc, desc, eq, gte, isNull, sql } from "drizzle-orm"
 
 import type {
   Attachment,
@@ -235,4 +235,44 @@ export async function sweepStreamingMessages(): Promise<number> {
     .set({ status: "error" })
     .where(and(eq(messages.status, "streaming")))
   return (result as { changes?: number }).changes ?? 0
+}
+
+export interface UsageTotals {
+  totalPromptTokens: number
+  totalCompletionTokens: number
+  totalCostUsd: number
+  /** Count of assistant turns with token data (excludes pending/error rows). */
+  countedTurns: number
+}
+
+/**
+ * Aggregate prompt + completion tokens and total cost across every
+ * assistant message that has token data. Powers the "Saved vs other
+ * models" panel on the usage screen — we re-cost the same conversation
+ * volume against comparison models' rates to show counterfactual spend.
+ *
+ * Includes superseded + summarized rows so the totals reflect actual
+ * historical spend, not just what's currently visible.
+ */
+export async function getUsageTotals(): Promise<UsageTotals> {
+  const [row] = await db
+    .select({
+      totalPromptTokens: sql<number>`coalesce(sum(${messages.promptTokens}), 0)`,
+      totalCompletionTokens: sql<number>`coalesce(sum(${messages.completionTokens}), 0)`,
+      totalCostUsd: sql<number>`coalesce(sum(${messages.costUsd}), 0)`,
+      countedTurns: sql<number>`count(${messages.id})`,
+    })
+    .from(messages)
+    .where(
+      and(
+        eq(messages.role, "assistant"),
+        sql`${messages.promptTokens} IS NOT NULL`,
+      ),
+    )
+  return {
+    totalPromptTokens: Number(row?.totalPromptTokens ?? 0),
+    totalCompletionTokens: Number(row?.totalCompletionTokens ?? 0),
+    totalCostUsd: Number(row?.totalCostUsd ?? 0),
+    countedTurns: Number(row?.countedTurns ?? 0),
+  }
 }

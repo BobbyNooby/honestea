@@ -2,9 +2,10 @@ import {
   IconAlertTriangle,
   IconExternalLink,
   IconRefresh,
+  IconTrendingUp,
 } from "@tabler/icons-react-native"
 import { Stack } from "expo-router"
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import {
   ActivityIndicator,
   Linking,
@@ -23,10 +24,16 @@ import {
   getKey,
   type ByokProvider,
 } from "@/lib/byok"
+import { getUsageTotals, type UsageTotals } from "@/lib/db/repository"
+import { useModelRegistry } from "@/lib/model-registry"
 import {
   fetchOpenRouterUsage,
   type OpenRouterUsage,
 } from "@/lib/openrouter-usage"
+import {
+  buildCounterfactuals,
+  type CounterfactualRow,
+} from "@/lib/usage-savings"
 
 /**
  * Per-provider link to where the user can see their actual usage on the
@@ -50,10 +57,12 @@ const DIRECT_PROVIDER_DASHBOARDS: Record<string, string | null> = {
  */
 export default function UsageScreen() {
   const dark = useColorScheme() === "dark"
+  const { registry } = useModelRegistry()
   const [orUsage, setOrUsage] = useState<OpenRouterUsage | null>(null)
   const [orError, setOrError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [directKeys, setDirectKeys] = useState<readonly ByokProvider[]>([])
+  const [totals, setTotals] = useState<UsageTotals | null>(null)
 
   const refresh = useCallback(async () => {
     setLoading(true)
@@ -79,8 +88,21 @@ export default function UsageScreen() {
     }
     setDirectKeys(configured)
 
+    try {
+      setTotals(await getUsageTotals())
+    } catch {
+      setTotals(null)
+    }
+
     setLoading(false)
   }, [])
+
+  // Re-cost the user's actual token spend against the comparison
+  // models. Empty when totals are missing or the registry hasn't loaded.
+  const comparisons = useMemo<CounterfactualRow[]>(() => {
+    if (!totals || totals.countedTurns === 0) return []
+    return buildCounterfactuals(totals, registry)
+  }, [totals, registry])
 
   useEffect(() => {
     refresh()
@@ -118,6 +140,10 @@ export default function UsageScreen() {
       />
 
       <ScrollView contentContainerClassName="p-5 gap-6">
+        {totals && totals.countedTurns > 0 && (
+          <SavingsCard totals={totals} comparisons={comparisons} />
+        )}
+
         {orUsage && <OpenRouterCard usage={orUsage} />}
 
         {orError && !orUsage && (
@@ -281,6 +307,154 @@ function OpenRouterCard({ usage }: { usage: OpenRouterUsage }) {
       />
     </View>
   )
+}
+
+/**
+ * "What this conversation volume would have cost on the flagships" —
+ * the transparency-pitch surface. Re-prices the user's actual prompt +
+ * completion tokens against Opus / GPT-5 / Gemini Pro and shows the
+ * delta. Shows nothing when there's no token history yet (fresh
+ * install) or no comparison models in the registry.
+ */
+function SavingsCard({
+  totals,
+  comparisons,
+}: {
+  totals: UsageTotals
+  comparisons: readonly CounterfactualRow[]
+}) {
+  const dark = useColorScheme() === "dark"
+  const tint = dark ? "#a8c98a" : "#5b8a3a"
+  const totalSaved = comparisons.reduce(
+    (acc, c) => acc + Math.max(0, c.savedUsd),
+    0,
+  )
+  return (
+    <View className="gap-3">
+      <SectionLabel>Savings</SectionLabel>
+
+      <View className="overflow-hidden rounded-2xl bg-white dark:bg-zinc-900">
+        <View className="px-5 py-4">
+          <View className="flex-row items-center gap-2">
+            <IconTrendingUp size={16} color={tint} strokeWidth={1.75} />
+            <Text className="text-xs uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+              You've spent
+            </Text>
+          </View>
+          <Text className="mt-1 text-2xl font-bold tabular-nums text-zinc-900 dark:text-zinc-100">
+            {formatUsd(totals.totalCostUsd)}
+          </Text>
+          <Text className="mt-0.5 text-[12px] text-zinc-500 dark:text-zinc-400">
+            across {totals.countedTurns}{" "}
+            {totals.countedTurns === 1 ? "turn" : "turns"} ·{" "}
+            {formatTokens(totals.totalPromptTokens)} in ·{" "}
+            {formatTokens(totals.totalCompletionTokens)} out
+          </Text>
+        </View>
+
+        {comparisons.length > 0 && (
+          <>
+            <Divider />
+            <View className="px-5 py-3">
+              <Text className="text-[11px] uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                Same chats on flagships
+              </Text>
+            </View>
+            {comparisons.map((row, i) => (
+              <View key={row.model.slug}>
+                {i > 0 && <Divider />}
+                <ComparisonRow row={row} actualSpend={totals.totalCostUsd} />
+              </View>
+            ))}
+            {totalSaved > 0 && (
+              <>
+                <Divider />
+                <View
+                  className="flex-row items-center justify-between gap-3 px-5 py-3"
+                  style={{ backgroundColor: dark ? "#5b8a3a14" : "#5b8a3a14" }}
+                >
+                  <Text
+                    className="flex-1 text-[13px] font-semibold"
+                    style={{ color: tint }}
+                  >
+                    Total saved vs avg flagship
+                  </Text>
+                  <Text
+                    className="text-base font-bold tabular-nums"
+                    style={{ color: tint }}
+                  >
+                    {formatUsd(totalSaved / comparisons.length)}
+                  </Text>
+                </View>
+              </>
+            )}
+          </>
+        )}
+      </View>
+
+      <Text className="px-2 text-[11px] leading-4 text-zinc-500 dark:text-zinc-500">
+        Counterfactual based on the OpenRouter registry's listed token
+        prices. Real spend on a flagship would also depend on caching,
+        tools, and the model's actual reply length — treat this as an
+        estimate, not an invoice.
+      </Text>
+    </View>
+  )
+}
+
+function ComparisonRow({
+  row,
+  actualSpend,
+}: {
+  row: CounterfactualRow
+  actualSpend: number
+}) {
+  const dark = useColorScheme() === "dark"
+  const positive = row.savedUsd > 0
+  const tint = positive
+    ? dark ? "#a8c98a" : "#5b8a3a"
+    : dark ? "#f87171" : "#dc2626"
+  return (
+    <View className="gap-1 px-5 py-3">
+      <View className="flex-row items-center justify-between">
+        <View className="flex-1 min-w-0 gap-0.5 pr-3">
+          <Text
+            className="text-[14.5px] font-semibold text-zinc-900 dark:text-zinc-100"
+            numberOfLines={1}
+          >
+            {row.model.display}
+          </Text>
+          <Text className="text-[11px] text-zinc-500 dark:text-zinc-400">
+            {row.model.lab} · would've cost{" "}
+            <Text className="font-medium tabular-nums text-zinc-700 dark:text-zinc-300">
+              {formatUsd(row.hypotheticalCostUsd)}
+            </Text>
+          </Text>
+        </View>
+        <View className="items-end">
+          <Text
+            className="text-[15px] font-bold tabular-nums"
+            style={{ color: tint }}
+          >
+            {positive ? "−" : "+"}
+            {formatUsd(Math.abs(row.savedUsd))}
+          </Text>
+          <Text className="text-[10px] text-zinc-500 dark:text-zinc-400">
+            {actualSpend > 0
+              ? `${row.multiplier.toFixed(1)}× your spend`
+              : "—"}
+          </Text>
+        </View>
+      </View>
+    </View>
+  )
+}
+
+/** Pretty-print a token count: 1.2M / 850K / 9 600 / 42. */
+function formatTokens(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M tokens`
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K tokens`
+  return `${n} tokens`
 }
 
 function DirectKeysCard({
