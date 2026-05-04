@@ -1,5 +1,5 @@
 import { randomUUID } from "expo-crypto"
-import { and, asc, desc, eq, gte, isNull, sql } from "drizzle-orm"
+import { and, asc, desc, eq, gte, isNotNull, isNull, sql } from "drizzle-orm"
 
 import type {
   Attachment,
@@ -305,4 +305,134 @@ export async function recordUsageEvent(input: {
     createdAt: now(),
     messageId: input.messageId ?? null,
   })
+}
+
+/** One model's slice of an aggregated usage period. */
+export interface UsageBreakdownRow {
+  modelId: string
+  costUsd: number
+  promptTokens: number
+  completionTokens: number
+  /** Number of assistant turns this model produced in the period. */
+  turns: number
+}
+
+/** Today's per-model slice + the tool-call count for the receipt card. */
+export interface TodaysUsageBreakdown {
+  byModel: UsageBreakdownRow[]
+  /** Total assistant tool invocations today across `messages.tool_calls`. */
+  toolCallCount: number
+  /** Sum of `usage_events.cost_usd` for today (matches `byModel` totals). */
+  totalCostUsd: number
+  /** Number of usage-event rows today (= billable assistant turns). */
+  messageCount: number
+}
+
+/** Local-timezone start-of-day in ms epoch. */
+function startOfTodayMs(): number {
+  const d = new Date()
+  d.setHours(0, 0, 0, 0)
+  return d.getTime()
+}
+
+/**
+ * Per-model spend + token volume for today's usage events, plus a count
+ * of server-tool invocations from today's assistant messages. Drives the
+ * "Today's chat" receipt card on the Usage screen.
+ *
+ * Tool-call count is derived from `messages.tool_calls` (a JSON-encoded
+ * `PersistedToolCall[]`) so we don't need a dedicated column. The cost
+ * of those tools doesn't show up on `usage_events` rows by itself —
+ * OR's `usage.cost` rolls tool fees into the per-turn cost, so the
+ * receipt's "Web search × N" line is computed at the call site as
+ * `total - sum(per-model)` (or omitted when that delta is ≤ 0).
+ */
+export async function getTodaysUsageBreakdown(): Promise<TodaysUsageBreakdown> {
+  const since = startOfTodayMs()
+
+  const byModelRows = await db
+    .select({
+      modelId: usageEvents.modelId,
+      costUsd: sql<number>`coalesce(sum(${usageEvents.costUsd}), 0)`,
+      promptTokens: sql<number>`coalesce(sum(${usageEvents.promptTokens}), 0)`,
+      completionTokens: sql<number>`coalesce(sum(${usageEvents.completionTokens}), 0)`,
+      turns: sql<number>`count(${usageEvents.id})`,
+    })
+    .from(usageEvents)
+    .where(gte(usageEvents.createdAt, since))
+    .groupBy(usageEvents.modelId)
+    .orderBy(desc(sql`sum(${usageEvents.costUsd})`))
+
+  const byModel: UsageBreakdownRow[] = byModelRows.map((r) => ({
+    modelId: r.modelId,
+    costUsd: Number(r.costUsd ?? 0),
+    promptTokens: Number(r.promptTokens ?? 0),
+    completionTokens: Number(r.completionTokens ?? 0),
+    turns: Number(r.turns ?? 0),
+  }))
+
+  const totalCostUsd = byModel.reduce((acc, r) => acc + r.costUsd, 0)
+  const messageCount = byModel.reduce((acc, r) => acc + r.turns, 0)
+
+  // tool_calls is a JSON-encoded array on each assistant row. We don't
+  // need a JSON parser here — counting the number of {"name": ...}
+  // entries via SQL is enough. Fall back to JS-side parsing for the
+  // small set of today's tool-bearing rows so we stay accurate even if
+  // future tool entries omit the `name` key.
+  const toolRows = await db
+    .select({ toolCalls: messages.toolCalls })
+    .from(messages)
+    .where(
+      and(
+        eq(messages.role, "assistant"),
+        gte(messages.createdAt, since),
+        isNotNull(messages.toolCalls),
+      ),
+    )
+
+  let toolCallCount = 0
+  for (const row of toolRows) {
+    const calls = row.toolCalls
+    if (Array.isArray(calls)) toolCallCount += calls.length
+  }
+
+  return { byModel, toolCallCount, totalCostUsd, messageCount }
+}
+
+/** One model's lifetime slice for the "By model · all time" card. */
+export interface ModelUsageRow {
+  modelId: string
+  costUsd: number
+  /** Total assistant turns this model produced. */
+  turns: number
+  /** Prompt + completion tokens summed. */
+  tokens: number
+}
+
+/**
+ * Lifetime per-model breakdown from `usage_events`, sorted by spend
+ * descending. Drives the "By model · all time" card on the Usage screen.
+ *
+ * Like `getUsageTotals`, this reads the immutable ledger so deleted
+ * conversations still contribute — the totals reflect what the user
+ * actually paid for, not what's currently in the chat list.
+ */
+export async function getUsageByModel(): Promise<ModelUsageRow[]> {
+  const rows = await db
+    .select({
+      modelId: usageEvents.modelId,
+      costUsd: sql<number>`coalesce(sum(${usageEvents.costUsd}), 0)`,
+      turns: sql<number>`count(${usageEvents.id})`,
+      tokens: sql<number>`coalesce(sum(${usageEvents.promptTokens} + ${usageEvents.completionTokens}), 0)`,
+    })
+    .from(usageEvents)
+    .groupBy(usageEvents.modelId)
+    .orderBy(desc(sql`sum(${usageEvents.costUsd})`))
+
+  return rows.map((r) => ({
+    modelId: r.modelId,
+    costUsd: Number(r.costUsd ?? 0),
+    turns: Number(r.turns ?? 0),
+    tokens: Number(r.tokens ?? 0),
+  }))
 }

@@ -1,5 +1,6 @@
 import {
   IconAlertTriangle,
+  IconChevronDown,
   IconExternalLink,
   IconRefresh,
   IconTrendingUp,
@@ -24,8 +25,22 @@ import {
   getKey,
   type ByokProvider,
 } from "@/lib/byok"
-import { getUsageTotals, type UsageTotals } from "@/lib/db/repository"
+import {
+  getTodaysUsageBreakdown,
+  getUsageByModel,
+  getUsageTotals,
+  type ModelUsageRow,
+  type TodaysUsageBreakdown,
+  type UsageTotals,
+} from "@/lib/db/repository"
 import { useModelRegistry } from "@/lib/model-registry"
+import {
+  TYPE_BODY_SM,
+  TYPE_CAPTION,
+  TYPE_EYEBROW,
+  TYPE_H3,
+  TYPE_MICRO,
+} from "@/lib/typography"
 import {
   fetchOpenRouterUsage,
   type OpenRouterUsage,
@@ -63,6 +78,8 @@ export default function UsageScreen() {
   const [loading, setLoading] = useState(true)
   const [directKeys, setDirectKeys] = useState<readonly ByokProvider[]>([])
   const [totals, setTotals] = useState<UsageTotals | null>(null)
+  const [todays, setTodays] = useState<TodaysUsageBreakdown | null>(null)
+  const [byModel, setByModel] = useState<readonly ModelUsageRow[]>([])
 
   const refresh = useCallback(async () => {
     setLoading(true)
@@ -92,6 +109,18 @@ export default function UsageScreen() {
       setTotals(await getUsageTotals())
     } catch {
       setTotals(null)
+    }
+
+    try {
+      setTodays(await getTodaysUsageBreakdown())
+    } catch {
+      setTodays(null)
+    }
+
+    try {
+      setByModel(await getUsageByModel())
+    } catch {
+      setByModel([])
     }
 
     setLoading(false)
@@ -140,6 +169,12 @@ export default function UsageScreen() {
       />
 
       <ScrollView contentContainerClassName="p-5 gap-6">
+        {todays && todays.messageCount > 0 && (
+          <TodaysReceiptCard breakdown={todays} />
+        )}
+
+        {byModel.length > 0 && <ByModelCard rows={byModel} />}
+
         {totals && totals.countedTurns > 0 && (
           <SavingsCard totals={totals} comparisons={comparisons} />
         )}
@@ -526,9 +561,255 @@ function FooterNote() {
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <Text className="px-1 text-xs uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+    <Text
+      className="px-1 text-zinc-500 dark:text-zinc-400"
+      style={TYPE_EYEBROW}
+    >
       {children}
     </Text>
+  )
+}
+
+/** Bare model name without provider prefix — "claude-haiku-4.5" not
+ *  "anthropic/claude-haiku-4.5". Mirrors the helper in chat-message.tsx. */
+function shortModelName(id: string): string {
+  return id.split("/").pop() ?? id
+}
+
+/**
+ * Receipt card for today's usage. Hidden upstream when there's no
+ * activity today, so this component doesn't have to render an empty
+ * state. The "Web search × N" line is only shown when the tool fee
+ * (total - per-model sum) comes out positive — when the math is muddy
+ * (e.g. cost rounding leaves a tiny negative delta) we just omit it
+ * rather than fake a number.
+ */
+function TodaysReceiptCard({ breakdown }: { breakdown: TodaysUsageBreakdown }) {
+  const { byModel, toolCallCount, totalCostUsd, messageCount } = breakdown
+  const perModelSum = byModel.reduce((acc, r) => acc + r.costUsd, 0)
+  // OR's `usage.cost` rolls tool fees into the per-turn cost, but we
+  // record one event per turn keyed by model — so the difference between
+  // the period total and the sum of per-model rows is dominated by tool
+  // fees. Only show the line when (a) there were actual tool calls
+  // today, and (b) the delta is positive (meaningfully > $0.0001 to
+  // avoid float noise).
+  const toolCostDelta = totalCostUsd - perModelSum
+  const showToolLine = toolCallCount > 0 && toolCostDelta > 0.0001
+  const distinctModels = byModel.length
+
+  return (
+    <View className="gap-3">
+      <SectionLabel>Today's chat</SectionLabel>
+
+      <View className="overflow-hidden rounded-2xl border border-chamomile-100 bg-white dark:border-transparent dark:bg-zinc-900">
+        <View className="px-5 py-4">
+          <Text
+            className="text-zinc-900 dark:text-zinc-100"
+            style={TYPE_H3}
+          >
+            Today's chat
+          </Text>
+          <Text
+            className="mt-1 text-zinc-500 dark:text-zinc-400"
+            style={TYPE_CAPTION}
+          >
+            {messageCount} {messageCount === 1 ? "message" : "messages"} ·{" "}
+            {distinctModels} {distinctModels === 1 ? "model" : "models"}
+          </Text>
+        </View>
+
+        <Divider />
+
+        {byModel.map((row, i) => (
+          <View key={row.modelId}>
+            {i > 0 && <Divider />}
+            <ReceiptRow
+              label={shortModelName(row.modelId)}
+              value={formatUsd(row.costUsd)}
+            />
+          </View>
+        ))}
+
+        {showToolLine && (
+          <>
+            <Divider />
+            <ReceiptRow
+              label={`Web search × ${toolCallCount}`}
+              value={formatUsd(toolCostDelta)}
+              muted
+            />
+          </>
+        )}
+
+        <View className="h-px bg-zinc-200 dark:bg-zinc-700" />
+
+        <View className="flex-row items-center justify-between px-5 py-4">
+          <Text
+            className="text-zinc-900 dark:text-zinc-100"
+            style={TYPE_BODY_SM}
+          >
+            Total
+          </Text>
+          <Text
+            className="font-semibold tabular-nums text-zinc-900 dark:text-zinc-100"
+            style={TYPE_BODY_SM}
+          >
+            {formatUsd(totalCostUsd)}
+          </Text>
+        </View>
+      </View>
+    </View>
+  )
+}
+
+function ReceiptRow({
+  label,
+  value,
+  muted,
+}: {
+  label: string
+  value: string
+  muted?: boolean
+}) {
+  return (
+    <View className="flex-row items-center justify-between px-5 py-3">
+      <Text
+        className={
+          muted
+            ? "flex-1 pr-3 text-zinc-500 dark:text-zinc-400"
+            : "flex-1 pr-3 text-zinc-700 dark:text-zinc-200"
+        }
+        style={TYPE_BODY_SM}
+        numberOfLines={1}
+      >
+        {label}
+      </Text>
+      <Text
+        className={
+          muted
+            ? "tabular-nums text-zinc-500 dark:text-zinc-400"
+            : "font-medium tabular-nums text-zinc-900 dark:text-zinc-100"
+        }
+        style={TYPE_BODY_SM}
+      >
+        {value}
+      </Text>
+    </View>
+  )
+}
+
+const BY_MODEL_COLLAPSED_LIMIT = 5
+
+/**
+ * Lifetime per-model spend, sorted desc. Top 5 by default with a
+ * "Show N more" expander; collapsed back via "Show less" once expanded.
+ * Each row's bar fills proportional to the top spender so the visual
+ * weight tracks where the money actually went.
+ */
+function ByModelCard({ rows }: { rows: readonly ModelUsageRow[] }) {
+  const [expanded, setExpanded] = useState(false)
+  const dark = useColorScheme() === "dark"
+  const topSpend = rows[0]?.costUsd ?? 0
+  // Proportion bars need a non-zero anchor or every row would render
+  // empty; clamp to a tiny floor so the top row always reads as 100%.
+  const anchor = Math.max(topSpend, 0.0001)
+  const visible = expanded ? rows : rows.slice(0, BY_MODEL_COLLAPSED_LIMIT)
+  const overflow = Math.max(0, rows.length - BY_MODEL_COLLAPSED_LIMIT)
+
+  return (
+    <View className="gap-3">
+      <SectionLabel>By model · all time</SectionLabel>
+
+      <View className="overflow-hidden rounded-2xl border border-chamomile-100 bg-white dark:border-transparent dark:bg-zinc-900">
+        {visible.map((row, i) => (
+          <View key={row.modelId}>
+            {i > 0 && <Divider />}
+            <ModelSpendRow
+              row={row}
+              fillFraction={row.costUsd / anchor}
+              dark={dark}
+            />
+          </View>
+        ))}
+
+        {overflow > 0 && (
+          <>
+            <Divider />
+            <Pressable
+              onPress={() => setExpanded((v) => !v)}
+              className="flex-row items-center justify-center gap-1 px-5 py-3 active:bg-zinc-100 dark:active:bg-zinc-800"
+              accessibilityRole="button"
+              accessibilityLabel={
+                expanded ? "Show fewer models" : `Show ${overflow} more models`
+              }
+            >
+              <Text
+                className="text-matcha-600 dark:text-matcha-400"
+                style={TYPE_BODY_SM}
+              >
+                {expanded ? "Show less" : `Show ${overflow} more`}
+              </Text>
+              <IconChevronDown
+                size={14}
+                color={dark ? "#a8c98a" : "#5b8a3a"}
+                strokeWidth={2}
+                style={{
+                  transform: [{ rotate: expanded ? "180deg" : "0deg" }],
+                }}
+              />
+            </Pressable>
+          </>
+        )}
+      </View>
+    </View>
+  )
+}
+
+function ModelSpendRow({
+  row,
+  fillFraction,
+  dark,
+}: {
+  row: ModelUsageRow
+  fillFraction: number
+  dark: boolean
+}) {
+  const clamped = Math.max(0, Math.min(1, fillFraction))
+  const tint = dark ? "#a8c98a" : "#5b8a3a"
+  return (
+    <View className="gap-1.5 px-5 py-3">
+      <View className="flex-row items-center justify-between">
+        <Text
+          className="flex-1 pr-3 text-zinc-900 dark:text-zinc-100"
+          style={TYPE_BODY_SM}
+          numberOfLines={1}
+        >
+          {shortModelName(row.modelId)}
+        </Text>
+        <Text
+          className="font-semibold tabular-nums text-zinc-900 dark:text-zinc-100"
+          style={TYPE_BODY_SM}
+        >
+          {formatUsd(row.costUsd)}
+        </Text>
+      </View>
+      <View className="h-1 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
+        <View
+          className="h-full rounded-full"
+          style={{
+            width: `${clamped * 100}%`,
+            backgroundColor: tint,
+          }}
+        />
+      </View>
+      <Text
+        className="text-zinc-500 dark:text-zinc-400"
+        style={TYPE_MICRO}
+      >
+        {row.turns} {row.turns === 1 ? "turn" : "turns"} ·{" "}
+        {formatTokens(row.tokens)}
+      </Text>
+    </View>
   )
 }
 
