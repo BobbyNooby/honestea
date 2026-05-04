@@ -102,15 +102,31 @@ BYOK is allowed only when our revenue isn't tied to token volume:
 So the BYOK settings page must be hidden or gated for PAYG users. In Subscription tier users mix freely.
 
 ### Privacy & data retention (the commitment)
-Three tiers of data flow, ordered by what we can see:
 
-1. **Free Local (BYOK on device)** — chat content and keys never leave the device. We see nothing. Period.
-2. **Hosted (PAYG / Subscription, no sync)** — request flows: device → our server → provider → response back. We **log only billing metadata** (model id, prompt/completion token counts, cost, timestamp, optional tool-call count). Prompt and response **content are not persisted server-side past serving the request** — the request body is held only as long as needed to forward + bill, then discarded. Same for tool fees: we record what was spent, not what was searched for.
-3. **Sync (Cloud BYOK, or opt-in on Subscription)** — chat history is stored on our server so it can sync across devices. **Encrypted client-side before upload** (target: AES-256, key derived from the user's account password and never sent to us). We serve the encrypted blobs back; we can't read them. Sync is **opt-in, never enabled by default.**
+Two **orthogonal** axes. Don't conflate them.
+
+**Axis 1 — chat history storage (per-conversation toggle).** Each conversation independently lives in one of two places:
+- **Local only** — the row exists only in the device's SQLite DB. Lost on uninstall, never reaches our server. Default for everyone.
+- **Cloud synced** — the row is mirrored to our server so it's available on the user's other devices. Encrypted client-side before upload (target: AES-256, key derived from the user's account password and never sent to us). We serve the encrypted blobs back; we can't read them. Opt-in per conversation via the storage toggle in the chat header (`components/settings/storage-toggle.tsx`).
+
+**Axis 2 — analytics / usage ledger (per account).** A separate, **always-metadata-only** stream:
+- Free Local users have no account → no analytics flow at all.
+- Account holders (Cloud BYOK / PAYG / Subscription) — every completed assistant turn writes a `usage_events` row: `model_id | provider | prompt_tokens | completion_tokens | cost_usd | timestamp` + optional `tool_call_count`. **No prompt or response content, ever.** This is what powers the Savings card and (Stage 2) billing.
+- For hosted tiers (PAYG / Sub) the request flows through our server, but the server discards request bodies after forwarding + billing — only the metadata row is persisted.
+- For Cloud BYOK, requests go device → provider directly; the client posts the metadata row to our server after each turn so analytics still work.
+
+What this means in practice:
+| Tier | Account? | Chat history | Analytics |
+|---|---|---|---|
+| Free Local | No | Local only | — |
+| Cloud BYOK ($5/mo) | Yes | Toggle per conversation | Yes (metadata only) |
+| PAYG ($0/mo + credits) | Yes | Toggle per conversation | Yes (metadata only) |
+| Subscription | Yes | Toggle per conversation | Yes (metadata only) |
 
 Engineering rules that fall out of this:
 - `apps/server` MUST NOT log request bodies for hosted-tier traffic. Log `model | tokens-in | tokens-out | cost | tool-call-count` and nothing else.
-- The usage ledger (`usage_events` table on the client today, mirrored server-side in Stage 2) is the canonical analytics source. Per-user analytics queries hit only this table, never the chat content.
+- The `usage_events` table is the canonical analytics source. Per-user analytics queries hit only this table, never the chat-content table.
+- Cloud-synced chat rows are stored as ciphertext blobs server-side. The server schema must not include any column that would require reading the plaintext.
 - Aggregate analytics across users (e.g. "average token spend per Pro user") must compute without retaining per-user identifiers in the report.
 - We never train on user content. We don't have it to train on, and we won't change that.
 
