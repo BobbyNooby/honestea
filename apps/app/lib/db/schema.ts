@@ -1,6 +1,12 @@
 import { integer, real, sqliteTable, text } from "drizzle-orm/sqlite-core"
 
-import type { Attachment, Citation, PersistedToolCall } from "@honestea/shared"
+import type {
+  Attachment,
+  ChatProvider,
+  Citation,
+  PersistedToolCall,
+  UsageEvent,
+} from "@honestea/shared"
 
 /**
  * SQLite schema for Phase 1 local-only conversation storage.
@@ -131,7 +137,9 @@ export const usageEvents = sqliteTable("usage_events", {
   modelId: text("model_id").notNull(),
   provider: text("provider", {
     enum: ["openrouter", "anthropic"],
-  }).notNull(),
+  })
+    .notNull()
+    .$type<ChatProvider>(),
   promptTokens: integer("prompt_tokens").notNull(),
   completionTokens: integer("completion_tokens").notNull(),
   costUsd: real("cost_usd").notNull(),
@@ -139,6 +147,17 @@ export const usageEvents = sqliteTable("usage_events", {
   /** Soft pointer back to the source message. May be dangling. */
   messageId: text("message_id"),
 })
+
+/**
+ * Compile-time guarantee that the SQLite row shape this table produces
+ * still satisfies the canonical `UsageEvent` from `@honestea/shared`.
+ * If a column drifts from the shared interface (rename, type change),
+ * this assignment fails typecheck and forces the schemas back in sync.
+ */
+const _usageEventShapeCheck: (row: typeof usageEvents.$inferSelect) => UsageEvent = (
+  row,
+) => row
+void _usageEventShapeCheck
 
 export type ConversationRow = typeof conversations.$inferSelect
 export type ConversationInsert = typeof conversations.$inferInsert

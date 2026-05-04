@@ -150,6 +150,37 @@ export interface Message {
   createdAt: number
 }
 
+/**
+ * One completed assistant turn, captured at completion time on an
+ * append-only ledger. Survives chat deletion — removing a conversation
+ * never touches usage history, so lifetime totals stay accurate even
+ * after history cleanup.
+ *
+ * Phase 1 stores this in the device's local SQLite (`apps/app`). When
+ * Stage 2 ships cloud sync, the same shape will be mirrored server-side
+ * in Postgres — both producers (mobile SQLite + future server) will
+ * write rows that satisfy this interface, so the web dashboard and
+ * server analytics can consume one canonical type.
+ *
+ * `messageId` is a soft pointer back to the source `Message`. Not a
+ * foreign key — deleting a chat must never erase the ledger — and may
+ * be dangling on rows whose source message was removed.
+ */
+export interface UsageEvent {
+  id: string
+  /** OpenRouter slug (e.g. "anthropic/claude-haiku-4.5"). */
+  modelId: string
+  provider: ChatProvider
+  promptTokens: number
+  completionTokens: number
+  /** Real USD cost (sub-cent precision) — what OR's `usage.cost` returned. */
+  costUsd: number
+  /** ms epoch */
+  createdAt: number
+  /** Soft pointer back to the source `Message.id`. May be dangling. */
+  messageId: string | null
+}
+
 export interface Conversation {
   id: string
   /** null = local-only (Phase 1). Non-null = synced to server under this user. */
