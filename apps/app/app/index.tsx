@@ -48,6 +48,7 @@ import {
   addMessage,
   listMessages,
   markMessagesSupersededFrom,
+  recordUsageEvent,
   renameConversation,
   setMessageSupersededAt,
   updateMessage,
@@ -461,6 +462,19 @@ function ChatScreenInner() {
           provider: result.provider,
           citations,
           toolCalls: persistedToolCalls,
+        })
+
+        // Append to the immutable usage ledger. Survives chat
+        // deletion — the savings card on /usage aggregates from this,
+        // not from `messages`, so lifetime totals stay accurate even
+        // if the user later deletes this conversation.
+        void recordUsageEvent({
+          modelId,
+          provider: result.provider,
+          promptTokens,
+          completionTokens,
+          costUsd: costUsd ?? 0,
+          messageId: assistantRow.id,
         })
 
         setMessages((m) =>

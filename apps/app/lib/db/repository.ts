@@ -12,7 +12,7 @@ import type {
 } from "@honestea/shared"
 
 import { db } from "./index"
-import { conversations, messages } from "./schema"
+import { conversations, messages, usageEvents } from "./schema"
 
 /**
  * Repository layer. Returns `@honestea/shared` types so the rest of the
@@ -246,33 +246,63 @@ export interface UsageTotals {
 }
 
 /**
- * Aggregate prompt + completion tokens and total cost across every
- * assistant message that has token data. Powers the "Saved vs other
- * models" panel on the usage screen — we re-cost the same conversation
- * volume against comparison models' rates to show counterfactual spend.
+ * Aggregate prompt + completion tokens and total cost from the immutable
+ * `usage_events` ledger. Survives chat deletion — the ledger is never
+ * touched when a conversation is removed, so lifetime usage stats stay
+ * accurate even after history cleanup.
  *
- * Includes superseded + summarized rows so the totals reflect actual
- * historical spend, not just what's currently visible.
+ * Powers the Savings card on the usage screen. The migration v9 backfill
+ * seeds the ledger from existing assistant messages on first launch
+ * after upgrade, so users don't lose prior totals.
  */
 export async function getUsageTotals(): Promise<UsageTotals> {
   const [row] = await db
     .select({
-      totalPromptTokens: sql<number>`coalesce(sum(${messages.promptTokens}), 0)`,
-      totalCompletionTokens: sql<number>`coalesce(sum(${messages.completionTokens}), 0)`,
-      totalCostUsd: sql<number>`coalesce(sum(${messages.costUsd}), 0)`,
-      countedTurns: sql<number>`count(${messages.id})`,
+      totalPromptTokens: sql<number>`coalesce(sum(${usageEvents.promptTokens}), 0)`,
+      totalCompletionTokens: sql<number>`coalesce(sum(${usageEvents.completionTokens}), 0)`,
+      totalCostUsd: sql<number>`coalesce(sum(${usageEvents.costUsd}), 0)`,
+      countedTurns: sql<number>`count(${usageEvents.id})`,
     })
-    .from(messages)
-    .where(
-      and(
-        eq(messages.role, "assistant"),
-        sql`${messages.promptTokens} IS NOT NULL`,
-      ),
-    )
+    .from(usageEvents)
   return {
     totalPromptTokens: Number(row?.totalPromptTokens ?? 0),
     totalCompletionTokens: Number(row?.totalCompletionTokens ?? 0),
     totalCostUsd: Number(row?.totalCostUsd ?? 0),
     countedTurns: Number(row?.countedTurns ?? 0),
   }
+}
+
+/**
+ * Append a usage event to the immutable ledger. Called once per
+ * successful assistant completion from the chat dispatcher.
+ *
+ * Skips when token counts are missing (free-tier rate-limited turns,
+ * mid-stream errors with no usage block, etc.) — recording a zero-token
+ * event would skew the per-turn averages.
+ */
+export async function recordUsageEvent(input: {
+  modelId: string
+  provider: ChatProvider
+  promptTokens: number
+  completionTokens: number
+  costUsd: number
+  messageId?: string | null
+}): Promise<void> {
+  if (
+    !Number.isFinite(input.promptTokens) ||
+    !Number.isFinite(input.completionTokens) ||
+    input.promptTokens <= 0
+  ) {
+    return
+  }
+  await db.insert(usageEvents).values({
+    id: randomUUID(),
+    modelId: input.modelId,
+    provider: input.provider,
+    promptTokens: input.promptTokens,
+    completionTokens: input.completionTokens,
+    costUsd: input.costUsd,
+    createdAt: now(),
+    messageId: input.messageId ?? null,
+  })
 }

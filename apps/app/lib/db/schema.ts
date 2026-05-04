@@ -114,7 +114,35 @@ export const messages = sqliteTable("messages", {
   createdAt: integer("created_at").notNull(),
 })
 
+/**
+ * Immutable usage ledger. One row per completed assistant turn,
+ * recording tokens + cost + model at the moment of completion.
+ *
+ * Deliberately NOT a foreign key to `messages` — deleting a chat must
+ * never erase the usage history that already happened. `messageId` is
+ * stored as a soft pointer for debugging only; the row stays even if
+ * the source message is gone.
+ *
+ * Drives the Savings card on the Usage screen and (later) any
+ * subscription / quota accounting that needs lifetime totals.
+ */
+export const usageEvents = sqliteTable("usage_events", {
+  id: text("id").primaryKey(),
+  modelId: text("model_id").notNull(),
+  provider: text("provider", {
+    enum: ["openrouter", "anthropic"],
+  }).notNull(),
+  promptTokens: integer("prompt_tokens").notNull(),
+  completionTokens: integer("completion_tokens").notNull(),
+  costUsd: real("cost_usd").notNull(),
+  createdAt: integer("created_at").notNull(),
+  /** Soft pointer back to the source message. May be dangling. */
+  messageId: text("message_id"),
+})
+
 export type ConversationRow = typeof conversations.$inferSelect
 export type ConversationInsert = typeof conversations.$inferInsert
 export type MessageRow = typeof messages.$inferSelect
 export type MessageInsert = typeof messages.$inferInsert
+export type UsageEventRow = typeof usageEvents.$inferSelect
+export type UsageEventInsert = typeof usageEvents.$inferInsert

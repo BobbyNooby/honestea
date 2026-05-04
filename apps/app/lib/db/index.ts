@@ -191,6 +191,53 @@ function applyMigrationV8() {
   }
 }
 
+/**
+ * v9: immutable usage ledger.
+ *  - New `usage_events` table — one row per completed assistant turn,
+ *    capturing tokens / cost / model at completion time. Deliberately
+ *    not a foreign key to `messages` so deleting a chat doesn't rewrite
+ *    historical usage totals.
+ *  - Backfill from existing assistant messages. Deterministic event id
+ *    (`evt-{messageId}`) makes the backfill idempotent — re-running on
+ *    every launch is a no-op once events exist.
+ */
+function applyMigrationV9() {
+  sqlite.execSync(`
+    CREATE TABLE IF NOT EXISTS usage_events (
+      id text PRIMARY KEY NOT NULL,
+      model_id text NOT NULL,
+      provider text NOT NULL,
+      prompt_tokens integer NOT NULL,
+      completion_tokens integer NOT NULL,
+      cost_usd real NOT NULL,
+      created_at integer NOT NULL,
+      message_id text
+    );
+  `)
+  // Backfill: copy every assistant message that has token data into the
+  // ledger. INSERT OR IGNORE on a deterministic id makes this safe to
+  // re-run — the migration ladder fires on every launch.
+  sqlite.execSync(`
+    INSERT OR IGNORE INTO usage_events (
+      id, model_id, provider, prompt_tokens, completion_tokens,
+      cost_usd, created_at, message_id
+    )
+    SELECT
+      'evt-' || messages.id,
+      COALESCE(model_id, 'unknown'),
+      COALESCE(provider, 'openrouter'),
+      prompt_tokens,
+      completion_tokens,
+      COALESCE(cost_usd, 0),
+      created_at,
+      id
+    FROM messages
+    WHERE role = 'assistant'
+      AND prompt_tokens IS NOT NULL
+      AND completion_tokens IS NOT NULL;
+  `)
+}
+
 let migrated = false
 
 function applyMigrations() {
@@ -203,6 +250,7 @@ function applyMigrations() {
   applyMigrationV6()
   applyMigrationV7()
   applyMigrationV8()
+  applyMigrationV9()
   migrated = true
 }
 
