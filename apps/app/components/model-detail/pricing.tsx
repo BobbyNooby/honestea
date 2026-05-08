@@ -2,8 +2,7 @@ import { Text, View } from "react-native"
 
 import { pricePerMillionFromPerToken } from "@honestea/shared"
 
-import { formatPricePerMillion, formatRawUsd } from "@/lib/format-model"
-import { type RegistryModel } from "@/lib/model-registry"
+import { formatPricePerMillion, formatRawUsd, type RegistryModel } from "@/lib/model"
 
 interface PriceRow {
   label: string

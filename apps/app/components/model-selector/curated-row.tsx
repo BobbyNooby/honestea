@@ -10,8 +10,8 @@ import {
   formatPricePerMillion,
   pricePartsFromPricing,
   providerFromId,
-} from "@/lib/format-model"
-import { type RegistryModel } from "@/lib/model-registry"
+  type RegistryModel,
+} from "@/lib/model"
 
 /**
  * One row in the curated section of the model picker. Pulls live

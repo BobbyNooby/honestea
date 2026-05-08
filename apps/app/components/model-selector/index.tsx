@@ -22,7 +22,7 @@ import {
 } from "@honestea/shared"
 
 import { cn } from "@/lib/cn"
-import { findModel, useModelRegistry } from "@/lib/model-registry"
+import { findModel, useModelRegistry } from "@/lib/model"
 
 import { CuratedRow } from "./curated-row"
 import { CustomModelSection } from "./custom-model-row"

@@ -15,7 +15,7 @@ import { ConfirmDialogProvider } from "@/lib/confirm-context"
 import { useRunMigrations } from "@/lib/db"
 import { sweepStreamingMessages } from "@/lib/db/repository"
 import { ConversationsProvider } from "@/lib/conversations-context"
-import { SelectedModelProvider } from "@/lib/selected-model"
+import { SelectedModelProvider } from "@/lib/model"
 import { SidebarProvider } from "@/lib/sidebar-context"
 import "../global.css"
 

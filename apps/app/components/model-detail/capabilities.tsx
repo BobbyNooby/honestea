@@ -1,7 +1,6 @@
 import { Text, View } from "react-native"
 
-import { formatContext } from "@/lib/format-model"
-import { type RegistryModel } from "@/lib/model-registry"
+import { formatContext, type RegistryModel } from "@/lib/model"
 
 /**
  * Capabilities block on the model detail screen. Two-card grid for

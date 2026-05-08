@@ -8,7 +8,7 @@
  * the full-fat read we use for the user-facing usage view.
  */
 
-import { client } from "./client"
+import { client } from "../client"
 
 export interface OpenRouterUsage {
   /** Human label set on the key in OR's dashboard. */

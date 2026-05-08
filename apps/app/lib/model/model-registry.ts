@@ -6,7 +6,7 @@ import {
   type ModelPricing,
 } from "@honestea/shared"
 
-import { client } from "./client"
+import { client } from "../client"
 
 const STORAGE_KEY = "honestea:model-registry"
 const TTL_MS = 24 * 60 * 60 * 1000

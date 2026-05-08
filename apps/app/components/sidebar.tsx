@@ -27,8 +27,8 @@ import { cn } from "@/lib/cn";
 import { useConfirm } from "@/lib/confirm-context";
 import { useConversations } from "@/lib/conversations-context";
 import { listMessages, renameConversation } from "@/lib/db/repository";
-import { useSelectedModel } from "@/lib/selected-model";
-import { generateTitle } from "@/lib/title-gen";
+import { useSelectedModel } from "@/lib/model";
+import { generateTitle } from "@/lib/chat";
 import { TYPE_EYEBROW } from "@/lib/typography";
 
 export interface SidebarProps {

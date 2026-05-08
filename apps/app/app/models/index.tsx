@@ -13,7 +13,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context"
 
 import { ModelListRow } from "@/components/models/model-list-row"
-import { useModelRegistry } from "@/lib/model-registry"
+import { useModelRegistry } from "@/lib/model"
 
 /**
  * Browse the full OpenRouter catalog. Search by name/slug/description;

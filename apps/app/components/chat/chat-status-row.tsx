@@ -2,7 +2,7 @@ import { ActivityIndicator, Pressable, Text, useColorScheme, View } from "react-
 
 import { estimateTokens, formatUsd, type Message } from "@honestea/shared"
 
-import { findModel, type RegistryModel } from "@/lib/model-registry"
+import { findModel, type RegistryModel } from "@/lib/model"
 
 interface Props {
   messages: readonly Message[]

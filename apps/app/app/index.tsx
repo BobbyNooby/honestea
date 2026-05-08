@@ -39,10 +39,15 @@ import type {
   ChatMessage as ApiChatMessage,
   ToolCallEvent,
 } from "@/lib/api/types"
-import { buildMessageContent } from "@/lib/attachments"
-import { useBrewingPhrase } from "@/lib/brewing-phrases"
+import {
+  buildMessageContent,
+  compact,
+  generateTitle,
+  projectPromptTokens,
+  styleSystemPrompt,
+  useBrewingPhrase,
+} from "@/lib/chat"
 import { useByokStatus } from "@/lib/byok"
-import { compact, projectPromptTokens } from "@/lib/compaction"
 import { useConfirm } from "@/lib/confirm-context"
 import { useConversations } from "@/lib/conversations-context"
 import {
@@ -54,12 +59,14 @@ import {
   setMessageSupersededAt,
   updateMessage,
 } from "@/lib/db/repository"
-import { findModel, pricingFor, useModelRegistry } from "@/lib/model-registry"
+import {
+  findModel,
+  pricingFor,
+  useModelRegistry,
+  useSelectedModel,
+} from "@/lib/model"
 import { useOnboardingSeen } from "@/lib/onboarding-state"
-import { useSelectedModel } from "@/lib/selected-model"
 import { useSidebar } from "@/lib/sidebar-context"
-import { styleSystemPrompt } from "@/lib/style-prompts"
-import { generateTitle } from "@/lib/title-gen"
 
 export default function ChatScreen() {
   // First-launch gate. While the flag is loading we render nothing —

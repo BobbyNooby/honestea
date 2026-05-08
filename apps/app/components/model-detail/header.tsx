@@ -1,7 +1,6 @@
 import { Text, View } from "react-native"
 
-import { formatCreated, providerFromId } from "@/lib/format-model"
-import { type RegistryModel } from "@/lib/model-registry"
+import { formatCreated, providerFromId, type RegistryModel } from "@/lib/model"
 
 /**
  * Title block at the top of the model detail screen — model name plus

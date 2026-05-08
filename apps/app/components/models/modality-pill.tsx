@@ -1,6 +1,6 @@
 import { Text, View } from "react-native"
 
-import { type RegistryModel } from "@/lib/model-registry"
+import { type RegistryModel } from "@/lib/model"
 
 /**
  * Pill that tags one supported modality (text / image / audio / file /

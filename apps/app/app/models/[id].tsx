@@ -13,8 +13,11 @@ import { Identifiers } from "@/components/model-detail/identifiers"
 import { PricingTable } from "@/components/model-detail/pricing"
 import { Section } from "@/components/model-detail/section"
 import { SelectFooter } from "@/components/model-detail/select-footer"
-import { findModel, useModelRegistry } from "@/lib/model-registry"
-import { useSelectedModel } from "@/lib/selected-model"
+import {
+  findModel,
+  useModelRegistry,
+  useSelectedModel,
+} from "@/lib/model"
 
 /**
  * Per-model detail page. Composes blocks from `components/model-detail/*`

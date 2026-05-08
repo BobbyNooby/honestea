@@ -18,7 +18,7 @@ import Toast from "react-native-toast-message"
 import type { Attachment } from "@honestea/shared"
 
 import { cn } from "@/lib/cn"
-import { persistPickedAttachment } from "@/lib/attachments"
+import { persistPickedAttachment } from "@/lib/chat"
 
 export type ResponseStyle =
   | "normal"

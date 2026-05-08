@@ -1,5 +1,5 @@
-import { client } from "./client"
-import { getOpenRouterKey } from "./byok"
+import { client } from "../client"
+import { getOpenRouterKey } from "../byok"
 
 /**
  * Default model for title generation. Falls back to Haiku when the caller

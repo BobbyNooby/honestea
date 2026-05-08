@@ -6,7 +6,7 @@ import type { ByokKeyInfo } from "@honestea/shared/client"
 
 export type { ByokKeyInfo }
 
-import { client } from "./client"
+import { client } from "../client"
 
 /**
  * BYOK provider configuration. Keys are stored encrypted via expo-secure-store

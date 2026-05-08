@@ -2,15 +2,15 @@ import type { Message } from "@honestea/shared"
 import { estimateTokens } from "@honestea/shared"
 import { ApiError } from "@honestea/shared/client"
 
-import { client } from "./client"
-import { getOpenRouterKey } from "./byok"
+import { client } from "../client"
+import { getOpenRouterKey } from "../byok"
 import {
   addMessage,
   listMessages,
   markMessagesSummarizedInto,
   recordUsageEvent,
   updateMessage,
-} from "./db/repository"
+} from "../db/repository"
 
 /**
  * Default model for compaction when the caller doesn't specify one.

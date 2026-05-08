@@ -7,8 +7,8 @@ import {
   formatPricePerMillion,
   pricePartsFromPricing,
   providerFromId,
-} from "@/lib/format-model"
-import { type RegistryModel } from "@/lib/model-registry"
+  type RegistryModel,
+} from "@/lib/model"
 
 import { ModalityPill, collectModalities } from "./modality-pill"
 

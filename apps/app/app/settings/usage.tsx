@@ -33,7 +33,7 @@ import {
   type TodaysUsageBreakdown,
   type UsageTotals,
 } from "@/lib/db/repository"
-import { useModelRegistry } from "@/lib/model-registry"
+import { useModelRegistry } from "@/lib/model"
 import {
   TYPE_BODY_SM,
   TYPE_CAPTION,
@@ -42,13 +42,11 @@ import {
   TYPE_MICRO,
 } from "@/lib/typography"
 import {
-  fetchOpenRouterUsage,
-  type OpenRouterUsage,
-} from "@/lib/openrouter-usage"
-import {
   buildCounterfactuals,
+  fetchOpenRouterUsage,
   type CounterfactualRow,
-} from "@/lib/usage-savings"
+  type OpenRouterUsage,
+} from "@/lib/usage"
 
 /**
  * Per-provider link to where the user can see their actual usage on the

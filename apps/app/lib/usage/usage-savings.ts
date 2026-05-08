@@ -1,7 +1,7 @@
 import {
   findModel,
   type RegistryModel,
-} from "@/lib/model-registry"
+} from "@/lib/model"
 import type { UsageTotals } from "@/lib/db/repository"
 
 /**

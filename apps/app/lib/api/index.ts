@@ -1,4 +1,4 @@
-import { pickRoute } from "../chat-route"
+import { pickRoute } from "../byok"
 import {
   ANTHROPIC_PRICING_BY_MODEL,
   streamChatAnthropic,

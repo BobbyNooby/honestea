@@ -6,8 +6,8 @@ import {
   formatContext,
   formatPricePerMillion,
   pricePartsFromPricing,
-} from "@/lib/format-model"
-import { type RegistryModel } from "@/lib/model-registry"
+  type RegistryModel,
+} from "@/lib/model"
 
 /**
  * Section shown between the curated tiers and the "More models" CTA when

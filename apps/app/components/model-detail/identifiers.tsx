@@ -1,6 +1,6 @@
 import { Text, View } from "react-native"
 
-import { type RegistryModel } from "@/lib/model-registry"
+import { type RegistryModel } from "@/lib/model"
 
 /**
  * Identifiers block on the model detail screen. Always renders the OR

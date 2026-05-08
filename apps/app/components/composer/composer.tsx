@@ -19,7 +19,7 @@ import {
 } from "@/components/composer/compose-menu"
 import { RecordingPill } from "@/components/composer/recording-pill"
 import { Input } from "@/components/ui/input"
-import { useSpeechRecognition } from "@/lib/speech-recognition"
+import { useSpeechRecognition } from "@/lib/voice"
 
 interface Props {
   value: string

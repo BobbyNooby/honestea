@@ -10,7 +10,7 @@ import * as Haptics from "expo-haptics"
 import { Pressable, Share, useColorScheme, View } from "react-native"
 import Toast from "react-native-toast-message"
 
-import { useSpeech } from "@/lib/use-speech"
+import { useSpeech } from "@/lib/voice"
 
 interface Props {
   messageId: string
