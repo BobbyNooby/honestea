@@ -113,6 +113,9 @@ export async function addMessage(input: {
   status?: MessageStatus
   kind?: MessageKind
   provider?: ChatProvider | null
+  promptTokens?: number | null
+  completionTokens?: number | null
+  costUsd?: number | null
   attachments?: Attachment[] | null
 }): Promise<Message> {
   const row = {
@@ -121,9 +124,9 @@ export async function addMessage(input: {
     role: input.role,
     content: input.content,
     modelId: input.modelId ?? null,
-    promptTokens: null,
-    completionTokens: null,
-    costUsd: null,
+    promptTokens: input.promptTokens ?? null,
+    completionTokens: input.completionTokens ?? null,
+    costUsd: input.costUsd ?? null,
     costCents: null,
     status: input.status ?? "complete",
     supersededAt: null,
