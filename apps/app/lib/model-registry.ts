@@ -6,6 +6,8 @@ import {
   type ModelPricing,
 } from "@honestea/shared"
 
+import { client } from "./client"
+
 const STORAGE_KEY = "honestea:model-registry"
 const TTL_MS = 24 * 60 * 60 * 1000
 
@@ -66,10 +68,8 @@ interface RegistryCache {
 let memoryCache: RegistryCache | null = null
 
 async function fetchFromOpenRouter(): Promise<RegistryModel[]> {
-  const res = await fetch("https://openrouter.ai/api/v1/models")
-  if (!res.ok) throw new Error(`HTTP ${res.status}`)
-  const json = (await res.json()) as { data: RegistryModel[] }
-  return json.data
+  const json = await client.openrouter.models()
+  return (json as { data: RegistryModel[] }).data
 }
 
 async function loadFromAsyncStorage(): Promise<RegistryCache | null> {

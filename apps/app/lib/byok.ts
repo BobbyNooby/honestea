@@ -2,6 +2,12 @@ import { useFocusEffect } from "expo-router"
 import * as SecureStore from "expo-secure-store"
 import { useCallback, useState } from "react"
 
+import type { ByokKeyInfo } from "@honestea/shared/client"
+
+export type { ByokKeyInfo }
+
+import { client } from "./client"
+
 /**
  * BYOK provider configuration. Keys are stored encrypted via expo-secure-store
  * (iOS Keychain / Android Keystore). They never go to AsyncStorage.
@@ -91,14 +97,6 @@ export async function getOpenRouterKey(): Promise<string | null> {
 // 401/403 for invalid keys without spending tokens.
 // ----------------------------------------------------------------------------
 
-export interface ByokKeyInfo {
-  label?: string | null
-  /** Dollars consumed on this key (OpenRouter only). */
-  usage?: number | null
-  /** Dollar credit limit on the key, null = unlimited. (OpenRouter only.) */
-  limit?: number | null
-}
-
 export interface ValidationResult {
   valid: boolean
   error?: string
@@ -106,95 +104,27 @@ export interface ValidationResult {
 }
 
 async function validateOpenRouter(key: string): Promise<ValidationResult> {
-  try {
-    const res = await fetch("https://openrouter.ai/api/v1/auth/key", {
-      headers: { Authorization: `Bearer ${key}` },
-    })
-    if (res.status === 401 || res.status === 403) {
-      return { valid: false, error: "Invalid OpenRouter key" }
-    }
-    if (!res.ok) {
-      return { valid: false, error: `HTTP ${res.status}: ${res.statusText}` }
-    }
-    const json = (await res.json()) as {
-      data?: { label?: string; usage?: number; limit?: number | null }
-    }
-    return {
-      valid: true,
-      info: {
-        label: json.data?.label ?? null,
-        usage: json.data?.usage ?? null,
-        limit: json.data?.limit ?? null,
-      },
-    }
-  } catch (e) {
-    return {
-      valid: false,
-      error: e instanceof Error ? e.message : "Network error",
-    }
-  }
+  const result = await client.openrouter.validateKey(key)
+  if (!result.valid) return { valid: false, error: result.error ?? "Invalid OpenRouter key" }
+  return { valid: true, info: result.info ?? undefined }
 }
 
 async function validateAnthropic(key: string): Promise<ValidationResult> {
-  try {
-    const res = await fetch("https://api.anthropic.com/v1/models", {
-      headers: {
-        "x-api-key": key,
-        "anthropic-version": "2023-06-01",
-      },
-    })
-    if (res.status === 401 || res.status === 403) {
-      return { valid: false, error: "Invalid Anthropic key" }
-    }
-    if (!res.ok) return { valid: false, error: `HTTP ${res.status}` }
-    return { valid: true }
-  } catch (e) {
-    return {
-      valid: false,
-      error: e instanceof Error ? e.message : "Network error",
-    }
-  }
+  const result = await client.anthropic.validateKey(key)
+  if (!result.valid) return { valid: false, error: result.error ?? "Invalid Anthropic key" }
+  return { valid: true }
 }
 
 async function validateOpenAI(key: string): Promise<ValidationResult> {
-  try {
-    const res = await fetch("https://api.openai.com/v1/models", {
-      headers: { Authorization: `Bearer ${key}` },
-    })
-    if (res.status === 401 || res.status === 403) {
-      return { valid: false, error: "Invalid OpenAI key" }
-    }
-    if (!res.ok) return { valid: false, error: `HTTP ${res.status}` }
-    return { valid: true }
-  } catch (e) {
-    return {
-      valid: false,
-      error: e instanceof Error ? e.message : "Network error",
-    }
-  }
+  const result = await client.openai.validateKey(key)
+  if (!result.valid) return { valid: false, error: result.error ?? "Invalid OpenAI key" }
+  return { valid: true }
 }
 
 async function validateGoogle(key: string): Promise<ValidationResult> {
-  try {
-    // Google AI accepts the key in either `?key=` or the
-    // `x-goog-api-key` header. Header form keeps the key out of TLS-
-    // terminating proxy logs and any URL-capturing telemetry — the
-    // query-string form leaks it into both. Always use the header.
-    const res = await fetch(
-      "https://generativelanguage.googleapis.com/v1beta/models",
-      { headers: { "x-goog-api-key": key } },
-    )
-    if (res.status === 400 || res.status === 401 || res.status === 403) {
-      return { valid: false, error: "Invalid Google AI key" }
-    }
-    if (!res.ok) return { valid: false, error: `HTTP ${res.status}` }
-    return { valid: true }
-  } catch (e) {
-    return {
-      valid: false,
-      error: e instanceof Error ? e.message : "Network error",
-    }
-  }
+  const result = await client.google.validateKey(key)
+  if (!result.valid) return { valid: false, error: result.error ?? "Invalid Google AI key" }
+  return { valid: true }
 }
 
 export async function validateKey(
