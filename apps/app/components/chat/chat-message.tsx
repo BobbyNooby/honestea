@@ -26,7 +26,7 @@ interface Props {
   /** True when this is the most recent visible assistant turn — gates the
    *  regenerate affordance and the bottom brand mark. */
   isLastAssistant: boolean
-  /** Render the "earlier messages compacted" divider above this message. */
+  /** Render the "compacted context" divider above this message. */
   showDividerAbove: boolean
   /** Streaming caption used while the assistant message has no content yet. */
   brewingPhrase: string
@@ -68,6 +68,7 @@ export function ChatMessage({
   onSwitchVersion,
 }: Props) {
   const isUser = message.role === "user"
+  const isSummary = message.kind === "summary"
   const usd =
     message.costUsd ??
     (typeof message.costCents === "number" ? message.costCents / 100 : null)
@@ -75,6 +76,18 @@ export function ChatMessage({
   const isErrored = message.status === "error"
   const isStreaming = message.status === "streaming"
   const hasVersions = versions.length > 1 && versionIdx !== -1
+
+  // Summary row: compact card showing the context that the model sees.
+  if (isSummary) {
+    return (
+      <View className="gap-2.5">
+        {showDividerAbove && <CompactedDivider />}
+        <CompactedContextCard onPressCopy={() => onCopyText(message.content)}>
+          {message.content}
+        </CompactedContextCard>
+      </View>
+    )
+  }
 
   if (isUser) {
     const hasAttachments =
@@ -288,10 +301,35 @@ function CompactedDivider() {
     <View className="my-3 flex-row items-center gap-2 px-2">
       <View className="h-px flex-1 bg-zinc-300 dark:bg-zinc-700" />
       <Text className="text-[10px] uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-        earlier messages compacted
+        working context
       </Text>
       <View className="h-px flex-1 bg-zinc-300 dark:bg-zinc-700" />
     </View>
+  )
+}
+
+/**
+ * Card that shows the compacted summary — the context that the model
+ * actually sees. Long-press to copy.
+ */
+function CompactedContextCard({
+  children,
+  onPressCopy,
+}: {
+  children: string
+  onPressCopy: () => void
+}) {
+  return (
+    <Pressable
+      onLongPress={onPressCopy}
+      delayLongPress={400}
+      className="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2.5 dark:border-zinc-700 dark:bg-zinc-800/60"
+    >
+      <Text className="text-[10px] font-medium uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
+        Compacted context
+      </Text>
+      <MarkdownText>{children}</MarkdownText>
+    </Pressable>
   )
 }
 

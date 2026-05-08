@@ -1,7 +1,7 @@
-import { Text, View } from "react-native"
+import { Text, View } from "react-native";
 
 interface Props {
-  size?: number
+  size?: number;
 }
 
 /**
@@ -31,5 +31,5 @@ export function Wordmark({ size = 18 }: Props) {
         </Text>
       </Text>
     </View>
-  )
+  );
 }
