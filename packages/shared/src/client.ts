@@ -21,8 +21,8 @@ export const GOOGLE_AI_BASE = "https://generativelanguage.googleapis.com/v1beta"
 
 // ---- Types ----
 
-/** Minimal fetch interface — works with both global fetch and expo/fetch. */
-export type FetchImpl = typeof globalThis.fetch
+/** Minimal fetch interface — accepts both global fetch and expo/fetch. */
+export type FetchImpl = (input: string | URL | Request, init?: RequestInit) => Promise<Response>
 
 /** Configuration passed to createClient. */
 export interface ClientConfig {
@@ -99,6 +99,9 @@ export interface OpenRouterKeyInfo {
   isFreeTier: boolean | null
   rateLimit: { requests: number; interval: string } | null
 }
+
+/** Alias — historically used as the generic "BYOK key metadata" type. */
+export type ByokKeyInfo = OpenRouterKeyInfo
 
 export interface OpenRouterUsageInfo {
   key: OpenRouterKeyInfo
