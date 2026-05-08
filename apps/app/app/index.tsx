@@ -28,6 +28,7 @@ import { ChatMessage } from "@/components/chat/chat-message"
 import { ChatStatusRow } from "@/components/chat/chat-status-row"
 import { EmptyChatState } from "@/components/chat/empty-chat-state"
 import { NoKeyState } from "@/components/chat/no-key-state"
+import { ScrollToBottom } from "@/components/chat/scroll-to-bottom"
 import { Composer } from "@/components/composer/composer"
 import { type ResponseStyle } from "@/components/composer/compose-menu"
 import { ModelSelector } from "@/components/model-selector"
@@ -81,6 +82,8 @@ function ChatScreenInner() {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState("")
   const [streaming, setStreaming] = useState(false)
+  const [compacting, setCompacting] = useState(false)
+  const [showScrollBtn, setShowScrollBtn] = useState(false)
   // Phrase rotates ~every 2.2s while the hook is active. Gate on
   // `streaming` so the entire chat screen doesn't re-render on a timer
   // when nothing's happening.
@@ -135,6 +138,24 @@ function ChatScreenInner() {
   } | null>(null)
   const listRef = useRef<FlatList<Message>>(null)
 
+  const scrollToBottom = useCallback(() => {
+    listRef.current?.scrollToEnd({ animated: true })
+  }, [])
+
+  // Show the scroll-to-bottom FAB when the user has scrolled more than ~3
+  // rows (150pt) away from the bottom. Hide when near the bottom.
+  const handleScroll = useCallback(
+    (e: { nativeEvent: { contentOffset: { y: number }; contentSize: { height: number }; layoutMeasurement: { height: number } } }) => {
+      const { y } = e.nativeEvent.contentOffset
+      const { height: contentH } = e.nativeEvent.contentSize
+      const { height: layoutH } = e.nativeEvent.layoutMeasurement
+      if (contentH === 0) return
+      const distFromBottom = contentH - y - layoutH
+      setShowScrollBtn(distFromBottom > 150)
+    },
+    [],
+  )
+
   const currentConversation = useMemo(
     () =>
       conversations.conversations.find(
@@ -143,29 +164,28 @@ function ChatScreenInner() {
     [conversations.conversations, conversations.currentId],
   )
 
-  // Visible rows = normal-kind, not superseded, not summarized. The hidden
-  // ones (superseded by regenerate, summarized by compaction, or kind="summary"
-  // synthetic rows) stay in `messages` so their cost rolls into the
-  // conversation total and the send-path can include the summary, but they
-  // don't render as chat bubbles.
+  // Visible rows: everything except superseded-by-regenerate. Summarized
+  // messages and summary rows both render — the visual history is the
+  // source of truth. Only superseded rows (older versions of a
+  // regenerated turn) are hidden.
   const visibleMessages = useMemo(
-    () =>
-      messages.filter(
-        (m) =>
-          m.supersededAt === null &&
-          m.summarizedAt === null &&
-          m.kind !== "summary",
-      ),
+    () => messages.filter((m) => m.supersededAt === null),
     [messages],
   )
 
-  // First visible message id that follows at least one summarized row —
-  // we render a "earlier messages compacted" divider directly above it.
-  // Null when nothing's been compacted yet.
+  // First chronological message id that has a compacted-summary row
+  // before it. We render a divider above it. Null when no compaction
+  // has occurred yet.
   const dividerBeforeId = useMemo(() => {
-    if (!messages.some((m) => m.summarizedAt !== null)) return null
-    return visibleMessages[0]?.id ?? null
-  }, [messages, visibleMessages])
+    const summaryIdx = messages.findIndex((m) => m.kind === "summary")
+    if (summaryIdx === -1) return null
+    // The divider goes above the first non-summary message after the
+    // summary row.
+    for (let i = summaryIdx + 1; i < messages.length; i++) {
+      if (messages[i].supersededAt === null) return messages[i].id
+    }
+    return null
+  }, [messages])
 
   // Index of the latest visible assistant message — only it gets the
   // regenerate affordance, since regenerating a middle turn would discard
@@ -255,28 +275,33 @@ function ChatScreenInner() {
     if (!conversations.currentId) return false
     const model = registry ? findModel(registry, modelId) : null
     if (!model?.context_length) return false
-    const fresh = await listMessages(conversations.currentId)
-    const result = await compact({
-      conversationId: conversations.currentId,
-      messages: fresh,
-      modelContextLength: model.context_length,
-    })
-    if (!result.ok) {
-      Toast.show({
-        type: "error",
-        text1: "Compaction failed",
-        text2: result.error,
+    setCompacting(true)
+    try {
+      const fresh = await listMessages(conversations.currentId)
+      const result = await compact({
+        conversationId: conversations.currentId,
+        messages: fresh,
+        modelContextLength: model.context_length,
+        summarizeModel: modelId,
       })
-      return false
+      if (!result.ok) {
+        Toast.show({
+          type: "error",
+          text1: "Compaction failed",
+          text2: result.error,
+        })
+        return false
+      }
+      Toast.show({
+        type: "success",
+        text1: `Compacted ${result.summarizedCount} message${result.summarizedCount === 1 ? "" : "s"}`,
+      })
+      const refreshed = await listMessages(conversations.currentId)
+      setMessages(refreshed)
+      return true
+    } finally {
+      setCompacting(false)
     }
-    Toast.show({
-      type: "success",
-      text1: `Compacted ${result.summarizedCount} earlier messages`,
-    })
-    // Refresh in-memory state so divider + filtered view update.
-    const refreshed = await listMessages(conversations.currentId)
-    setMessages(refreshed)
-    return true
   }, [conversations.currentId, modelId, registry])
 
   const handleModelChange = useCallback(
@@ -508,6 +533,7 @@ function ChatScreenInner() {
           void generateTitle({
             userMessage: firstTurnText,
             assistantResponse: buffer,
+            titleModel: modelId,
           }).then(async (title) => {
             if (!title) return
             await renameConversation(conversationId, title)
@@ -730,6 +756,7 @@ function ChatScreenInner() {
     const title = await generateTitle({
       userMessage: firstUser.content,
       assistantResponse: firstAssistant.content,
+      titleModel: modelId,
     })
     if (!title) {
       Toast.show({ type: "error", text1: "Title generation failed" })
@@ -847,6 +874,7 @@ function ChatScreenInner() {
             onCompactNow={() => {
               void runCompaction()
             }}
+            compacting={compacting}
             onDelete={handleDelete}
             onNewChat={() => {
               void handleNewChat()
@@ -862,17 +890,24 @@ function ChatScreenInner() {
           <NoKeyState />
         ) : (
           <>
-            <FlatList
-              ref={listRef}
-              data={visibleMessages}
-              keyExtractor={(m) => m.id}
-              renderItem={renderItem}
-              contentContainerClassName="grow gap-2.5 p-4"
-              onContentSizeChange={() =>
-                listRef.current?.scrollToEnd({ animated: true })
-              }
-              ListEmptyComponent={<EmptyChatState />}
-            />
+            <View className="relative flex-1">
+              <FlatList
+                ref={listRef}
+                data={visibleMessages}
+                keyExtractor={(m) => m.id}
+                renderItem={renderItem}
+                contentContainerClassName="grow gap-2.5 p-4"
+                onContentSizeChange={() => {
+                  if (!showScrollBtn) {
+                    listRef.current?.scrollToEnd({ animated: true })
+                  }
+                }}
+                onScroll={handleScroll}
+                scrollEventThrottle={200}
+                ListEmptyComponent={<EmptyChatState />}
+              />
+              <ScrollToBottom visible={showScrollBtn} onPress={scrollToBottom} />
+            </View>
 
             {error && (
               <View className="bg-red-500/10 px-4 py-2">
@@ -887,6 +922,7 @@ function ChatScreenInner() {
               modelId={modelId}
               registry={registry ?? null}
               draft={input}
+              compacting={compacting}
               onCompactNow={() => {
                 void runCompaction()
               }}
@@ -897,6 +933,7 @@ function ChatScreenInner() {
               onChange={setInput}
               onSend={send}
               streaming={streaming}
+              disabled={compacting}
               dark={dark}
               webSearch={webSearch}
               onToggleWebSearch={setWebSearch}
