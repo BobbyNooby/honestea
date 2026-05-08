@@ -9,7 +9,8 @@
     ".": "./src/index.ts",
     "./models": "./src/models.ts",
     "./cost": "./src/cost.ts",
-    "./types": "./src/types.ts"
+    "./types": "./src/types.ts",
+    "./client": "./src/client.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
