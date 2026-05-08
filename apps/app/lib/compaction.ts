@@ -6,38 +6,26 @@ import {
   addMessage,
   listMessages,
   markMessagesSummarizedInto,
+  recordUsageEvent,
+  updateMessage,
 } from "./db/repository"
 
 /**
- * Always summarize via the cheapest curated model regardless of the user's
- * current chat model. Same reasoning as title generation: summary quality
- * is insensitive to model strength, and Opus-tier compaction would silently
- * burn money.
+ * Default model for compaction when the caller doesn't specify one.
+ * The caller almost always passes the active chat model so compaction
+ * never breaks because a hardcoded slug was deprecated.
  */
-const SUMMARIZE_MODEL = "anthropic/claude-haiku-4.5"
+const DEFAULT_SUMMARIZE_MODEL = "anthropic/claude-haiku-4.5"
 
 /**
- * Output token cap for the summary. Tuned so the summary itself can't blow
- * a small-context model: 800 tokens ≈ 600 words ≈ a tight paragraph or two.
+ * Output token cap for the summary. 800 tokens ≈ 600 words ≈ a tight
+ * paragraph or two — enough to preserve facts and decisions without
+ * bloating the working context.
  */
 const SUMMARY_MAX_TOKENS = 800
 
-/**
- * Always preserve at least this many of the most recent messages from
- * compaction. Recent context is what the user is actually working with;
- * summarizing it would lose the rope they're holding.
- */
-const KEEP_RECENT_MESSAGES = 4
-
-/**
- * After compaction, leave this much headroom under the model's context
- * limit. Pick the prefix length that brings the projected payload under
- * `target_context * SHRINK_TARGET`.
- */
-const SHRINK_TARGET = 0.6
-
 const SUMMARIZE_PROMPT = [
-  "You are summarizing earlier turns of a chat so the next turn fits in context.",
+  "You are summarizing a conversation so the next turn fits in context.",
   "Output a single concise summary covering everything the model needs to continue helpfully:",
   "  - Facts the user shared (names, identifiers, file paths, code, numbers).",
   "  - Decisions and conclusions that have been reached.",
@@ -63,68 +51,41 @@ export interface CompactFailure {
 export type CompactResult = CompactSuccess | CompactFailure
 
 /**
- * Summarize the oldest contiguous compactable prefix of the conversation
- * into a single synthetic system-role row, then mark each prefix message
- * `summarizedAt` + `summarizedInto`. The chat view filters them out; the
- * send-path keeps the summary row in the prompt.
+ * Summarize all eligible messages in the conversation into a single
+ * synthetic system-role row, then mark each one `summarizedAt` +
+ * `summarizedInto`. The send-path replaces these messages with the
+ * summary; the visual history still renders them (they're not hidden).
  *
- * Atomic-ish: summary row is inserted FIRST, then the prefix is updated in
- * a single transaction. If the transaction fails we end up with an unused
- * summary row, which is cosmetically odd but functionally harmless — the
- * filter still walks the (un-summarized) prefix and the next compaction
- * attempt will produce a fresh summary.
+ * No minimums or "keep recent" reservations — if the user asked to
+ * compact, we compact. More API calls = more revenue, and the user
+ * explicitly chose this.
+ *
+ * Eligible = not superseded (regenerate), not already summarized.
+ * Summary rows from a prior compaction are included so re-compaction
+ * folds the old summary into the new one (summary + new messages →
+ * new summary).
  */
 export async function compact(opts: {
   conversationId: string
   /** Full conversation, current state. Caller is responsible for passing fresh data. */
   messages: readonly Message[]
-  /** Selected model's `context_length`. Drives the prefix-size search. */
+  /** Selected model's `context_length`. Used only for projectPromptTokens. */
   modelContextLength: number
+  /** Which model to use for the summarize call. Defaults to the user's current
+   *  chat model so compaction never breaks because a hardcoded slug rotted. */
+  summarizeModel?: string
   signal?: AbortSignal
 }): Promise<CompactResult> {
   const eligible = opts.messages.filter(
     (m) =>
       m.supersededAt === null &&
-      m.summarizedAt === null &&
-      m.kind === "normal",
+      m.summarizedAt === null,
   )
 
-  // Hold back the most recent KEEP_RECENT_MESSAGES — they're current
-  // context, not history-to-be-archived.
-  const candidates = eligible.slice(0, -KEEP_RECENT_MESSAGES)
-  if (candidates.length === 0) {
+  if (eligible.length === 0) {
     return {
       ok: false,
-      error:
-        "Nothing to compact yet — only recent turns and they always stay.",
-    }
-  }
-
-  // Decide how big a prefix to summarize: enough to bring the projected
-  // payload under SHRINK_TARGET × context. Estimate by chars/4 because
-  // we don't have authoritative tokens on user rows.
-  const tail = eligible.slice(-KEEP_RECENT_MESSAGES)
-  const tailTokens = sumTokens(tail)
-  const target = Math.floor(opts.modelContextLength * SHRINK_TARGET)
-
-  let prefix: Message[] = []
-  let prefixTokens = 0
-  for (const m of candidates) {
-    prefix.push(m)
-    prefixTokens += estimateTokens(m.content)
-    // Once removing this prefix would put us under target (allowing for
-    // the eventual summary row, ~SUMMARY_MAX_TOKENS), stop. We err toward
-    // a longer prefix — a short one rarely helps.
-    const projectedAfter = tailTokens + SUMMARY_MAX_TOKENS
-    if (projectedAfter <= target && prefix.length >= 2) break
-  }
-
-  // If there's only one prefix candidate or nothing at all to summarize,
-  // bail — overhead of a one-message "summary" isn't worth the round trip.
-  if (prefix.length < 2) {
-    return {
-      ok: false,
-      error: "Not enough older context to compact yet.",
+      error: "No messages to compact.",
     }
   }
 
@@ -133,13 +94,12 @@ export async function compact(opts: {
     return { ok: false, error: "No OpenRouter key configured." }
   }
 
+  const summarizeModel = opts.summarizeModel || DEFAULT_SUMMARIZE_MODEL
+
   // Per-message truncation guards against a single pasted log
   // ballooning the summarizer prompt (and OOM/4xx-ing the request).
-  // 4 KB per message × ~30 messages = ~120 KB worst case; well under
-  // even Haiku's input window. The summary is meant to be a sketch,
-  // not a verbatim record.
   const PER_MESSAGE_LIMIT = 4000
-  const transcript = prefix
+  const transcript = eligible
     .map((m) => {
       const body =
         m.content.length > PER_MESSAGE_LIMIT
@@ -152,6 +112,7 @@ export async function compact(opts: {
   const userPrompt = `${SUMMARIZE_PROMPT}\n\nConversation to summarize:\n\n${transcript}`
 
   let summaryText = ""
+  let usage: { promptTokens: number; completionTokens: number; costUsd: number } | null = null
   try {
     const res = await fetch(
       "https://openrouter.ai/api/v1/chat/completions",
@@ -163,9 +124,10 @@ export async function compact(opts: {
           "X-Title": "Honest AI",
         },
         body: JSON.stringify({
-          model: SUMMARIZE_MODEL,
+          model: summarizeModel,
           max_tokens: SUMMARY_MAX_TOKENS,
           messages: [{ role: "user", content: userPrompt }],
+          usage: { include: true },
         }),
         signal: opts.signal,
       },
@@ -179,8 +141,16 @@ export async function compact(opts: {
     }
     const json = (await res.json()) as {
       choices?: Array<{ message?: { content?: string } }>
+      usage?: { prompt_tokens?: number; completion_tokens?: number; cost?: number }
     }
     summaryText = (json.choices?.[0]?.message?.content ?? "").trim()
+    if (json.usage && typeof json.usage.cost === "number") {
+      usage = {
+        promptTokens: json.usage.prompt_tokens ?? 0,
+        completionTokens: json.usage.completion_tokens ?? 0,
+        costUsd: json.usage.cost,
+      }
+    }
   } catch (e) {
     return {
       ok: false,
@@ -197,20 +167,37 @@ export async function compact(opts: {
     conversationId: opts.conversationId,
     role: "system",
     content: summaryText,
-    modelId: SUMMARIZE_MODEL,
+    modelId: summarizeModel,
     status: "complete",
     kind: "summary",
+    promptTokens: usage?.promptTokens ?? null,
+    completionTokens: usage?.completionTokens ?? null,
+    costUsd: usage?.costUsd ?? null,
+    provider: "openrouter",
   })
 
+  // Record the compaction call in the immutable usage ledger — it cost
+  // real money and should show up in the usage screen like any other turn.
+  if (usage) {
+    await recordUsageEvent({
+      modelId: summarizeModel,
+      provider: "openrouter",
+      promptTokens: usage.promptTokens,
+      completionTokens: usage.completionTokens,
+      costUsd: usage.costUsd,
+      messageId: summaryRow.id,
+    })
+  }
+
   await markMessagesSummarizedInto(
-    prefix.map((m) => m.id),
+    eligible.map((m) => m.id),
     summaryRow.id,
   )
 
   return {
     ok: true,
     summaryId: summaryRow.id,
-    summarizedCount: prefix.length,
+    summarizedCount: eligible.length,
   }
 }
 
@@ -221,6 +208,8 @@ export async function compact(opts: {
 export async function compactByConversationId(opts: {
   conversationId: string
   modelContextLength: number
+  /** Model to use for the summarize call. Defaults to the user's current chat model. */
+  summarizeModel?: string
   signal?: AbortSignal
 }): Promise<CompactResult> {
   const messages = await listMessages(opts.conversationId)
@@ -228,6 +217,7 @@ export async function compactByConversationId(opts: {
     conversationId: opts.conversationId,
     messages,
     modelContextLength: opts.modelContextLength,
+    summarizeModel: opts.summarizeModel,
     signal: opts.signal,
   })
 }
@@ -240,9 +230,8 @@ function sumTokens(messages: readonly Message[]): number {
 
 /**
  * Compute the projected prompt-token count for the next send turn given
- * the current message list. Caller uses this to decide whether to compact
- * before sending. Excludes superseded + already-summarized rows; includes
- * summary rows themselves (they're still in the prompt).
+ * the current message list. Excludes superseded + already-summarized rows;
+ * includes summary rows themselves (they're still in the prompt).
  */
 export function projectPromptTokens(messages: readonly Message[]): number {
   const sendable = messages.filter(
