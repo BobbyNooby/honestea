@@ -2,27 +2,31 @@ import {
   IconCloud,
   IconDeviceMobile,
 } from "@tabler/icons-react-native"
-import { useState } from "react"
 import { Pressable, useColorScheme } from "react-native"
+import Toast from "react-native-toast-message"
 
 /**
  * Local/cloud storage indicator in the chat header. Visual-only for now —
- * taps toggle between the device-mobile and cloud icons. Wires to the
- * conversation's `userId` field once cloud sync ships.
+ * always reads as local (Phase 1 has no cloud sync). Tapping shows a toast
+ * explaining the current state.
  */
 export function StorageToggle() {
-  const [isCloud, setIsCloud] = useState(false)
   const dark = useColorScheme() === "dark"
-  const Icon = isCloud ? IconCloud : IconDeviceMobile
   const tint = dark ? "#f4f4f5" : "#18181b"
   return (
     <Pressable
-      onPress={() => setIsCloud((v) => !v)}
+      onPress={() => {
+        Toast.show({
+          type: "info",
+          text1: "Local only",
+          text2: "Cloud sync coming in Phase 2.",
+        })
+      }}
       hitSlop={8}
-      accessibilityLabel={isCloud ? "Cloud storage" : "Local storage"}
+      accessibilityLabel="Local storage"
       className="h-10 w-10 items-center justify-center rounded-md active:bg-zinc-100 dark:active:bg-zinc-800"
     >
-      <Icon size={22} color={tint} strokeWidth={1.75} />
+      <IconDeviceMobile size={22} color={tint} strokeWidth={1.75} />
     </Pressable>
   )
 }

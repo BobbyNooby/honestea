@@ -19,6 +19,7 @@ import {
   useColorScheme,
   View,
 } from "react-native"
+import Toast from "react-native-toast-message"
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -137,6 +138,13 @@ export default function PricingScreen() {
         {selected && (
           <Pressable
             className="mt-1 flex-row items-center justify-center gap-2 rounded-2xl bg-zinc-900 py-3.5 active:opacity-90 dark:bg-white"
+            onPress={() => {
+              Toast.show({
+                type: "success",
+                text1: "You're on the list!",
+                text2: "We'll let you know when hosted plans launch.",
+              })
+            }}
           >
             <IconCircleCheckFilled
               size={16}

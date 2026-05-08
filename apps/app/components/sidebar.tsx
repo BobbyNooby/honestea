@@ -203,7 +203,7 @@ export function Sidebar({ onClose }: SidebarProps) {
             className="mt-2 px-3 text-zinc-400 dark:text-zinc-600"
             style={{ fontSize: 10, fontWeight: "500" }}
           >
-            v0.0.0 · made with care
+            v0.1.0 · made with care
           </Text>
         </View>
       </View>

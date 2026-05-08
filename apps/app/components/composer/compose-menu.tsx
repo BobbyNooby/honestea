@@ -294,8 +294,7 @@ export function ComposeMenu({
                   />
                 ))}
                 <Text className="px-5 pb-3 pt-2 text-[11px] text-zinc-500 dark:text-zinc-400">
-                  Style picks are saved but the prompt prefix that enforces
-                  them is still in progress.
+                  Style direction is applied as a system prompt each turn.
                 </Text>
               </>
             )}

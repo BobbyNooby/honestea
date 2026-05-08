@@ -24,7 +24,7 @@ export function NoKeyState() {
           Add an API key to start chatting
         </Text>
         <Text className="text-center text-sm text-zinc-500 dark:text-zinc-400">
-          Honest AI uses your own provider keys. They live encrypted on your
+          HonesTea uses your own provider keys. They live encrypted on your
           device — we never see them.
         </Text>
       </View>

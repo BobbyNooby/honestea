@@ -12,6 +12,7 @@ import {
   useColorScheme,
   View,
 } from "react-native"
+import Toast from "react-native-toast-message"
 import { SafeAreaView } from "react-native-safe-area-context"
 
 /**
@@ -254,6 +255,13 @@ function BigPlanCard({
             ? "mt-1 flex-row items-center justify-center gap-1.5 rounded-2xl bg-matcha-600 py-3.5 active:opacity-90 dark:bg-matcha-500"
             : "mt-1 flex-row items-center justify-center gap-1.5 rounded-2xl border-[1.5px] border-matcha-600 bg-white py-3.5 active:opacity-70 dark:border-matcha-500 dark:bg-zinc-900"
         }
+        onPress={() => {
+          Toast.show({
+            type: "success",
+            text1: "You're on the list!",
+            text2: "We'll let you know when subscriptions launch.",
+          })
+        }}
       >
         <Text
           className={

@@ -3,7 +3,6 @@ import {
   IconArrowRight,
   IconBell,
   IconChartLine,
-  IconChevronRight,
   IconCreditCard,
   IconDeviceMobileVibration,
   IconHelpCircle,
@@ -100,6 +99,13 @@ export default function SettingsScreen() {
           hitSlop={6}
           accessibilityLabel="About"
           className="h-10 w-10 items-center justify-center rounded-md active:bg-zinc-100 dark:active:bg-zinc-800"
+          onPress={() => {
+            Toast.show({
+              type: "info",
+              text1: "HonesTea",
+              text2: "v0.1.0 · Phase 1 (BYOK)",
+            })
+          }}
         >
           <IconInfoCircle size={22} color={tint} strokeWidth={1.75} />
         </Pressable>
@@ -221,7 +227,6 @@ export default function SettingsScreen() {
               No account yet · sync coming in Phase 2
             </Text>
           </View>
-          <IconChevronRight size={16} color={tintMuted} strokeWidth={1.75} />
         </View>
       </View>
     )
