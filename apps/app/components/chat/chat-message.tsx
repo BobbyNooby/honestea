@@ -82,7 +82,12 @@ export function ChatMessage({
     return (
       <View className="gap-2.5">
         {showDividerAbove && <CompactedDivider />}
-        <CompactedContextCard onPressCopy={() => onCopyText(message.content)}>
+        <CompactedContextCard
+          costUsd={usd}
+          modelId={message.modelId}
+          provider={message.provider}
+          onPressCopy={() => onCopyText(message.content)}
+        >
           {message.content}
         </CompactedContextCard>
       </View>
@@ -314,20 +319,36 @@ function CompactedDivider() {
  */
 function CompactedContextCard({
   children,
+  costUsd,
+  modelId,
+  provider,
   onPressCopy,
 }: {
   children: string
+  costUsd: number | null
+  modelId: string | null
+  provider: ChatProvider | null
   onPressCopy: () => void
 }) {
+  const showCostLine = costUsd != null
   return (
     <Pressable
       onLongPress={onPressCopy}
       delayLongPress={400}
       className="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2.5 dark:border-zinc-700 dark:bg-zinc-800/60"
     >
-      <Text className="text-[10px] font-medium uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
-        Compacted context
-      </Text>
+      <View className="flex-row items-baseline justify-between gap-2">
+        <Text className="text-[10px] font-medium uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
+          Compacted context
+        </Text>
+        {showCostLine && (
+          <Text className="text-[10px] tabular-nums text-zinc-400 dark:text-zinc-500">
+            ~{formatUsd(costUsd!)}
+            {modelId ? ` · ${shortModelName(modelId)}` : ""}
+            {provider ? ` · via ${providerLabel(provider)}` : ""}
+          </Text>
+        )}
+      </View>
       <MarkdownText>{children}</MarkdownText>
     </Pressable>
   )
