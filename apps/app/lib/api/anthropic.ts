@@ -1,11 +1,10 @@
-import { fetch as expoFetch } from "expo/fetch"
-
 import type {
   ChatMessage,
   ChatResult,
   ChatUsage,
   ContentBlock,
 } from "./types"
+import { client } from "../client"
 
 /**
  * Translate an OpenAI-style content array into Anthropic's content-array
@@ -56,7 +55,6 @@ function translateContent(
   })
 }
 
-const ANTHROPIC_BASE = "https://api.anthropic.com/v1"
 const MAX_OUTPUT_TOKENS = 4096
 
 interface AnthropicPricing {
@@ -139,40 +137,15 @@ export async function streamChatAnthropic(opts: {
       typeof m.content === "string" ? m.content : translateContent(m.content),
   }))
 
-  const body: {
-    model: string
-    max_tokens: number
-    stream: true
-    system?: Array<{
-      type: "text"
-      text: string
-      cache_control?: { type: "ephemeral" }
-    }>
-    messages: typeof translatedConversation
-  } = {
+  const res = await client.anthropic.chat({
     model: opts.nativeModelId,
+    messages: translatedConversation,
+    system: systemText
+      ? [{ type: "text" as const, text: systemText, cache_control: { type: "ephemeral" as const } }]
+      : undefined,
     max_tokens: MAX_OUTPUT_TOKENS,
     stream: true,
-    messages: translatedConversation,
-  }
-  if (systemText) {
-    body.system = [
-      {
-        type: "text",
-        text: systemText,
-        cache_control: { type: "ephemeral" },
-      },
-    ]
-  }
-
-  const res = await expoFetch(`${ANTHROPIC_BASE}/messages`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": opts.apiKey,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify(body),
+    extra: { _apiKey: opts.apiKey },
     signal: opts.signal,
   })
 

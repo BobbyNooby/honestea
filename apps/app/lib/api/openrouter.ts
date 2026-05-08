@@ -1,7 +1,6 @@
-import { fetch as expoFetch } from "expo/fetch"
-
 import type { Citation } from "@honestea/shared"
 
+import { client } from "../client"
 import type {
   ChatMessage,
   ChatResult,
@@ -9,12 +8,10 @@ import type {
   ToolCallEvent,
 } from "./types"
 
-const OPENROUTER_BASE = "https://openrouter.ai/api/v1"
-
 /**
- * Streams a chat completion from OpenRouter. Uses `expo/fetch` instead of
- * RN's global fetch — Expo Go's native fetch doesn't expose `response.body`
- * as a ReadableStream so SSE parsing wouldn't work.
+ * Streams a chat completion from OpenRouter. Uses the shared client (which
+ * injects expo/fetch) to obtain the streaming Response, then parses SSE
+ * events directly from the ReadableStream.
  *
  * `usage: { include: true }` opts in to OR's usage reporting — the final
  * SSE event arrives with `choices: []` and a populated `usage` object that
@@ -52,24 +49,11 @@ export async function streamChatOpenRouter(opts: {
    *  streamed in, finished, or eclipsed by the answer phase. */
   onToolEvent?: (event: ToolCallEvent) => void
 }): Promise<ChatResult> {
-  const body: Record<string, unknown> = {
-    model: opts.model,
-    messages: opts.messages,
-    stream: true,
-    usage: { include: true },
-  }
   const tools: Array<Record<string, unknown>> = []
   if (opts.webSearch) {
-    // Server-tool form (current). The deprecated `:online` slug suffix and
-    // `plugins: [{ id: "web" }]` both still work but force one search per
-    // turn; the tool form lets the model search 0-N times based on the
-    // question. Default Exa engine — $0.02/turn (5 results × $4/1000).
     tools.push({ type: "openrouter:web_search" })
   }
   if (opts.webFetch) {
-    // openrouter engine is free. The model decides when to fetch a
-    // specific URL — typically follows up a web_search by opening the
-    // most relevant result.
     tools.push({
       type: "openrouter:web_fetch",
       parameters: { engine: "openrouter" },
@@ -81,29 +65,18 @@ export async function streamChatOpenRouter(opts: {
       parameters: { timezone: opts.timezone ?? "UTC" },
     })
   }
-  if (tools.length > 0) {
-    body.tools = tools
-  }
-  if (opts.hasFileAttachments) {
-    // OR's file-parser plugin extracts text from PDF blocks before the
-    // request reaches the model. cloudflare-ai engine is free (returns
-    // markdown). Models that natively accept PDFs would also work without
-    // this plugin via the `native` engine, but routing through cloudflare
-    // means even text-only models can read a PDF the user attached.
-    body.plugins = [
-      { id: "file-parser", pdf: { engine: "cloudflare-ai" } },
-    ]
-  }
+  const plugins = opts.hasFileAttachments
+    ? [{ id: "file-parser", pdf: { engine: "cloudflare-ai" } }]
+    : undefined
 
-  const res = await expoFetch(`${OPENROUTER_BASE}/chat/completions`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${opts.apiKey}`,
-      // Cosmetic: shows "Honest AI" in the user's OR dashboard.
-      "X-Title": "Honest AI",
-    },
-    body: JSON.stringify(body),
+  const res = await client.openrouter.chat({
+    model: opts.model,
+    messages: opts.messages,
+    stream: true,
+    usage: true,
+    tools: tools.length > 0 ? tools : undefined,
+    plugins,
+    extra: { _apiKey: opts.apiKey },
     signal: opts.signal,
   })
 
