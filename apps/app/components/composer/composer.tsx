@@ -26,6 +26,8 @@ interface Props {
   onChange: (next: string) => void
   onSend: () => void
   streaming: boolean
+  /** When true the composer is disabled — compaction in progress, etc. */
+  disabled?: boolean
   dark: boolean
   /** Web search toggle state — read by the chat screen once the request
    *  pipeline is wired up. */
@@ -62,6 +64,7 @@ export function Composer({
   onChange,
   onSend,
   streaming,
+  disabled = false,
   dark,
   webSearch,
   onToggleWebSearch,
@@ -77,6 +80,7 @@ export function Composer({
   const hasText = value.trim().length > 0
   const hasAttachments = attachments.length > 0
   const iconColor = dark ? "#e4e4e7" : "#3f3f46"
+  const locked = streaming || disabled
 
   const removeAttachment = (uri: string) => {
     onAttachmentsChange(attachments.filter((a) => a.uri !== uri))
@@ -158,7 +162,7 @@ export function Composer({
           placeholder="Reply to HonesTea…"
           placeholderTextColor={dark ? "#71717a" : "#a1a1aa"}
           multiline
-          editable={!streaming}
+          editable={!locked}
           onSubmitEditing={onSend}
           returnKeyType="send"
           className="min-h-[24px] max-h-32 border-0 bg-transparent px-2 pb-1 text-[15px] leading-snug text-zinc-900 dark:text-zinc-100"
@@ -192,7 +196,7 @@ export function Composer({
             )}
           </View>
           <View className="flex-row items-center gap-1">
-            {!streaming && !hasText && (
+            {!locked && !hasText && (
               <Pressable
                 onPress={toggleMic}
                 hitSlop={6}
@@ -214,12 +218,12 @@ export function Composer({
               </Pressable>
             )}
             <Pressable
-              onPress={streaming ? undefined : onSend}
-              disabled={streaming ? false : !hasText && !hasAttachments}
-              accessibilityLabel={streaming ? "Streaming" : "Send"}
+              onPress={locked ? undefined : onSend}
+              disabled={locked ? false : !hasText && !hasAttachments}
+              accessibilityLabel={locked ? "Streaming" : "Send"}
               className="h-9 w-9 items-center justify-center rounded-full bg-matcha-600 active:opacity-80 dark:bg-matcha-400"
             >
-              {streaming ? (
+              {locked ? (
                 <IconPlayerStopFilled size={14} color="#ffffff" />
               ) : (
                 <IconArrowUp size={18} color="#ffffff" strokeWidth={2.25} />

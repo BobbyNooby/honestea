@@ -28,6 +28,8 @@ interface Props {
   onRegenerateTitle: () => void
   onToggleStar: () => void
   onCompactNow: () => void
+  /** When true, compaction is in progress — disable the compact menu item. */
+  compacting?: boolean
   onDelete: () => void
   onNewChat: () => void
 }
@@ -46,6 +48,7 @@ export function ChatActionsMenu({
   onRegenerateTitle,
   onToggleStar,
   onCompactNow,
+  compacting = false,
   onDelete,
   onNewChat,
 }: Props) {
@@ -124,7 +127,7 @@ export function ChatActionsMenu({
               label="Compact now"
               icon={IconArrowsMinimize}
               onPress={handle(onCompactNow)}
-              disabled={!conversation}
+              disabled={!conversation || compacting}
             />
             <MenuRow
               label="Delete"

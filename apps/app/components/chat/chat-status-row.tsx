@@ -1,4 +1,4 @@
-import { Pressable, Text, useColorScheme, View } from "react-native"
+import { ActivityIndicator, Pressable, Text, useColorScheme, View } from "react-native"
 
 import { estimateTokens, formatUsd, type Message } from "@honestea/shared"
 
@@ -15,6 +15,9 @@ interface Props {
    *  the warning band and there's at least one summarizable message. Null
    *  hides the link. */
   onCompactNow?: () => void
+  /** When true, compaction is in progress — show a spinner/label instead
+   *  of the normal bar. */
+  compacting?: boolean
 }
 
 /**
@@ -35,6 +38,7 @@ export function ChatStatusRow({
   registry,
   draft = "",
   onCompactNow,
+  compacting = false,
 }: Props) {
   const dark = useColorScheme() === "dark"
   const model = registry ? findModel(registry, modelId) : null
@@ -57,54 +61,66 @@ export function ChatStatusRow({
   const numberColor = colorForPct(pct, dark, /* boostBelowWarn */ true)
 
   // "Compact now" surfaces when we're in the warning band AND there's
-  // anything older than the most-recent four turns that hasn't already
-  // been summarized. Below 60% the bar is calm and the link would be noise.
-  const summarizableOlderThanRecent = countSummarizable(messages, 4) > 0
-  const showCompactLink =
-    !!onCompactNow && pct >= 60 && summarizableOlderThanRecent
+  // at least one message that hasn't been summarized yet. No minimums —
+  // if the user wants to compact, we let them.
+  const hasUncompacted = messages.some(
+    (m) => m.supersededAt === null && m.summarizedAt === null,
+  )
+  const showCompactLink = !!onCompactNow && pct >= 60 && hasUncompacted
 
   return (
     <View className="border-t border-zinc-200 px-3 py-1.5 dark:border-zinc-800">
-      <View className="flex-row items-center gap-3">
-        <Text
-          style={{ color: numberColor }}
-          className="text-[10px] tabular-nums"
-        >
-          {limit > 0
-            ? `${formatTokenCount(used)} / ${formatTokenCount(limit)}`
-            : `${formatTokenCount(used)} tokens`}
-        </Text>
-        <View className="h-1 flex-1 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
-          {limit > 0 && (
-            <View
-              style={{ width: `${pct}%`, backgroundColor: barFill }}
-              className="h-full rounded-full"
-            />
-          )}
+      {compacting ? (
+        <View className="flex-row items-center gap-2">
+          <ActivityIndicator size="small" color={dark ? "#a8c98a" : "#5b8a3a"} />
+          <Text className="text-[10px] font-medium text-matcha-700 dark:text-matcha-300">
+            Compacting…
+          </Text>
         </View>
-        <Text className="text-[10px] tabular-nums text-zinc-500 dark:text-zinc-400">
-          {totalUsd > 0 ? `~${formatUsd(totalUsd)}` : "—"}
-        </Text>
-      </View>
-      {(pct >= 90 || isOver || showCompactLink) && (
-        <View className="mt-1 flex-row items-center justify-between gap-3">
-          {pct >= 90 ? (
-            <Text className="flex-1 text-[10px] text-red-600 dark:text-red-400">
-              {isOver
-                ? "Over context limit — older turns will be dropped."
-                : "Near context limit — compact or start a new chat soon."}
+      ) : (
+        <>
+          <View className="flex-row items-center gap-3">
+            <Text
+              style={{ color: numberColor }}
+              className="text-[10px] tabular-nums"
+            >
+              {limit > 0
+                ? `${formatTokenCount(used)} / ${formatTokenCount(limit)}`
+                : `${formatTokenCount(used)} tokens`}
             </Text>
-          ) : (
-            <View className="flex-1" />
+            <View className="h-1 flex-1 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
+              {limit > 0 && (
+                <View
+                  style={{ width: `${pct}%`, backgroundColor: barFill }}
+                  className="h-full rounded-full"
+                />
+              )}
+            </View>
+            <Text className="text-[10px] tabular-nums text-zinc-500 dark:text-zinc-400">
+              {totalUsd > 0 ? `~${formatUsd(totalUsd)}` : "—"}
+            </Text>
+          </View>
+          {(pct >= 90 || isOver || showCompactLink) && (
+            <View className="mt-1 flex-row items-center justify-between gap-3">
+              {pct >= 90 ? (
+                <Text className="flex-1 text-[10px] text-red-600 dark:text-red-400">
+                  {isOver
+                    ? "Over context limit — compact or start a new chat."
+                    : "Near context limit — compact or start a new chat."}
+                </Text>
+              ) : (
+                <View className="flex-1" />
+              )}
+              {showCompactLink && (
+                <Pressable onPress={onCompactNow} hitSlop={6}>
+                  <Text className="text-[10px] font-medium text-blue-600 dark:text-blue-400">
+                    Compact now
+                  </Text>
+                </Pressable>
+              )}
+            </View>
           )}
-          {showCompactLink && (
-            <Pressable onPress={onCompactNow} hitSlop={6}>
-              <Text className="text-[10px] font-medium text-blue-600 dark:text-blue-400">
-                Compact now
-              </Text>
-            </Pressable>
-          )}
-        </View>
+        </>
       )}
     </View>
   )
@@ -136,21 +152,6 @@ function sumCostUsd(messages: readonly Message[]): number {
     }
   }
   return usd
-}
-
-/**
- * Count visible (non-superseded, non-summarized) messages excluding the
- * most recent `keepRecent` of them. Used to decide whether "Compact now"
- * has anything to act on.
- */
-function countSummarizable(
-  messages: readonly Message[],
-  keepRecent: number,
-): number {
-  const eligible = messages.filter(
-    (m) => m.supersededAt === null && m.summarizedAt === null,
-  )
-  return Math.max(0, eligible.length - keepRecent)
 }
 
 function formatTokenCount(n: number): string {
