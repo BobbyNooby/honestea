@@ -1,12 +1,13 @@
 import { getOpenRouterKey } from "./byok"
 
 /**
- * Always use the cheapest curated model for title generation regardless of
- * which model the user picked for the chat. Title quality is insensitive
- * to model strength and Opus-tier title gen is a real waste in aggregate
- * — same call pattern Claude.com and ChatGPT use.
+ * Default model for title generation. Falls back to Haiku when the caller
+ * doesn't specify a model — same class of bug as the old compaction
+ * hardcoded slug: if Haiku is deprecated, title gen silently returns null.
+ * Callers that know the current chat model should pass it via
+ * `titleModel` so the call always works.
  */
-const TITLE_MODEL = "anthropic/claude-haiku-4.5"
+const DEFAULT_TITLE_MODEL = "anthropic/claude-haiku-4.5"
 
 const TITLE_PROMPT_PREFIX =
   "Generate a 3-6 word title for this conversation. " +
@@ -23,10 +24,14 @@ const TITLE_PROMPT_PREFIX =
 export async function generateTitle(opts: {
   userMessage: string
   assistantResponse: string
+  /** Model to use for the title call. Defaults to Haiku when not specified. */
+  titleModel?: string
   signal?: AbortSignal
 }): Promise<string | null> {
   const byokKey = await getOpenRouterKey()
   if (!byokKey) return null
+
+  const model = opts.titleModel || DEFAULT_TITLE_MODEL
 
   const prompt =
     `${TITLE_PROMPT_PREFIX}\n\n` +
@@ -42,7 +47,7 @@ export async function generateTitle(opts: {
         "X-Title": "Honest AI",
       },
       body: JSON.stringify({
-        model: TITLE_MODEL,
+        model,
         max_tokens: 24,
         messages: [{ role: "user", content: prompt }],
       }),

@@ -10,32 +10,26 @@ import {
   IconSettings,
   IconStarFilled,
   IconTrash,
-} from "@tabler/icons-react-native"
-import { router, useFocusEffect } from "expo-router"
-import { useCallback, useState } from "react"
-import {
-  FlatList,
-  Pressable,
-  Text,
-  useColorScheme,
-  View,
-} from "react-native"
-import { SafeAreaView } from "react-native-safe-area-context"
-import Toast from "react-native-toast-message"
+} from "@tabler/icons-react-native";
+import { router, useFocusEffect } from "expo-router";
+import { useCallback, useState } from "react";
+import { FlatList, Pressable, Text, useColorScheme, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import Toast from "react-native-toast-message";
 
-import type { Conversation } from "@honestea/shared"
+import type { Conversation } from "@honestea/shared";
 
-import { ActionSheet } from "@/components/ui/action-sheet"
-import { LogoMark } from "@/components/brand/logo-mark"
-import { Wordmark } from "@/components/brand/wordmark"
-import { RenameDialog } from "@/components/ui/rename-dialog"
-import { cn } from "@/lib/cn"
-import { useConfirm } from "@/lib/confirm-context"
-import { useConversations } from "@/lib/conversations-context"
-import { listMessages, renameConversation } from "@/lib/db/repository"
-import { useSelectedModel } from "@/lib/selected-model"
-import { generateTitle } from "@/lib/title-gen"
-import { TYPE_EYEBROW } from "@/lib/typography"
+import { ActionSheet } from "@/components/ui/action-sheet";
+import { LogoMark } from "@/components/brand/logo-mark";
+import { Wordmark } from "@/components/brand/wordmark";
+import { RenameDialog } from "@/components/ui/rename-dialog";
+import { cn } from "@/lib/cn";
+import { useConfirm } from "@/lib/confirm-context";
+import { useConversations } from "@/lib/conversations-context";
+import { listMessages, renameConversation } from "@/lib/db/repository";
+import { useSelectedModel } from "@/lib/selected-model";
+import { generateTitle } from "@/lib/title-gen";
+import { TYPE_EYEBROW } from "@/lib/typography";
 
 export interface SidebarProps {
   onClose: () => void
@@ -54,43 +48,43 @@ export interface SidebarProps {
  */
 export function Sidebar({ onClose }: SidebarProps) {
   const { conversations, currentId, refresh, startNew, select, remove } =
-    useConversations()
-  const { modelId } = useSelectedModel()
-  const confirm = useConfirm()
-  const dark = useColorScheme() === "dark"
-  const [renameTarget, setRenameTarget] = useState<Conversation | null>(null)
-  const [actionsTarget, setActionsTarget] = useState<Conversation | null>(null)
+    useConversations();
+  const { modelId } = useSelectedModel();
+  const confirm = useConfirm();
+  const dark = useColorScheme() === "dark";
+  const [renameTarget, setRenameTarget] = useState<Conversation | null>(null);
+  const [actionsTarget, setActionsTarget] = useState<Conversation | null>(null);
 
   // Refresh the list every time the drawer regains focus, so newly created
   // conversations and titles updated by the title generator show up promptly.
   useFocusEffect(
     useCallback(() => {
-      refresh()
+      refresh();
     }, [refresh]),
-  )
+  );
 
   const goTo = (path: string) => {
-    onClose()
-    router.push(path as never)
-  }
+    onClose();
+    router.push(path as never);
+  };
 
   const handleNewChat = async () => {
-    await startNew(modelId)
-    onClose()
+    await startNew(modelId);
+    onClose();
     // Bounce back to chat — without this, tapping "New chat" from
     // /settings or /models just changes the conversation context but
     // leaves the user on the wrong screen.
-    router.dismissTo("/")
-  }
+    router.dismissTo("/");
+  };
 
   const handleSelect = (id: string) => {
-    select(id)
-    onClose()
+    select(id);
+    onClose();
     // Same: ensure the chat screen is what's actually visible after a
     // pick from the sidebar, regardless of which screen the user
     // opened the sidebar from.
-    router.dismissTo("/")
-  }
+    router.dismissTo("/");
+  };
 
   const confirmDelete = async (convo: Conversation) => {
     const ok = await confirm({
@@ -98,40 +92,41 @@ export function Sidebar({ onClose }: SidebarProps) {
       message: convo.title ?? "New chat",
       confirmLabel: "Delete",
       destructive: true,
-    })
-    if (ok) await remove(convo.id)
-  }
+    });
+    if (ok) await remove(convo.id);
+  };
 
   const regenerateTitle = async (convo: Conversation) => {
-    const msgs = await listMessages(convo.id)
-    const firstUser = msgs.find((m) => m.role === "user")
+    const msgs = await listMessages(convo.id);
+    const firstUser = msgs.find((m) => m.role === "user");
     const firstAssistant = msgs.find(
       (m) => m.role === "assistant" && m.status === "complete",
-    )
+    );
     if (!firstUser || !firstAssistant) {
-      Toast.show({ type: "error", text1: "Send a message first" })
-      return
+      Toast.show({ type: "error", text1: "Send a message first" });
+      return;
     }
     const title = await generateTitle({
       userMessage: firstUser.content,
       assistantResponse: firstAssistant.content,
-    })
+      titleModel: modelId,
+    });
     if (!title) {
-      Toast.show({ type: "error", text1: "Title generation failed" })
-      return
+      Toast.show({ type: "error", text1: "Title generation failed" });
+      return;
     }
-    await renameConversation(convo.id, title)
-    await refresh()
-    Toast.show({ type: "success", text1: "Title regenerated" })
-  }
+    await renameConversation(convo.id, title);
+    await refresh();
+    Toast.show({ type: "success", text1: "Title regenerated" });
+  };
 
   const submitRename = async (id: string, next: string) => {
-    setRenameTarget(null)
-    const trimmed = next.trim()
-    if (!trimmed) return
-    await renameConversation(id, trimmed)
-    await refresh()
-  }
+    setRenameTarget(null);
+    const trimmed = next.trim();
+    if (!trimmed) return;
+    await renameConversation(id, trimmed);
+    await refresh();
+  };
 
   return (
     <SafeAreaView
@@ -142,14 +137,6 @@ export function Sidebar({ onClose }: SidebarProps) {
         <View className="mb-5 flex-row items-center gap-2.5 px-1">
           <LogoMark size={32} />
           <Wordmark size={20} />
-          <View className="ml-1 rounded-full bg-matcha-500/15 px-2 py-0.5 dark:bg-matcha-400/20">
-            <Text
-              className="text-matcha-700 dark:text-matcha-300"
-              style={{ ...TYPE_EYEBROW, fontSize: 9 }}
-            >
-              Local
-            </Text>
-          </View>
         </View>
 
         <Pressable
@@ -237,7 +224,7 @@ export function Sidebar({ onClose }: SidebarProps) {
                   label: "Regenerate title",
                   icon: IconRefresh,
                   onPress: () => {
-                    void regenerateTitle(actionsTarget)
+                    void regenerateTitle(actionsTarget);
                   },
                 },
                 {
@@ -245,7 +232,7 @@ export function Sidebar({ onClose }: SidebarProps) {
                   icon: IconTrash,
                   destructive: true,
                   onPress: () => {
-                    void confirmDelete(actionsTarget)
+                    void confirmDelete(actionsTarget);
                   },
                 },
               ]
@@ -263,7 +250,7 @@ export function Sidebar({ onClose }: SidebarProps) {
         onSubmit={submitRename}
       />
     </SafeAreaView>
-  )
+  );
 }
 
 /**
@@ -277,12 +264,12 @@ function FooterLink({
   label,
   onPress,
 }: {
-  Icon: typeof IconSettings
-  label: string
-  onPress: () => void
+  Icon: typeof IconSettings;
+  label: string;
+  onPress: () => void;
 }) {
-  const dark = useColorScheme() === "dark"
-  const tint = dark ? "#a1a1aa" : "#52525b"
+  const dark = useColorScheme() === "dark";
+  const tint = dark ? "#a1a1aa" : "#52525b";
   return (
     <Pressable
       onPress={onPress}
@@ -293,7 +280,7 @@ function FooterLink({
         {label}
       </Text>
     </Pressable>
-  )
+  );
 }
 
 function ConversationRow({
@@ -302,17 +289,17 @@ function ConversationRow({
   onPress,
   onLongPress,
 }: {
-  convo: Conversation
-  active: boolean
-  onPress: () => void
-  onLongPress: () => void
+  convo: Conversation;
+  active: boolean;
+  onPress: () => void;
+  onLongPress: () => void;
 }) {
-  const dark = useColorScheme() === "dark"
+  const dark = useColorScheme() === "dark";
   // Phase 1: every chat is local. Stays accurate when sync ships and rows
   // start having a non-null userId.
-  const isCloud = convo.userId !== null
-  const Icon = isCloud ? IconCloud : IconDeviceMobile
-  const tint = dark ? "#71717a" : "#a1a1aa"
+  const isCloud = convo.userId !== null;
+  const Icon = isCloud ? IconCloud : IconDeviceMobile;
+  const tint = dark ? "#71717a" : "#a1a1aa";
   return (
     <Pressable
       onPress={onPress}
@@ -343,5 +330,5 @@ function ConversationRow({
         <IconStarFilled size={13} color={dark ? "#facc15" : "#eab308"} />
       )}
     </Pressable>
-  )
+  );
 }
