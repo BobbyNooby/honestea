@@ -8,6 +8,8 @@
  * the full-fat read we use for the user-facing usage view.
  */
 
+import { client } from "./client"
+
 export interface OpenRouterUsage {
   /** Human label set on the key in OR's dashboard. */
   label: string
@@ -55,14 +57,7 @@ interface RawKeyResponse {
 export async function fetchOpenRouterUsage(
   apiKey: string,
 ): Promise<OpenRouterUsage> {
-  const res = await fetch("https://openrouter.ai/api/v1/key", {
-    headers: { Authorization: `Bearer ${apiKey}` },
-  })
-  if (!res.ok) {
-    const text = await res.text().catch(() => "")
-    throw new Error(`HTTP ${res.status}: ${text || res.statusText}`)
-  }
-  const json = (await res.json()) as RawKeyResponse
+  const json = (await client.openrouter.keyInfo(apiKey)) as RawKeyResponse
   const d = json.data
   return {
     label: d.label,
