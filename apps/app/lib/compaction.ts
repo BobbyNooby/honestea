@@ -1,6 +1,8 @@
 import type { Message } from "@honestea/shared"
 import { estimateTokens } from "@honestea/shared"
+import { ApiError } from "@honestea/shared/client"
 
+import { client } from "./client"
 import { getOpenRouterKey } from "./byok"
 import {
   addMessage,
@@ -114,32 +116,14 @@ export async function compact(opts: {
   let summaryText = ""
   let usage: { promptTokens: number; completionTokens: number; costUsd: number } | null = null
   try {
-    const res = await fetch(
-      "https://openrouter.ai/api/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${byokKey}`,
-          "X-Title": "Honest AI",
-        },
-        body: JSON.stringify({
-          model: summarizeModel,
-          max_tokens: SUMMARY_MAX_TOKENS,
-          messages: [{ role: "user", content: userPrompt }],
-          usage: { include: true },
-        }),
-        signal: opts.signal,
-      },
-    )
-    if (!res.ok) {
-      const text = await res.text().catch(() => "")
-      return {
-        ok: false,
-        error: `Summarize HTTP ${res.status}: ${text || res.statusText}`,
-      }
-    }
-    const json = (await res.json()) as {
+    const json = (await client.openrouter.chat({
+      model: summarizeModel,
+      messages: [{ role: "user", content: userPrompt }],
+      max_tokens: SUMMARY_MAX_TOKENS,
+      usage: true,
+      extra: { _apiKey: byokKey },
+      signal: opts.signal,
+    })) as {
       choices?: Array<{ message?: { content?: string } }>
       usage?: { prompt_tokens?: number; completion_tokens?: number; cost?: number }
     }
@@ -152,6 +136,9 @@ export async function compact(opts: {
       }
     }
   } catch (e) {
+    if (e instanceof ApiError) {
+      return { ok: false, error: `Summarize HTTP ${e.status}: ${e.body}` }
+    }
     return {
       ok: false,
       error: e instanceof Error ? e.message : "Summarize call failed",

@@ -1,3 +1,4 @@
+import { client } from "./client"
 import { getOpenRouterKey } from "./byok"
 
 /**
@@ -39,24 +40,13 @@ export async function generateTitle(opts: {
     `Assistant: ${truncate(opts.assistantResponse, 800)}`
 
   try {
-    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${byokKey}`,
-        "X-Title": "Honest AI",
-      },
-      body: JSON.stringify({
-        model,
-        max_tokens: 24,
-        messages: [{ role: "user", content: prompt }],
-      }),
+    const json = (await client.openrouter.chat({
+      model,
+      messages: [{ role: "user", content: prompt }],
+      max_tokens: 24,
+      extra: { _apiKey: byokKey },
       signal: opts.signal,
-    })
-    if (!res.ok) return null
-    const json = (await res.json()) as {
-      choices?: Array<{ message?: { content?: string } }>
-    }
+    })) as { choices?: Array<{ message?: { content?: string } }> }
     const raw = json.choices?.[0]?.message?.content ?? ""
     return sanitize(raw)
   } catch {
