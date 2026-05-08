@@ -1,0 +1,348 @@
+/* ============================================================
+ * HonesTea AI — Design Tokens
+ * ============================================================
+ * Two-tone system:
+ *   1. Cool zinc neutrals + functional blue — the in-product chrome
+ *      (mirrors what is already shipping in apps/app).
+ *   2. Warm "tea" accents (matcha, oolong, chamomile) — the brand layer
+ *      used for logo, marketing, savings/transparency callouts.
+ *
+ * Use semantic vars (--fg, --bg-surface, --primary, etc.) — do not
+ * hard-code base palette vars in components. Light/dark switch via
+ * .theme-dark on <html> or [data-theme="dark"] on a parent.
+ * ============================================================ */
+
+@import url("https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap");
+
+:root {
+  /* ---------- BASE PALETTE — neutrals (zinc) ---------- */
+  --zinc-50:  #fafafa;
+  --zinc-100: #f4f4f5;
+  --zinc-200: #e4e4e7;
+  --zinc-300: #d4d4d8;
+  --zinc-400: #a1a1aa;
+  --zinc-500: #71717a;
+  --zinc-600: #52525b;
+  --zinc-700: #3f3f46;
+  --zinc-800: #27272a;
+  --zinc-900: #18181b;
+  --zinc-950: #09090b;
+
+  /* ---------- BASE PALETTE — functional ---------- */
+  --blue-400: #60a5fa;
+  --blue-500: #3b82f6;
+  --blue-600: #2563eb;
+  --emerald-400: #34d399;
+  --emerald-500: #10b981;
+  --amber-400: #fbbf24;
+  --amber-500: #f59e0b;
+  --red-400:   #f87171;
+  --red-500:   #ef4444;
+
+  /* ---------- BASE PALETTE — brand "tea" ---------- */
+  /* Matcha — primary brand green. Steeped, dusty, never neon. */
+  --matcha-50:  #f3f7ec;
+  --matcha-100: #e3edcf;
+  --matcha-200: #cadda7;
+  --matcha-300: #aac882;
+  --matcha-400: #8eb56b;
+  --matcha-500: #6e9b4e;
+  --matcha-600: #5b8a3a;   /* DEFAULT brand (light mode) */
+  --matcha-700: #466b2c;
+  --matcha-800: #344f22;
+  --matcha-900: #24371a;
+
+  /* Oolong — warm amber/copper. Brewed-tea color. */
+  --oolong-100: #f4e7d2;
+  --oolong-200: #e8cda3;
+  --oolong-300: #d9a26a;
+  --oolong-400: #c2884a;
+  --oolong-500: #a76b30;
+  --oolong-600: #8a541f;
+
+  /* Chamomile — pale honey cream. Hero backgrounds. */
+  --chamomile-50:  #fdfbf2;
+  --chamomile-100: #fbf6e9;
+  --chamomile-200: #f6ecd1;
+  --chamomile-900: #1a1812;
+  --chamomile-950: #0f0e09;
+
+  /* ---------- TYPOGRAPHY ---------- */
+  --font-sans: "Geist", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+               Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: "Geist Mono", SFMono-Regular, Menlo, Monaco, Consolas,
+               "Liberation Mono", "Courier New", monospace;
+  --font-display: var(--font-sans);
+
+  /* Type scale (px) */
+  --type-display:    40px;
+  --type-h1:         28px;
+  --type-h2:         22px;
+  --type-h3:         17px;
+  --type-body:       16px;
+  --type-body-sm:    14px;
+  --type-caption:    12px;
+  --type-micro:      10px;
+
+  /* Line heights — tight on display, generous on body */
+  --leading-display: 1.1;
+  --leading-heading: 1.25;
+  --leading-body:    1.5;
+  --leading-tight:   1.375;
+
+  /* Weights */
+  --weight-regular: 400;
+  --weight-medium:  500;
+  --weight-semi:    600;
+  --weight-bold:    700;
+
+  /* Tracking */
+  --tracking-eyebrow: 0.06em;
+  --tracking-tight:   -0.01em;
+  --tracking-normal:  0;
+
+  /* ---------- SPACING (4px scale) ---------- */
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  20px;
+  --space-6:  24px;
+  --space-8:  32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-20: 80px;
+
+  /* ---------- RADII ---------- */
+  --radius-sm:     4px;
+  --radius-md:     6px;
+  --radius-lg:     8px;
+  --radius-xl:     16px;
+  --radius-bubble: 22px;
+  --radius-full:   9999px;
+
+  /* ---------- SHADOWS (web only — app uses borders) ---------- */
+  --shadow-none: none;
+  --shadow-sm:   0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-md:   0 8px 24px rgba(0, 0, 0, 0.08);
+  --shadow-lg:   0 16px 48px rgba(0, 0, 0, 0.12);
+
+  /* ---------- MOTION ---------- */
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-out:      cubic-bezier(0, 0, 0.2, 1);
+  --duration-fast:   120ms;
+  --duration-normal: 200ms;
+  --duration-slow:   320ms;
+
+  /* ============================================================
+   * SEMANTIC TOKENS — LIGHT (default)
+   * ============================================================ */
+
+  /* Surfaces */
+  --bg:               #ffffff;
+  --bg-surface:       #ffffff;
+  --bg-surface-alt:   var(--zinc-50);
+  --bg-overlay:       rgba(0, 0, 0, 0.4);
+  --bg-marketing:     var(--chamomile-50);
+
+  /* Foreground */
+  --fg:           var(--zinc-900);
+  --fg-muted:     var(--zinc-600);
+  --fg-subtle:    var(--zinc-500);
+  --fg-disabled:  var(--zinc-400);
+  --fg-on-brand:  #ffffff;
+
+  /* Borders */
+  --border:        var(--zinc-200);
+  --border-strong: var(--zinc-300);
+  --border-muted:  var(--zinc-100);
+
+  /* Functional */
+  --primary:        var(--blue-500);
+  --primary-hover:  var(--blue-600);
+  --primary-fg:     #ffffff;
+  --primary-tint:   rgba(59, 130, 246, 0.05);
+
+  /* Brand (tea) */
+  --brand:          var(--matcha-600);
+  --brand-hover:    var(--matcha-700);
+  --brand-fg:       #ffffff;
+  --brand-tint:     var(--matcha-50);
+  --brand-warm:     var(--oolong-400);
+  --brand-cream:    var(--chamomile-100);
+
+  /* Semantic states */
+  --success:        var(--emerald-500);
+  --success-bg:     #d1fae5;
+  --success-fg:     #047857;
+  --warn:           var(--amber-500);
+  --warn-bg:        #fef3c7;
+  --warn-fg:        #92400e;
+  --danger:         var(--red-500);
+  --danger-bg:      #fee2e2;
+  --danger-fg:      #991b1b;
+
+  /* Chat */
+  --chat-user-bg:    var(--blue-500);
+  --chat-user-fg:    #ffffff;
+  --chat-assist-fg:  var(--zinc-900);
+  --link:            var(--blue-600);
+  --code-bg:         var(--zinc-50);
+  --code-border:     var(--zinc-200);
+}
+
+/* ============================================================
+ * SEMANTIC TOKENS — DARK
+ * ============================================================ */
+.theme-dark,
+[data-theme="dark"] {
+  --bg:               var(--zinc-950);
+  --bg-surface:       var(--zinc-900);
+  --bg-surface-alt:   var(--zinc-800);
+  --bg-overlay:       rgba(0, 0, 0, 0.6);
+  --bg-marketing:     var(--chamomile-950);
+
+  --fg:           var(--zinc-100);
+  --fg-muted:     var(--zinc-400);
+  --fg-subtle:    var(--zinc-500);
+  --fg-disabled:  var(--zinc-600);
+  --fg-on-brand:  #ffffff;
+
+  --border:        var(--zinc-800);
+  --border-strong: var(--zinc-700);
+  --border-muted:  var(--zinc-900);
+
+  --primary:        var(--blue-500);
+  --primary-hover:  var(--blue-400);
+  --primary-fg:     #ffffff;
+  --primary-tint:   rgba(96, 165, 250, 0.12);
+
+  --brand:          var(--matcha-400);
+  --brand-hover:    var(--matcha-300);
+  --brand-fg:       var(--matcha-900);
+  --brand-tint:     rgba(142, 181, 107, 0.12);
+  --brand-warm:     var(--oolong-300);
+  --brand-cream:    var(--chamomile-900);
+
+  --success:        var(--emerald-400);
+  --success-bg:     rgba(52, 211, 153, 0.15);
+  --success-fg:     var(--emerald-400);
+  --warn:           var(--amber-400);
+  --warn-bg:        rgba(251, 191, 36, 0.15);
+  --warn-fg:        var(--amber-400);
+  --danger:         var(--red-400);
+  --danger-bg:      rgba(248, 113, 113, 0.15);
+  --danger-fg:      var(--red-400);
+
+  --chat-user-bg:    var(--blue-500);
+  --chat-user-fg:    #ffffff;
+  --chat-assist-fg:  var(--zinc-100);
+  --link:            var(--blue-400);
+  --code-bg:         var(--zinc-950);
+  --code-border:     var(--zinc-800);
+}
+
+/* ============================================================
+ * SEMANTIC TYPE STYLES
+ * ============================================================ */
+.ht-display {
+  font-family: var(--font-display);
+  font-size:   var(--type-display);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-display);
+  letter-spacing: var(--tracking-tight);
+  color: var(--fg);
+}
+.ht-h1 {
+  font-family: var(--font-sans);
+  font-size:   var(--type-h1);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-heading);
+  letter-spacing: var(--tracking-tight);
+  color: var(--fg);
+}
+.ht-h2 {
+  font-family: var(--font-sans);
+  font-size:   var(--type-h2);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-heading);
+  color: var(--fg);
+}
+.ht-h3 {
+  font-family: var(--font-sans);
+  font-size:   var(--type-h3);
+  font-weight: var(--weight-semi);
+  line-height: var(--leading-tight);
+  color: var(--fg);
+}
+.ht-body {
+  font-family: var(--font-sans);
+  font-size:   var(--type-body);
+  font-weight: var(--weight-regular);
+  line-height: var(--leading-body);
+  color: var(--fg);
+}
+.ht-body-sm {
+  font-family: var(--font-sans);
+  font-size:   var(--type-body-sm);
+  font-weight: var(--weight-regular);
+  line-height: var(--leading-body);
+  color: var(--fg);
+}
+.ht-caption {
+  font-family: var(--font-sans);
+  font-size:   var(--type-caption);
+  font-weight: var(--weight-regular);
+  line-height: var(--leading-tight);
+  color: var(--fg-muted);
+}
+.ht-eyebrow {
+  font-family: var(--font-sans);
+  font-size:   var(--type-caption);
+  font-weight: var(--weight-semi);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--fg-subtle);
+}
+.ht-mono {
+  font-family: var(--font-mono);
+  font-size:   var(--type-body-sm);
+  font-weight: var(--weight-regular);
+  color: var(--fg);
+}
+.ht-cost {
+  font-family: var(--font-mono);
+  font-size:   var(--type-caption);
+  font-weight: var(--weight-medium);
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-muted);
+}
+.ht-link {
+  color: var(--link);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* ============================================================
+ * BASE ELEMENT STYLES — opt-in via .ht-prose wrapper
+ * ============================================================ */
+.ht-prose {
+  font-family: var(--font-sans);
+  color: var(--fg);
+  line-height: var(--leading-body);
+}
+.ht-prose h1 { font: var(--weight-bold) var(--type-h1)/var(--leading-heading) var(--font-sans); margin: 0 0 var(--space-4); }
+.ht-prose h2 { font: var(--weight-bold) var(--type-h2)/var(--leading-heading) var(--font-sans); margin: var(--space-6) 0 var(--space-3); }
+.ht-prose h3 { font: var(--weight-semi) var(--type-h3)/var(--leading-tight) var(--font-sans); margin: var(--space-4) 0 var(--space-2); }
+.ht-prose p  { margin: 0 0 var(--space-3); }
+.ht-prose code {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  background: var(--code-bg);
+  border: 1px solid var(--code-border);
+  border-radius: var(--radius-sm);
+  padding: 1px 4px;
+}
+.ht-prose a { color: var(--link); text-decoration: underline; text-underline-offset: 2px; }
