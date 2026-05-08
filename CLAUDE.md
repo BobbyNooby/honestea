@@ -75,6 +75,10 @@ Future tier behavior (Stage 2+, when `apps/server` becomes load-bearing):
 - OpenRouter has no realtime voice / no TTS / no Whisper endpoint. Some multimodals (Gemini Pro/Flash, Xiaomi MiMo) accept audio input, but the standard flow doesn't need them.
 - See [`honest-ai-architecture.md`](honest-ai-architecture.md) §"Voice & Audio" for the full pattern.
 
+### Snap-to-ask camera (Phase 3+)
+- Single-frame photo capture → send to any vision-capable model. Not continuous video streaming (OpenRouter doesn't support it, and it's expensive).
+- Works like: user taps camera button → device camera opens → snap → photo sent as base64 image in the chat message → model responds. Simple, cheap, works with every vision model on OR.
+
 ### OpenRouter tools & plugins
 - For OR-side capabilities (web search, web fetch, image generation, etc.) **use the server-tool form**: `tools: [{ type: "openrouter:web_search" }]`. The `:online` slug suffix and `plugins: [{ id: "web" }]` are deprecated — they still work but force one search per turn instead of letting the model decide 0–N.
 - Server tools require the model to support tool calling. Gate any tool toggle on `model.supported_parameters.includes("tools")` from the OR registry — without that gate OR errors on unsupported models.
@@ -82,17 +86,56 @@ Future tier behavior (Stage 2+, when `apps/server` becomes load-bearing):
 - When using server tools, force the OpenRouter route even if the curated model has an Anthropic `directRoute`. Anthropic-direct doesn't run OR's `openrouter:*` tools; losing prompt caching is preferable to silently dropping the tool. Handled in `apps/app/lib/chat-route.ts` via `pickRoute(modelId, { webSearch })`.
 - Citations from web search live in `messages.citations` (schema v6, JSON-encoded `Citation[]`). Empty/null = no search ran. Drives the "🌐 N sources" chip in the chat view.
 
+### MCP (Model Context Protocol) — Phase 5+
+- The app acts as an MCP **client** — it connects to MCP servers the user configures (their homelab, a VPS, cloud services). The AI model returns `tool_call` objects and the app forwards them to the user's MCP server endpoints.
+- Built-in template library: SSH executor, REST API, GitHub, Home Assistant, database read queries. Users paste a server URL → app discovers available tools → AI calls them during conversation.
+- This is a desktop-only feature on every other AI chat app. On mobile it's "control anything from your phone" — the marketing hook.
+- MCP tool calls work exactly like OR server tools from the app's perspective: model decides what to call, app executes and feeds the result back. Same `tools[]` array, same tool-call/response loop.
+- Requires an account (Cloud BYOK or above) since MCP server configs need server-side storage and scheduled tasks need server-side cron. Free Local users can't use MCP.
+
+### Scheduled automations — Phase 6+
+- Users create recurring prompts ("every morning at 7am, summarize HN top 10" or "daily standup recap"). Server runs them on schedule, pushes a notification when the result is ready.
+- Requires an account (Cloud BYOK / Subscription / PAYG). Free Local has no server component to run cron.
+- Revenue angle: scheduled tasks consume tokens consistently, making subscriptions and PAYG credit balances stickier.
+
 ### Pricing tiers
+- **Try Free** (account required, our keys, free models only) — one-tap Apple/Google sign-up, ~50 free models, rate-limited, $0 cost to us. Top of the funnel. No BYOK access (we supply the key). Model picker filters to free-only; non-free model selection triggers upgrade prompt.
 - **Free Local** (no account, BYOK only)
-- **Pay-as-you-go** — $0/mo + 25-30% markup credits via Stripe. Zero monthly fee — markup is the entire revenue stream. **First-time PAYG activation requires a $7.99 minimum deposit** as an anti-fraud floor; the $7.99 lands as marked-up balance the user spends down. Subsequent top-ups can be any amount.
-- **Subscription** — flat monthly with three sub-tiers (Pro $15 / Max 5× $60 / Max 10× $100). Unlimited hosted tokens within the tier's quota multiplier; premium models (Opus, GPT-5 Ultra, etc.) still draw from credit balance.
-- **Cloud BYOK** ($5/mo) — account + sync, you bring keys. Niche tier for heavy users who want to dodge the PAYG markup.
+- **Pay-as-you-go** — $0/mo + 30% flat markup credits via Stripe. Zero monthly fee — markup is the entire revenue stream. **First-time PAYG activation requires a $7.99 minimum deposit** as an anti-fraud floor; the $7.99 lands as marked-up balance the user spends down. Subsequent top-ups can be any amount.
+- **Subscription** — three tiers, same price every month, more credits for longer commitments: Beginner $10/mo, Pro $25/mo, Expert $50/mo. Credits are denominated in **retail value** (provider cost + 30% markup). Monthly credits: Beginner $15 (+50%), Pro $37 (+48%), Expert $75 (+50%). Commitment bonuses (same price, extra credits): 3mo +56-60%, 6mo +64-70%, 12mo +76-90% credits. **~15% loss at 100% usage on 1mo** — intentional gym-membership model. Average 50% usage yields 35-42% margin. Premium models draw from credits normally (they just cost more per message). **$5 first month on Beginner.** **Pro is tagged "Most Popular"** on pricing page. Power user risk minimized by: (1) credits are a hard cap, (2) top-ups at PAYG markup, (3) premium models drain credits faster, (4) smart routing defaults to cheap models, (5) 50% average credit usage = healthy margins.
+- **Cloud BYOK** ($5/mo) — account + sync, you bring keys. Niche tier for heavy users who want to dodge the PAYG markup. Same commitment discounts as subscriptions (3/6/12mo). **First month $1.**
 
 ### Why PAYG is $0/mo
-PAYG used to carry a $5/mo flat fee on top of the markup, but that's structurally redundant — Cloud BYOK exists to charge for sync when there's no markup revenue, so PAYG charging both the markup AND a sync fee was double-billing. The $7.99 first-deposit floor still pre-funds enough markup to cover several months of light-user infra. Markup bumps to 28-30% (from 25%) to absorb infra costs the flat fee used to cover.
+PAYG used to carry a $5/mo flat fee on top of the markup, but that's structurally redundant — Cloud BYOK exists to charge for sync when there's no markup revenue, so PAYG charging both the markup AND a sync fee was double-billing. The $7.99 first-deposit floor still pre-funds enough markup to cover several months of light-user infra. A flat 30% markup absorbs the infra costs the old flat fee used to cover.
 
 ### Wallet semantics
-Credit balance lives on the account, not on the active tier. **Switching tiers never touches the balance** — it's the user's money. PAYG → Subscription preserves leftover balance (sits as fallback for fair-use overage / premium models). Subscription → PAYG: balance is still spendable. Anyone can top up at any time, no minimum on top-ups (the $7.99 floor is only on first-time PAYG activation). Balance doesn't expire; refunds are explicit-only.
+Credit balance lives on the account, not on the active tier. **Switching tiers never touches the balance** — it's the user's money. Subscription credits include a 10-14% bonus over what they paid (Beginner +10%, Pro +12%, Expert +14%). This is the subscriber advantage — cheaper per token than PAYG.
+
+- **Subscription credits carry forward one month.** Unused credits roll into the next billing period, but only one month's worth. You can never have more than current month + last month's leftovers. Caps at 2× monthly grant. Prevents infinite hoarding while giving peace of mind that a quiet month doesn't waste your money.
+- **Top-up credits never expire.** Anyone can top up at any time at PAYG rates (30% markup). No minimum on top-ups (the $7.99 floor is only on first-time PAYG activation).
+- **Subscription → PAYG:** subscription cancels, monthly credit grants stop, any rolled-over subscription credits are lost (they were part of the subscription, not purchased separately). Top-up credits remain spendable.
+
+### Usage display — dollars, not limits
+- Credit balance shown as dollar amount in header: **"$11.00"**, ticking down per message. No progress bar, no percentage, no "X out of Y" — that creates anxiety.
+- Balance turns amber below 20% of monthly grant, red below 10%. The color change is the nudge, not a notification.
+- Per-message cost in small text: **"cost: $0.0042"** or **"free (your key)"**.
+- Usage page shows dollars, spending history, model breakdown, ChatGPT Plus comparison. Never show "credit limit" or "39% used." Just dollars remaining.
+- Credit refresh date in settings only: "Next credits: June 15."
+
+### Free model funnel
+- **Try Free** tier on pricing page: no account, no API key, our OpenRouter key filtered to free models only (~50 models). Rate-limited to OR free tier.
+- OpenRouter free models cost $0/M input & output. We pay nothing. Pure acquisition funnel.
+- Model picker shows free models with "Free" badge at top. Selecting a paid model triggers upgrade prompt.
+
+### Onboarding & conversion
+- **Default to local, no account needed.** First launch: pick a model, start chatting. No sign-up, no email, no credit card. Account creation only when user wants cloud features.
+- **Free models prominently displayed.** Model picker shows ~50 free models with "Free" badge at top. Users chat for $0. When they want Claude/GPT, that's the paywall — by then they're daily users.
+- **Subscriptions front and center.** Pricing page and landing page center subscriptions. Pro tagged "Most Popular". PAYG shown below in smaller text.
+- **$5 first month on Beginner.** Biggest text on the card. "Then $10/mo" in smaller type. $5 feels trivial; after a month, $10 feels normal.
+- **Credits feel like currency, not spending.** Show credit balance in header, per-message cost in small text. Never show running dollar total in chat (except savings report).
+- **Upgrade nudges at natural moments.** 3rd conversation → "Loving it? Get $11 in credits for $10/mo." 7 days daily use → "Sync your chats across devices." 2 weeks of local chats → "You've had 47 conversations. Back them up for $5/mo."
+- **Annual pre-selected** on billing duration with "+30% credits!" badge. Monthly available but not default.
+- **Downgrade friction, not walls.** Cancel flow shows what they lose (rolled-over credits, scheduled automations). Offer 3-month pause instead of cancel.
 
 ### BYOK gating rule
 BYOK is allowed only when our revenue isn't tied to token volume:
