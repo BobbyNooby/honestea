@@ -7,10 +7,13 @@
     "icon": "./assets/app-icon.png",
     "scheme": "honestea",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "app.honestai.honestea"
+      "bundleIdentifier": "app.honestai.honestea",
+      "infoPlist": {
+        "NSSpeechRecognitionUsageDescription": "HonesTea uses on-device speech recognition to convert your voice to text.",
+        "NSMicrophoneUsageDescription": "HonesTea needs microphone access to transcribe your voice into the chat."
+      }
     },
     "android": {
       "package": "app.honestai.honestea",
@@ -19,7 +22,10 @@
         "foregroundImage": "./assets/app-icon-foreground.png",
         "monochromeImage": "./assets/app-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "output": "static",
@@ -51,7 +57,9 @@
         {
           "microphonePermission": "HonesTea needs microphone access to transcribe your voice into the chat.",
           "speechRecognitionPermission": "HonesTea uses on-device speech recognition to convert your voice to text.",
-          "androidSpeechServicePackages": ["com.google.android.googlequicksearchbox"]
+          "androidSpeechServicePackages": [
+            "com.google.android.googlequicksearchbox"
+          ]
         }
       ],
       "expo-image",
@@ -60,6 +68,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "3ea15872-175b-4dae-adf8-7bdbada55501"
+      }
     }
   }
 }
