@@ -7,7 +7,6 @@ import {
   ActivityIndicator,
   FlatList,
   KeyboardAvoidingView,
-  Platform,
   Pressable,
   Text,
   useColorScheme,
@@ -840,11 +839,11 @@ function ChatScreenInner() {
   return (
     <SafeAreaView
       className="flex-1 bg-chamomile-100 dark:bg-chamomile-900"
-      edges={["top", "bottom"]}
+      edges={["top"]}
     >
       <KeyboardAvoidingView
         className="flex-1"
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        behavior="padding"
       >
         <View className="flex-row items-center px-2 pb-2 pt-2">
           <Pressable
