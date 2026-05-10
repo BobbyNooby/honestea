@@ -236,9 +236,6 @@ importers:
       '@sveltejs/vite-plugin-svelte':
         specifier: ^7.0.0
         version: 7.0.0(svelte@5.55.5(@typescript-eslint/types@8.59.1))(vite@8.0.10(@types/node@25.6.0)(esbuild@0.27.7)(jiti@2.7.0)(terser@5.46.2)(tsx@4.21.0)(yaml@2.8.3))
-      '@tabler/icons-svelte':
-        specifier: ^3.0.0
-        version: 3.43.0(svelte@5.55.5(@typescript-eslint/types@8.59.1))
       '@tailwindcss/vite':
         specifier: ^4.0.0
         version: 4.2.4(vite@8.0.10(@types/node@25.6.0)(esbuild@0.27.7)(jiti@2.7.0)(terser@5.46.2)(tsx@4.21.0)(yaml@2.8.3))
@@ -2114,16 +2111,8 @@ packages:
       react: '>= 16.5.1'
       react-native-svg: '>= 13.0.0'
 
-  '@tabler/icons-svelte@3.43.0':
-    resolution: {integrity: sha512-3FgPy0HA78yC+rS/WOmb/x6ug4ha3BWM79OdjW7gToPAUfenaU7+cxA5+/+OANxP+hxx7L9xHhgCZB9ofIqeXQ==}
-    peerDependencies:
-      svelte: '>=3 <6 || >=5.0.0-next.0'
-
   '@tabler/icons@3.41.1':
     resolution: {integrity: sha512-OaRnVbRmH2nHtFeg+RmMJ/7m2oBIF9XCJAUD5gQnMrpK9f05ydj8MZrAf3NZQqOXyxGN1UBL0D5IKLLEUfr74Q==}
-
-  '@tabler/icons@3.43.0':
-    resolution: {integrity: sha512-qXwS17Op9jqr3Asvu31fejyw8+OnRDKH7oR8nQXyUgW1pI44ET8OKG9kssy+XIvvAIyej6gZdGmviNUn1VMfPw==}
 
   '@tailwindcss/node@4.2.4':
     resolution: {integrity: sha512-Ai7+yQPxz3ddrDQzFfBKdHEVBg0w3Zl83jnjuwxnZOsnH9pGn93QHQtpU0p/8rYWxvbFZHneni6p1BSLK4DkGA==}
@@ -7835,14 +7824,7 @@ snapshots:
       react: 19.2.0
       react-native-svg: 15.15.4(react-native@0.83.6(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.0))(react@19.2.0)
 
-  '@tabler/icons-svelte@3.43.0(svelte@5.55.5(@typescript-eslint/types@8.59.1))':
-    dependencies:
-      '@tabler/icons': 3.43.0
-      svelte: 5.55.5(@typescript-eslint/types@8.59.1)
-
   '@tabler/icons@3.41.1': {}
-
-  '@tabler/icons@3.43.0': {}
 
   '@tailwindcss/node@4.2.4':
     dependencies:
