@@ -14,7 +14,8 @@
 		"clean": "rm -rf .svelte-kit build .turbo node_modules"
 	},
 	"dependencies": {
-		"@honestea/shared": "workspace:*"
+		"@honestea/shared": "workspace:*",
+		"better-auth": "^1.6.10"
 	},
 	"devDependencies": {
 		"@sveltejs/adapter-auto": "^7.0.1",
