@@ -41,6 +41,7 @@ import type {
 } from "@/lib/api/types"
 import {
   buildMessageContent,
+  classifyHistoryIntent,
   compact,
   generateTitle,
   projectPromptTokens,
@@ -415,6 +416,27 @@ function ChatScreenInner() {
         // same history applies cleanly under whichever directive.
         apiMessages.push({ role: "system", content: styleDirective })
       }
+
+      // ── Conversation history context injection ──
+      // Before the main turn, run a cheap LLM classifier to decide if
+      // the user needs past conversation history. Replaces brittle
+      // keyword regex with actual semantic understanding.
+      const lastUserMsg = visibleContext
+        .slice()
+        .reverse()
+        .find((m) => m.role === "user")
+      if (lastUserMsg) {
+        const historyCtx = await classifyHistoryIntent(lastUserMsg.content)
+        if (historyCtx) {
+          apiMessages.push({ role: "system", content: historyCtx })
+          Toast.show({
+            type: "info",
+            text1: "Loaded conversation history",
+            visibilityTime: 2000,
+          })
+        }
+      }
+
       for (const m of visibleContext) {
         const content = await buildMessageContent(m.content, m.attachments)
         apiMessages.push({ role: m.role, content })
