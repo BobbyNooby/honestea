@@ -3,6 +3,7 @@ import { cors } from "@elysiajs/cors"
 import { streamText } from "ai"
 import { dim, methodColors, red, reset, statusColor } from "./logger"
 import { getModel } from "./providers"
+import { auth } from "./auth"
 
 // ----------------------------------------------------------------------------
 // Model catalog cache. Hits OpenRouter's public /api/v1/models endpoint, caches
@@ -53,6 +54,25 @@ async function getModelsCached(): Promise<ModelEntry[]> {
   return inFlight
 }
 
+// ----------------------------------------------------------------------------
+// Better Auth middleware macro for Elysia
+// ----------------------------------------------------------------------------
+
+const betterAuthPlugin = new Elysia({ name: "better-auth" })
+  .mount(auth.handler)
+  .macro({
+    auth: {
+      async resolve({ request: { headers } }) {
+        const session = await auth.api.getSession({ headers })
+        if (!session) throw new Error("Unauthorized")
+        return {
+          user: session.user,
+          session: session.session,
+        }
+      },
+    },
+  })
+
 const app = new Elysia()
   .derive(({ request }) => ({
     startTime: performance.now(),
@@ -87,9 +107,14 @@ const app = new Elysia()
         "http://localhost:8081",
       ],
       credentials: true,
-      allowedHeaders: ["content-type", "x-byok-openrouter"],
+      allowedHeaders: [
+        "content-type",
+        "x-byok-openrouter",
+        "authorization",
+      ],
     }),
   )
+  .use(betterAuthPlugin)
   .get("/", () => ({ ok: true, service: "honestea-server" }))
   .get("/health", () => ({ status: "ok", uptime: process.uptime() }))
   .get("/beep", () => ({
