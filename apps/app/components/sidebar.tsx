@@ -4,16 +4,19 @@ import {
   IconDeviceMobile,
   IconKey,
   IconLayoutGrid,
+  IconLoader2,
   IconPencil,
   IconPlus,
   IconRefresh,
+  IconSearch,
   IconSettings,
   IconStarFilled,
   IconTrash,
+  IconX,
 } from "@tabler/icons-react-native";
 import { router, useFocusEffect } from "expo-router";
-import { useCallback, useState } from "react";
-import { FlatList, Pressable, Text, useColorScheme, View } from "react-native";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { FlatList, Pressable, Text, TextInput, useColorScheme, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 
@@ -26,7 +29,7 @@ import { RenameDialog } from "@/components/ui/rename-dialog";
 import { cn } from "@/lib/cn";
 import { useConfirm } from "@/lib/confirm-context";
 import { useConversations } from "@/lib/conversations-context";
-import { listMessages, renameConversation } from "@/lib/db/repository";
+import { listMessages, renameConversation, searchConversations } from "@/lib/db/repository";
 import { useSelectedModel } from "@/lib/model";
 import { generateTitle } from "@/lib/chat";
 import { TYPE_EYEBROW } from "@/lib/typography";
@@ -47,20 +50,47 @@ export interface SidebarProps {
  * the sidebar feels like a dock of tools, not a settings list.
  */
 export function Sidebar({ onClose }: SidebarProps) {
-  const { conversations, currentId, refresh, startNew, select, remove } =
+  const { conversations, currentId, refresh, sync, startNew, select, remove, isLoadingCloud } =
     useConversations();
   const { modelId } = useSelectedModel();
   const confirm = useConfirm();
   const dark = useColorScheme() === "dark";
   const [renameTarget, setRenameTarget] = useState<Conversation | null>(null);
   const [actionsTarget, setActionsTarget] = useState<Conversation | null>(null);
+  const [query, setQuery] = useState("");
+  const [resultIds, setResultIds] = useState<string[]>([]);
 
-  // Refresh the list every time the drawer regains focus, so newly created
-  // conversations and titles updated by the title generator show up promptly.
+  // Debounced FTS5 search — 150ms feels instant without thrashing.
+  useEffect(() => {
+    const q = query.trim();
+    if (!q) {
+      setResultIds([]);
+      return;
+    }
+    const t = setTimeout(() => {
+      void searchConversations(q).then(setResultIds).catch(() => setResultIds([]));
+    }, 150);
+    return () => clearTimeout(t);
+  }, [query]);
+
+  const displayConversations = useMemo(() => {
+    if (!query.trim()) return conversations;
+    const order = new Map(resultIds.map((id, i) => [id, i]));
+    const filtered = conversations.filter((c) => order.has(c.id));
+    filtered.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
+    return filtered;
+  }, [conversations, resultIds, query]);
+
+  const isSearching = query.trim().length > 0;
+
+  // Refresh local + trigger cloud sync when the drawer opens.
   useFocusEffect(
     useCallback(() => {
       refresh();
-    }, [refresh]),
+      // Fire-and-forget cloud sync. In Phase 1 this is a no-op stub;
+      // in Phase 2+ it fetches cloud rows and merges them in the background.
+      void sync();
+    }, [refresh, sync]),
   );
 
   const goTo = (path: string) => {
@@ -149,22 +179,67 @@ export function Sidebar({ onClose }: SidebarProps) {
           </Text>
         </Pressable>
 
-        <Text
-          className="mb-2 px-2 text-zinc-500 dark:text-zinc-400"
-          style={TYPE_EYEBROW}
-        >
-          Recent
-        </Text>
+        {/* ── Search ── */}
+        <View className="mb-3 flex-row items-center gap-2 rounded-xl border border-zinc-200 bg-white px-2.5 py-2 dark:border-zinc-800 dark:bg-zinc-900">
+          <IconSearch
+            size={16}
+            color={dark ? "#a1a1aa" : "#71717a"}
+            strokeWidth={2}
+          />
+          <TextInput
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Search conversations…"
+            placeholderTextColor={dark ? "#71717a" : "#a1a1aa"}
+            autoCapitalize="none"
+            autoCorrect={false}
+            spellCheck={false}
+            className="flex-1 text-[14px] text-zinc-900 dark:text-zinc-100"
+            style={{ paddingVertical: 0 }}
+          />
+          {query.length > 0 && (
+            <Pressable onPress={() => setQuery("")} hitSlop={8}>
+              <IconX
+                size={16}
+                color={dark ? "#a1a1aa" : "#71717a"}
+                strokeWidth={2}
+              />
+            </Pressable>
+          )}
+        </View>
 
-        {conversations.length === 0 ? (
+        <View className="mb-2 flex-row items-center justify-between px-2">
+          <Text
+            className="text-zinc-500 dark:text-zinc-400"
+            style={TYPE_EYEBROW}
+          >
+            {isSearching ? "Results" : "Recent"}
+          </Text>
+          {isLoadingCloud && (
+            <View className="flex-row items-center gap-1">
+              <IconLoader2
+                size={12}
+                color={dark ? "#a1a1aa" : "#71717a"}
+                strokeWidth={2}
+              />
+              <Text className="text-[10px] text-zinc-400 dark:text-zinc-500">
+                Syncing…
+              </Text>
+            </View>
+          )}
+        </View>
+
+        {displayConversations.length === 0 ? (
           <View className="flex-1 items-center justify-center px-2">
             <Text className="text-center text-sm text-zinc-500 dark:text-zinc-400">
-              No conversations yet. Tap New chat to start one.
+              {isSearching
+                ? `No conversations match "${query.trim()}".`
+                : "No conversations yet. Tap New chat to start one."}
             </Text>
           </View>
         ) : (
           <FlatList
-            data={conversations}
+            data={displayConversations}
             keyExtractor={(c) => c.id}
             renderItem={({ item }) => (
               <ConversationRow
@@ -182,7 +257,7 @@ export function Sidebar({ onClose }: SidebarProps) {
           <FooterLink
             Icon={IconLayoutGrid}
             label="Models"
-            onPress={() => goTo("/models")}
+            onPress={() => goTo("/model-browser")}
           />
           <FooterLink
             Icon={IconKey}
@@ -300,6 +375,7 @@ function ConversationRow({
   const isCloud = convo.userId !== null;
   const Icon = isCloud ? IconCloud : IconDeviceMobile;
   const tint = dark ? "#71717a" : "#a1a1aa";
+  const syncStatus = convo.syncStatus ?? "local";
   return (
     <Pressable
       onPress={onPress}
@@ -326,6 +402,28 @@ function ConversationRow({
       >
         {convo.title ?? "New chat"}
       </Text>
+      {/* Sync status badge (only visible when not local) */}
+      {syncStatus !== "local" && (
+        <View
+          className={cn(
+            "rounded-full px-1.5 py-0",
+            syncStatus === "syncing" && "bg-amber-100 dark:bg-amber-900",
+            syncStatus === "synced" && "bg-matcha-100 dark:bg-matcha-900",
+            syncStatus === "error" && "bg-red-100 dark:bg-red-900",
+          )}
+        >
+          <Text
+            className={cn(
+              "text-[9px] font-semibold uppercase tracking-wider",
+              syncStatus === "syncing" && "text-amber-700 dark:text-amber-300",
+              syncStatus === "synced" && "text-matcha-700 dark:text-matcha-300",
+              syncStatus === "error" && "text-red-700 dark:text-red-300",
+            )}
+          >
+            {syncStatus}
+          </Text>
+        </View>
+      )}
       {convo.starred && (
         <IconStarFilled size={13} color={dark ? "#facc15" : "#eab308"} />
       )}
