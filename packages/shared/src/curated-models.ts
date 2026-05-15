@@ -125,6 +125,36 @@ export const CURATED_MODELS: readonly CuratedModel[] = [
 
 export const DEFAULT_CURATED_MODEL_ID: string = "anthropic/claude-haiku-4.5"
 
+/**
+ * Trending / popular model slugs for the app-store-style Model Browser.
+ * Curated from market-popular providers + high-value cheap open-weights.
+ * These slugs are looked up in the live OR registry at runtime; any slug
+ * that doesn't resolve is silently skipped so the grid never shows duds.
+ *
+ * Grouped conceptually (not enforced in code) as:
+ *   Flagship · Workhorse · Basic · Open Weight
+ */
+export const TRENDING_MODELS: readonly string[] = [
+  // Flagship
+  "anthropic/claude-opus-4.7",
+  "openai/gpt-5.5",
+  "google/gemini-2.5-pro-preview",
+  // Workhorse
+  "moonshotai/kimi-k2.6",
+  "minimax/minimax-m2.7",
+  "deepseek/deepseek-v3.2",
+  "openai/gpt-4.1",
+  // Basic
+  "anthropic/claude-haiku-4.5",
+  "openai/gpt-5.4-nano",
+  "google/gemini-2.5-flash-preview",
+  // Open-weight / cheap Chinese
+  "deepseek/deepseek-r1",
+  "meta-llama/llama-4-maverick",
+  "alibaba/qwen3-235b-a22b",
+  "x-ai/grok-3",
+] as const
+
 export function findCuratedModel(id: string): CuratedModel | undefined {
   return CURATED_MODELS.find((m) => m.id === id)
 }

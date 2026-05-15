@@ -181,6 +181,12 @@ export interface UsageEvent {
   messageId: string | null
 }
 
+/**
+ * Cloud sync state for a conversation row. The UI uses this to render
+ * loading spinners, cloud badges, and retry buttons.
+ */
+export type SyncStatus = "local" | "syncing" | "synced" | "error"
+
 export interface Conversation {
   id: string
   /** null = local-only (Phase 1). Non-null = synced to server under this user. */
@@ -193,6 +199,11 @@ export interface Conversation {
   starred: boolean
   /** ms epoch when this conversation was last pushed to the server. null = never. */
   syncedAt: number | null
+  /**
+   * Derived sync status for UI rendering. Not stored in DB — computed from
+   * `userId` + `syncedAt` vs `updatedAt` at read time.
+   */
+  syncStatus?: SyncStatus
   /** ms epoch */
   createdAt: number
   /** ms epoch */
