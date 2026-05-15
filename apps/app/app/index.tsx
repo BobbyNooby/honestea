@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   ActivityIndicator,
   FlatList,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -97,6 +98,7 @@ function ChatScreenInner() {
   // when nothing's happening.
   const brewingPhrase = useBrewingPhrase(streaming)
   const [error, setError] = useState<string | null>(null)
+  const [keyboardHeight, setKeyboardHeight] = useState(0)
   // Compose-menu controls. Web search rides on OR's `openrouter:web_search`
   // server tool — defaults on (the model decides 0-N searches per turn,
   // so a search only runs when the question actually benefits from it).
@@ -273,6 +275,22 @@ function ChatScreenInner() {
       cancelled = true
     }
   }, [conversations.currentId])
+
+  // Android: KeyboardAvoidingView leaks residual padding after keyboard dismiss.
+  // Track height ourselves and apply it to a plain View instead.
+  useEffect(() => {
+    if (Platform.OS !== "android") return
+    const show = Keyboard.addListener("keyboardDidShow", (e) => {
+      setKeyboardHeight(e.endCoordinates.height)
+    })
+    const hide = Keyboard.addListener("keyboardDidHide", () => {
+      setKeyboardHeight(0)
+    })
+    return () => {
+      show.remove()
+      hide.remove()
+    }
+  }, [])
 
   /**
    * Run a compaction pass against the current conversation. Returns true
@@ -859,16 +877,9 @@ function ChatScreenInner() {
     ],
   )
 
-  return (
-    <SafeAreaView
-      className="flex-1 bg-chamomile-100 dark:bg-chamomile-900"
-      edges={["top", "bottom"]}
-    >
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
-        <View className="flex-row items-center px-2 pb-2 pt-2">
+  const body = (
+    <>
+      <View className="flex-row items-center px-2 pb-2 pt-2">
           <Pressable
             onPress={sidebar.open}
             hitSlop={8}
@@ -976,7 +987,23 @@ function ChatScreenInner() {
             />
           </>
         )}
-      </KeyboardAvoidingView>
+    </>
+  )
+
+  return (
+    <SafeAreaView
+      className="flex-1 bg-chamomile-100 dark:bg-chamomile-900"
+      edges={["top", "bottom"]}
+    >
+      {Platform.OS === "ios" ? (
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
+          {body}
+        </KeyboardAvoidingView>
+      ) : (
+        <View style={{ flex: 1, paddingBottom: keyboardHeight }}>
+          {body}
+        </View>
+      )}
 
       <RenameDialog
         initial={renameTarget}
