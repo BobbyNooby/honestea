@@ -11,7 +11,7 @@ import type {
   Role,
 } from "@honestea/shared"
 
-import { db } from "./index"
+import { db, sqlite } from "./index"
 import { conversations, messages, usageEvents } from "./schema"
 
 /**
@@ -22,6 +22,92 @@ import { conversations, messages, usageEvents } from "./schema"
  */
 
 const now = () => Date.now()
+
+/**
+ * Rebuild the FTS5 search row for a single conversation.
+ * Deletes the old row (if any) and re-inserts with the current title +
+ * concatenated message content. Called automatically after any mutation
+ * that changes a conversation's searchable text.
+ *
+ * Uses parameterized queries to avoid SQL injection. Silently ignores
+ * errors (e.g. FTS5 not available) so chat never crashes because of
+ * indexing.
+ */
+export async function reindexConversation(conversationId: string): Promise<void> {
+  try {
+    // Use runSync (supports params) instead of execSync (string only).
+    sqlite.runSync(
+      `DELETE FROM conversation_search WHERE conversation_id = ?;`,
+      [conversationId],
+    )
+    sqlite.runSync(
+      `INSERT INTO conversation_search (title, content, conversation_id)
+       SELECT COALESCE(c.title, ''), COALESCE(GROUP_CONCAT(m.content, ' '), ''), c.id
+       FROM conversations c
+       LEFT JOIN messages m ON m.conversation_id = c.id
+       WHERE c.id = ?
+       GROUP BY c.id;`,
+      [conversationId],
+    )
+  } catch {
+    // FTS5 may not be available on this build; search falls back to LIKE.
+  }
+}
+
+/**
+ * Build an FTS5 MATCH expression from user input.
+ * Each word becomes a prefix match ("weath"* finds "weather").
+ * Multiple words are AND-ed together.
+ */
+function buildMatchExpr(query: string): string {
+  const clean = query.trim().replace(/["*:-]/g, " ")
+  const tokens = clean.split(/\s+/).filter(Boolean)
+  if (tokens.length === 0) return ""
+  return tokens.map((t) => `"${t.replace(/"/g, '""')}"*`).join(" AND ")
+}
+
+/**
+ * Search across all conversation titles + message contents.
+ *
+ * Primary path: SQLite FTS5 virtual table (fast, relevance-ranked).
+ * Fallback path: simple LIKE query on title + message content if FTS5
+ * is unavailable or throws.
+ */
+export async function searchConversations(query: string): Promise<string[]> {
+  const q = query.trim()
+  if (!q) return []
+
+  // ── FTS5 path ──
+  const matchExpr = buildMatchExpr(q)
+  if (matchExpr) {
+    try {
+      const rows = sqlite.getAllSync<{ conversation_id: string }>(
+        `SELECT conversation_id FROM conversation_search WHERE conversation_search MATCH ? ORDER BY rank LIMIT 50;`,
+        [matchExpr],
+      )
+      if (rows.length > 0) return rows.map((r) => r.conversation_id)
+    } catch {
+      // FTS5 unavailable or query malformed — fall through to LIKE.
+    }
+  }
+
+  // ── LIKE fallback ──
+  try {
+    const like = `%${q.replace(/%/g, "%%").replace(/_/g, "\\_")}%`
+    const rows = sqlite.getAllSync<{ id: string }>(
+      `SELECT DISTINCT c.id
+       FROM conversations c
+       LEFT JOIN messages m ON m.conversation_id = c.id
+       WHERE c.title LIKE ? ESCAPE '\\' OR m.content LIKE ? ESCAPE '\\'
+       ORDER BY c.updatedAt DESC
+       LIMIT 50;`,
+      [like, like],
+    )
+    return rows.map((r) => r.id)
+  } catch {
+    return []
+  }
+}
 
 export async function createConversation(opts: {
   modelId: string
@@ -39,6 +125,7 @@ export async function createConversation(opts: {
     updatedAt: ts,
   } as const
   await db.insert(conversations).values(row)
+  await reindexConversation(row.id)
   return row
 }
 
@@ -83,6 +170,7 @@ export async function renameConversation(
     .update(conversations)
     .set({ title, updatedAt: now() })
     .where(eq(conversations.id, id))
+  await reindexConversation(id)
 }
 
 export async function setConversationModel(
@@ -144,6 +232,7 @@ export async function addMessage(input: {
     .update(conversations)
     .set({ updatedAt: row.createdAt })
     .where(eq(conversations.id, input.conversationId))
+  await reindexConversation(input.conversationId)
   return row
 }
 

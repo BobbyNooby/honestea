@@ -15,6 +15,9 @@ const sqlite = openDatabaseSync("honestea.db", {
 
 export const db = drizzle(sqlite, { schema })
 
+/** Raw SQLite handle for FTS5 and other raw-SQL operations. */
+export { sqlite }
+
 export type Db = typeof db
 
 /**
@@ -238,6 +241,50 @@ function applyMigrationV9() {
   `)
 }
 
+/**
+ * v10: cross-conversation full-text search (SQLite FTS5).
+ *  - `conversation_search` is a virtual table indexed by title + message content.
+ *  - `conversation_id` is UNINDEXED — it's a soft pointer, not searchable text.
+ *  - Backfill rebuilds the index from every conversation + its messages.
+ *  - Kept in sync by repository functions (reindexConversation) called after
+ *    create, rename, and add-message.
+ */
+function applyMigrationV10() {
+  try {
+    sqlite.execSync(`
+      CREATE VIRTUAL TABLE IF NOT EXISTS conversation_search USING fts5(
+        title,
+        content,
+        conversation_id UNINDEXED
+      );
+    `)
+    // Rebuild the whole index from existing data. FTS5 doesn't have an
+    // idempotent INSERT shape, so we clear first then repopulate.
+    sqlite.execSync(`DELETE FROM conversation_search;`)
+    sqlite.execSync(`
+      INSERT INTO conversation_search (title, content, conversation_id)
+      SELECT
+        COALESCE(c.title, ''),
+        COALESCE(GROUP_CONCAT(m.content, ' '), ''),
+        c.id
+      FROM conversations c
+      LEFT JOIN messages m ON m.conversation_id = c.id
+      GROUP BY c.id;
+    `)
+    fts5Available = true
+  } catch {
+    // FTS5 extension not available on this SQLite build. Search falls
+    // back to LIKE queries. The app continues to work normally.
+    fts5Available = false
+  }
+}
+
+/**
+ * True when FTS5 is available on this SQLite build. Set during migration v10.
+ * If false, search falls back to LIKE queries and reindexing is a no-op.
+ */
+export let fts5Available = false
+
 let migrated = false
 
 function applyMigrations() {
@@ -251,6 +298,7 @@ function applyMigrations() {
   applyMigrationV7()
   applyMigrationV8()
   applyMigrationV9()
+  applyMigrationV10()
   migrated = true
 }
 
