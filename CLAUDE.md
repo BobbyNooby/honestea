@@ -63,7 +63,7 @@ Fix: declare the alias explicitly as a direct dep of `apps/app`, copying the ver
 
 ### BYOK vs hosted
 
-**Phase 1 (current): every request is BYOK, direct-to-provider. No server in the request path.** No paid tiers exist yet, so there is nothing the server is doing that the client can't do itself. The Expo app calls OpenRouter/Anthropic/OpenAI directly with the user's key from `expo-secure-store`.
+**Phase 1 (current): every request is BYOK via OpenRouter.** No server in the request path. The Expo app calls OpenRouter directly with the user's key from `expo-secure-store`. Direct provider keys (Anthropic, OpenAI, Google) are stored and validated in the UI but are **not wired into chat routing** until their native streamers are built.
 
 Future tier behavior (Stage 2+, when `apps/server` becomes load-bearing):
 - Free Local: same as today — direct call, no backend.
@@ -173,6 +173,17 @@ Engineering rules that fall out of this:
 - Aggregate analytics across users (e.g. "average token spend per Pro user") must compute without retaining per-user identifiers in the report.
 - We never train on user content. We don't have it to train on, and we won't change that.
 
+### Keep docs in sync with decisions
+
+When a commit changes architecture, scope, or feature availability, update the relevant source-of-truth doc in the same change:
+
+- **Scope cuts or deferrals** (e.g. disabling a feature, pushing work to a later phase) → update `honest-ai-business-plan.md` roadmap
+- **Stack or security changes** → update `honest-ai-architecture.md`
+- **Cost / infra migration triggers** → update `honest-ai-scaling.md`
+- **New conventions or sharp edges** → update `CLAUDE.md`
+
+Don't let the docs drift ahead of reality or lag behind it. A stale roadmap is worse than no roadmap.
+
 ## Git conventions
 
 ### Commit messages
@@ -209,6 +220,15 @@ docs: update phase 1 implementation order
 - Each commit should be a logical, reviewable unit
 - Split feature work across multiple commits when it touches distinct concerns (e.g. one commit per app/package being scaffolded)
 - Don't commit lockfile changes alongside unrelated code unless the lockfile change is what the commit is about — group lockfile deltas into a `chore:` commit
+
+### When to update roadmap.md
+`roadmap.md` is the primary tracking document. Update it **in the same commit or immediately after** when:
+- A feature ships (move from `☐` to `✅` in the "Just shipped" section)
+- Scope or approach changes (e.g. replacing a plugin with native support, deferring work)
+- A new major dependency or architectural decision lands
+- A "Next up" or "Todo" item changes priority or gets unblocked
+
+Never let shipped work stay in the `☐` todo section — the roadmap is the first thing anyone reads to understand current state.
 
 ## What NOT to do
 
