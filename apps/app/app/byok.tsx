@@ -107,10 +107,10 @@ export default function ByokScreen() {
 
         <Section
           eyebrow="Direct provider keys"
-          subtitle="Skip OpenRouter's 5% markup. Claude requests route to your Anthropic key, GPT to your OpenAI key, etc."
+          subtitle="Skip OpenRouter's 5% markup. Coming soon — only OpenRouter is active today."
         >
           {advanced.map((provider) => (
-            <ProviderCard key={provider.id} provider={provider} />
+            <ProviderCard key={provider.id} provider={provider} disabled />
           ))}
         </Section>
 
@@ -193,9 +193,11 @@ function Section({
 function ProviderCard({
   provider,
   recommended,
+  disabled,
 }: {
   provider: ByokProvider
   recommended?: boolean
+  disabled?: boolean
 }) {
   const dark = useColorScheme() === "dark"
   const [stored, setStored] = useState<string | null>(null)
@@ -266,11 +268,13 @@ function ProviderCard({
 
   return (
     <View
-      className={
+      className={cn(
+        "gap-3 rounded-3xl bg-white p-4 dark:bg-zinc-900",
         recommended
-          ? "gap-3 rounded-3xl border-2 border-matcha-500 bg-white p-4 dark:bg-zinc-900"
-          : "gap-3 rounded-3xl border border-chamomile-100 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900"
-      }
+          ? "border-2 border-matcha-500"
+          : "border border-chamomile-100 dark:border-zinc-800",
+        disabled && "opacity-50",
+      )}
     >
       <View className="flex-row items-start gap-3">
         <View className="h-10 w-10 items-center justify-center rounded-xl bg-matcha-500/15 dark:bg-matcha-400/20">
@@ -292,10 +296,14 @@ function ProviderCard({
             {provider.description}
           </Text>
         </View>
-        <StatusPill configured={isConfigured} />
+        {disabled ? (
+          <ComingSoonPill />
+        ) : (
+          <StatusPill configured={isConfigured} />
+        )}
       </View>
 
-      {(!isConfigured || editing) && (
+      {!disabled && (!isConfigured || editing) && (
         <View className="gap-2">
           <TextInput
             value={draft}
@@ -338,7 +346,7 @@ function ProviderCard({
         </View>
       )}
 
-      {isConfigured && !editing && (
+      {!disabled && isConfigured && !editing && (
         <>
           {info && <KeyInfoBlock info={info} />}
           <View className="flex-row gap-2">
@@ -355,17 +363,49 @@ function ProviderCard({
         </>
       )}
 
+      {disabled && (
+        <Text className="text-[12px] text-zinc-500 dark:text-zinc-400">
+          Direct provider keys are coming in a future update. Use OpenRouter
+          today to chat with every model.
+        </Text>
+      )}
+
       <Pressable
         onPress={() => Linking.openURL(provider.signupUrl)}
         hitSlop={4}
+        disabled={disabled}
         className="flex-row items-center"
       >
         <Text
-          className="text-[12px] font-medium text-matcha-700 dark:text-matcha-400"
+          className={cn(
+            "text-[12px] font-medium",
+            disabled
+              ? "text-zinc-400 dark:text-zinc-500"
+              : "text-matcha-700 dark:text-matcha-400",
+          )}
         >
           Get a key at {provider.signupUrl.replace(/^https?:\/\//, "")} →
         </Text>
       </Pressable>
+    </View>
+  )
+}
+
+function ComingSoonPill() {
+  return (
+    <View className="rounded-full bg-zinc-200/60 px-2 py-0.5 dark:bg-zinc-800">
+      <Text
+        style={{
+          fontFamily: "Menlo",
+          fontSize: 9,
+          fontWeight: "700",
+          letterSpacing: 0.8,
+          textTransform: "uppercase",
+        }}
+        className="text-zinc-500 dark:text-zinc-400"
+      >
+        Coming soon
+      </Text>
     </View>
   )
 }
