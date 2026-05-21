@@ -49,10 +49,10 @@ interface Props {
    *  Take photo rows are greyed and untappable, with a hint subtitle. */
   imageSupported: boolean
   /** Whether the active model accepts file input (`input_modalities`
-   *  contains "file"). When false the Add file row is greyed. The OR
-   *  file-parser plugin can technically extract PDF text into context for
-   *  any text model, but we keep the gate strict so the user knows when
-   *  the model has native file understanding vs plugin extraction. */
+   *  contains "file"). When false the Add file row is greyed. Only models
+   *  that natively support documents (e.g. Claude, Gemini, GPT) get the
+   *  `type: "file"` content block; unsupported models are disabled so the
+   *  user knows the feature is model-specific. */
   fileSupported: boolean
 }
 
@@ -142,8 +142,8 @@ export function ComposeMenu({
   /**
    * Pick a PDF via the system document picker, persist it into the
    * docs dir, and hand back as a `kind: "file"` attachment. Currently
-   * limited to PDFs — extending to other doc types waits on shaping
-   * the OR file-parser response per type.
+   * limited to PDFs — extending to other doc types waits on verifying
+   * native model support per MIME type.
    */
   const pickFile = async () => {
     try {

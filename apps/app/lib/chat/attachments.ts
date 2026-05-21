@@ -26,10 +26,11 @@ async function attachmentToBlock(att: Attachment): Promise<ContentBlock> {
   if (att.kind === "image") {
     return { type: "image_url", image_url: { url: dataUri } }
   }
-  // file (PDF) — OR's file-parser plugin reads `type: "file"` blocks
-  // and replaces them with extracted text before the model sees the
-  // request. Fall back to a generic filename when the picker didn't
-  // surface one.
+  // file (PDF) — sent as a `type: "file"` content block directly to
+  // OpenRouter, which passes it through to models that natively accept
+  // documents (e.g. Claude, Gemini, GPT). The compose menu gates this
+  // on the model's `input_modalities` so unsupported models are greyed
+  // out. Fall back to a generic filename when the picker didn't surface one.
   return {
     type: "file",
     file: {

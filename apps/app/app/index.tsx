@@ -50,6 +50,7 @@ import {
   useBrewingPhrase,
 } from "@/lib/chat"
 import { useByokStatus } from "@/lib/byok"
+import { useKeyHealth } from "@/lib/byok/key-health"
 import { useConfirm } from "@/lib/confirm-context"
 import { useConversations } from "@/lib/conversations-context"
 import {
@@ -67,6 +68,7 @@ import {
   useModelRegistry,
   useSelectedModel,
 } from "@/lib/model"
+import { useNetworkStatus } from "@/lib/network"
 import { useOnboardingSeen } from "@/lib/onboarding-state"
 import { useSidebar } from "@/lib/sidebar-context"
 
@@ -83,7 +85,9 @@ export default function ChatScreen() {
 function ChatScreenInner() {
   const sidebar = useSidebar()
   const byok = useByokStatus()
-  const { registry } = useModelRegistry()
+  const keyHealth = useKeyHealth()
+  const { registry, isStale } = useModelRegistry()
+  const network = useNetworkStatus()
   const { modelId, setModelId } = useSelectedModel()
   const conversations = useConversations()
   const confirm = useConfirm()
@@ -136,12 +140,15 @@ function ChatScreenInner() {
     return model?.architecture?.input_modalities?.includes("image") ?? false
   }, [registry, modelId])
 
-  // File attachments are temporarily disabled across all models. The OR
-  // file-parser plugin (cloudflare-ai engine) was returning "failed to
-  // parse" on real PDFs, and we'd rather grey the row out cleanly than
-  // ship a broken pick → grey toast loop. Revisit when we swap engines
-  // or wire native PDF support per-model.
-  const fileSupported = false
+  // Whether the current model accepts file (PDF) input. Drives whether
+  // the compose menu's "Add file" row is tappable. Gated on the OR
+  // registry's `architecture.input_modalities` — models that include
+  // "file" get `type: "file"` content blocks sent directly through OR.
+  const fileSupported = useMemo(() => {
+    if (!registry) return false
+    const model = findModel(registry, modelId)
+    return model?.architecture?.input_modalities?.includes("file") ?? false
+  }, [registry, modelId])
   const [renameTarget, setRenameTarget] = useState<{
     id: string
     title: string | null
@@ -921,6 +928,39 @@ function ChatScreenInner() {
             }}
           />
         </View>
+
+        {!network.isConnected && !network.checking && (
+          <View className="mx-4 mb-2 rounded-lg bg-amber-500/10 px-3 py-1.5">
+            <Text className="text-center text-xs text-amber-700 dark:text-amber-400">
+              📶 Offline — using cached models. Prices and capabilities may
+              be stale.
+            </Text>
+          </View>
+        )}
+
+        {keyHealth.status === "invalid" && (
+          <View className="mx-4 mb-2 rounded-lg bg-red-500/10 px-3 py-1.5">
+            <Text className="text-center text-xs text-red-700 dark:text-red-400">
+              🔑 Key invalid — check API Keys in settings.
+            </Text>
+          </View>
+        )}
+
+        {keyHealth.status === "depleted" && (
+          <View className="mx-4 mb-2 rounded-lg bg-red-500/10 px-3 py-1.5">
+            <Text className="text-center text-xs text-red-700 dark:text-red-400">
+              🔑 Key depleted — add credits at openrouter.ai/credits.
+            </Text>
+          </View>
+        )}
+
+        {keyHealth.status === "low_balance" && (
+          <View className="mx-4 mb-2 rounded-lg bg-amber-500/10 px-3 py-1.5">
+            <Text className="text-center text-xs text-amber-700 dark:text-amber-400">
+              🔑 Key balance low — you are within 20% of your limit.
+            </Text>
+          </View>
+        )}
 
         {!byok.ready ? (
           <View className="flex-1 items-center justify-center">

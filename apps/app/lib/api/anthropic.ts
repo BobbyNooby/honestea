@@ -37,9 +37,8 @@ function translateContent(
     }
     // file (PDF) — Anthropic's native shape is `{type: "document",
     // source: {type: "base64", media_type: "application/pdf", data}}`.
-    // In practice this branch is unreachable: the chat dispatcher forces
-    // the OR route whenever files are attached (Anthropic-direct
-    // doesn't run OR's file-parser plugin), but we translate
+    // In practice this branch is mostly unreachable: the chat dispatcher
+    // forces the OR route whenever files are attached, but we translate
     // defensively in case routing rules ever change.
     const url = b.file.file_data
     const match = url.match(/^data:([^;]+);base64,(.*)$/)

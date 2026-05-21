@@ -1,6 +1,3 @@
-import { findCuratedModel } from "@honestea/shared"
-import * as SecureStore from "expo-secure-store"
-
 import { getOpenRouterKey } from "./byok"
 
 /**
@@ -9,46 +6,21 @@ import { getOpenRouterKey } from "./byok"
  * runs it. `kind` flows through to the assistant message's `provider`
  * column so the UI can render an honest "via X" badge later.
  */
-export type ChatRoute =
-  | { kind: "openrouter"; key: string }
-  | { kind: "anthropic"; key: string; nativeModelId: string }
+export type ChatRoute = { kind: "openrouter"; key: string }
 
 /**
- * Decide where to send a chat request given the user's stored BYOK keys
- * and the model's curated metadata.
+ * Decide where to send a chat request given the user's stored BYOK keys.
  *
- * Preference order:
- *   1. Native direct (currently Anthropic only) — when the model declares
- *      a `directRoute` AND the matching BYOK key is on file. Skips OR's
- *      markup + unlocks prompt caching. Skipped when `webSearch` or
- *      `hasFiles` is requested — Anthropic-direct doesn't run OR's
- *      server tools or the file-parser plugin, and we'd rather lose
- *      prompt caching than silently drop the search / drop the PDF.
- *   2. OpenRouter — fallback for everything else, requires OR key.
- *   3. Null — caller is gated upstream (chat input is disabled when no
- *      key exists), so this is just defensive.
+ * Phase 1: OpenRouter only. Anthropic / OpenAI / Google direct routes are
+ * disabled until their native streamers are wired up. One key unlocks
+ * every model via OR, which keeps the chat path simple and the SSE
+ * parsing surface minimal.
  */
 export async function pickRoute(
-  modelId: string,
-  opts?: { webSearch?: boolean; hasFiles?: boolean },
+  _modelId: string,
+  _opts?: { webSearch?: boolean; hasFiles?: boolean },
 ): Promise<ChatRoute | null> {
-  const curated = findCuratedModel(modelId)
-  const direct = curated?.directRoute
-  const forceOpenRouter = opts?.webSearch || opts?.hasFiles
-
-  if (direct?.provider === "anthropic" && !forceOpenRouter) {
-    const key = await SecureStore.getItemAsync("byok_anthropic")
-    if (key) {
-      return {
-        kind: "anthropic",
-        key,
-        nativeModelId: direct.nativeModelId,
-      }
-    }
-  }
-
   const orKey = await getOpenRouterKey()
   if (orKey) return { kind: "openrouter", key: orKey }
-
   return null
 }

@@ -40,10 +40,7 @@ export async function streamChatOpenRouter(opts: {
   /** IANA timezone for the datetime tool. Falls back to UTC when
    *  unset. */
   timezone?: string
-  /** True when any user message in `messages` carries a `type: "file"`
-   *  content block — triggers OR's `file-parser` plugin so the PDF text
-   *  is extracted before the model sees the request. */
-  hasFileAttachments?: boolean
+
   /** Live progress callback for the tool activity panel. Fires on
    *  every change to a tool call's state — first arrival, args
    *  streamed in, finished, or eclipsed by the answer phase. */
@@ -65,17 +62,12 @@ export async function streamChatOpenRouter(opts: {
       parameters: { timezone: opts.timezone ?? "UTC" },
     })
   }
-  const plugins = opts.hasFileAttachments
-    ? [{ id: "file-parser", pdf: { engine: "cloudflare-ai" } }]
-    : undefined
-
   const res = await client.openrouter.chat({
     model: opts.model,
     messages: opts.messages,
     stream: true,
     usage: true,
     tools: tools.length > 0 ? tools : undefined,
-    plugins,
     extra: { _apiKey: opts.apiKey },
     signal: opts.signal,
   })
