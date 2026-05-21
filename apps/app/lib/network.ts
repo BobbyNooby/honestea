@@ -20,15 +20,7 @@ export type NetworkType =
   | "other"
   | "unknown"
 
-/**
- * Lightweight connectivity status. Checks on mount.
- *
- * When expo-network isn't available (e.g. Expo Go without a rebuild),
- * returns `{ isConnected: true, type: "unknown", checking: false }` so
- * the app continues to work and the user just doesn't get the offline
- * banner.
- */
-export interface NetworkStatus {
+export interface NetworkState {
   /** true when a network interface is up. */
   isConnected: boolean
   type: NetworkType
@@ -36,8 +28,20 @@ export interface NetworkStatus {
   checking: boolean
 }
 
-export function useNetworkStatus(): NetworkStatus {
-  const [state, setState] = useState<NetworkStatus>({
+const HEARTBEAT_MS = 5000
+
+/**
+ * Lightweight connectivity status with a 5-second heartbeat.
+ *
+ * Checks immediately on mount, then polls every 5s while the component
+ * is mounted. This means the offline banner appears / disappears in real
+ * time as the user toggles airplane mode or walks out of wifi range.
+ *
+ * When expo-network isn't available (e.g. Expo Go without a rebuild),
+ * returns `{ isConnected: true, type: "unknown", checking: false }`.
+ */
+export function useNetworkStatus(): NetworkState {
+  const [state, setState] = useState<NetworkState>({
     isConnected: true,
     type: "unknown",
     checking: true,
@@ -70,8 +74,10 @@ export function useNetworkStatus(): NetworkStatus {
     }
 
     check()
+    const interval = setInterval(check, HEARTBEAT_MS)
     return () => {
       cancelled = true
+      clearInterval(interval)
     }
   }, [])
 

@@ -85,9 +85,20 @@ export default function ChatScreen() {
 function ChatScreenInner() {
   const sidebar = useSidebar()
   const byok = useByokStatus()
-  const keyHealth = useKeyHealth()
+  const { health: keyHealth, recheck: recheckKeyHealth } = useKeyHealth()
   const { registry, isStale } = useModelRegistry()
   const network = useNetworkStatus()
+
+  // Re-validate the key when the app regains connectivity.
+  const wasOfflineRef = useRef(false)
+  useEffect(() => {
+    if (!network.checking && !network.isConnected) {
+      wasOfflineRef.current = true
+    } else if (wasOfflineRef.current && network.isConnected) {
+      wasOfflineRef.current = false
+      recheckKeyHealth()
+    }
+  }, [network.isConnected, network.checking, recheckKeyHealth])
   const { modelId, setModelId } = useSelectedModel()
   const conversations = useConversations()
   const confirm = useConfirm()
