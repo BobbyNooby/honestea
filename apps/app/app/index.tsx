@@ -606,7 +606,10 @@ function ChatScreenInner() {
           })
         }
       } catch (e) {
-        const errorText = e instanceof Error ? e.message : "unknown error"
+        const raw = e instanceof Error ? e.message : "unknown error"
+        const errorText = isNetworkError(raw)
+          ? "No internet connection. Check your network and try again."
+          : raw
         setError(errorText)
         // Persist the partial estimate so the cost we already accrued
         // doesn't disappear from the conversation total.
@@ -1070,5 +1073,11 @@ function ChatScreenInner() {
         onSubmit={submitRename}
       />
     </SafeAreaView>
+  )
+}
+
+function isNetworkError(message: string): boolean {
+  return /network|fetch|timeout|connection|offline|internet|failed to fetch|could not connect|abort/i.test(
+    message,
   )
 }
