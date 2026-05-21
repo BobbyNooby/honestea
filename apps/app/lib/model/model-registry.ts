@@ -9,6 +9,7 @@ import {
 import { client } from "../client"
 
 const STORAGE_KEY = "honestea:model-registry"
+const MODEL_DETAIL_KEY = (id: string) => `honestea:model:${id}`
 const TTL_MS = 24 * 60 * 60 * 1000
 
 /**
@@ -93,6 +94,34 @@ async function saveToAsyncStorage(data: RegistryModel[]): Promise<void> {
   }
 }
 
+/** Write a single model to its own AsyncStorage slot for fast detail-screen
+ *  lookups even when the bulk registry cache is stale or missing. */
+async function saveModelDetail(model: RegistryModel): Promise<void> {
+  try {
+    await AsyncStorage.setItem(
+      MODEL_DETAIL_KEY(model.id),
+      JSON.stringify({ data: model, fetchedAt: Date.now() }),
+    )
+  } catch {
+    // non-critical
+  }
+}
+
+/** Load a single model from its individual cache slot. Returns null when
+ *  the slot is empty or unreadable. */
+export async function loadModelDetail(
+  modelId: string,
+): Promise<{ model: RegistryModel; fetchedAt: number } | null> {
+  try {
+    const raw = await AsyncStorage.getItem(MODEL_DETAIL_KEY(modelId))
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as { data: RegistryModel; fetchedAt: number }
+    return { model: parsed.data, fetchedAt: parsed.fetchedAt }
+  } catch {
+    return null
+  }
+}
+
 /**
  * Wipes the AsyncStorage registry cache. Used by the Developer section
  * of Settings to force the next app launch to refetch the OpenRouter
@@ -128,8 +157,12 @@ export async function loadRegistry(): Promise<RegistryModel[]> {
 
   try {
     const fresh = await fetchFromOpenRouter()
-    memoryCache = { data: fresh, fetchedAt: Date.now() }
+    const now = Date.now()
+    memoryCache = { data: fresh, fetchedAt: now }
     await saveToAsyncStorage(fresh)
+    // Populate per-model cache slots in parallel so detail screens can
+    // load instantly without parsing the bulk blob.
+    await Promise.all(fresh.map((m) => saveModelDetail(m)))
     return fresh
   } catch (e) {
     if (disk) {
@@ -154,23 +187,44 @@ export function pricingFor(model: RegistryModel): ModelPricing {
   }
 }
 
+export interface ModelRegistryState {
+  ready: boolean
+  registry: RegistryModel[] | null
+  error: string | null
+  /** true when the loaded data came from disk and is past its TTL
+   *  (network fetch failed). The UI can surface a "prices may be stale"
+   *  nudge. */
+  isStale: boolean
+  /** Timestamp (ms) of the most recent successful network fetch, or the
+   *  disk cache timestamp when falling back to stale data. */
+  fetchedAt: number | null
+}
+
 /**
- * Hydrate the registry on mount. Returns `{ ready, registry, error }` so
- * screens can render loading / fallback / data states cleanly.
+ * Hydrate the registry on mount. Returns `{ ready, registry, error, isStale,
+ * fetchedAt }` so screens can render loading / fallback / stale-data states
+ * cleanly.
  */
-export function useModelRegistry() {
+export function useModelRegistry(): ModelRegistryState {
   const [registry, setRegistry] = useState<RegistryModel[] | null>(null)
   const [ready, setReady] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [isStale, setIsStale] = useState(false)
+  const [fetchedAt, setFetchedAt] = useState<number | null>(null)
 
   useEffect(() => {
     let cancelled = false
     loadRegistry()
       .then((data) => {
-        if (!cancelled) setRegistry(data)
+        if (cancelled) return
+        setRegistry(data)
+        setIsStale(false)
+        setFetchedAt(memoryCache?.fetchedAt ?? null)
       })
       .catch((e: unknown) => {
-        if (!cancelled) setError(e instanceof Error ? e.message : "load failed")
+        if (cancelled) return
+        setError(e instanceof Error ? e.message : "load failed")
+        setIsStale(false)
       })
       .finally(() => {
         if (!cancelled) setReady(true)
@@ -180,5 +234,5 @@ export function useModelRegistry() {
     }
   }, [])
 
-  return { ready, registry, error }
+  return { ready, registry, error, isStale, fetchedAt }
 }

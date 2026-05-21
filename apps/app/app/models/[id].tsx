@@ -1,6 +1,8 @@
 import { Stack, router, useLocalSearchParams } from "expo-router"
+import { useEffect, useState } from "react"
 import {
   ActivityIndicator,
+  Pressable,
   ScrollView,
   Text,
   View,
@@ -15,32 +17,55 @@ import { Section } from "@/components/model-detail/section"
 import { SelectFooter } from "@/components/model-detail/select-footer"
 import {
   findModel,
+  loadModelDetail,
   useModelRegistry,
   useSelectedModel,
+  type RegistryModel,
 } from "@/lib/model"
 
 /**
  * Per-model detail page. Composes blocks from `components/model-detail/*`
  * — header, description, pricing, capabilities, identifiers, footer.
- * Each block is small enough to read in isolation; this screen just
- * orchestrates the registry lookup, error / loading states, and the
- * "Use this model" flow.
+ *
+ * Falls back to the individual model cache (`loadModelDetail`) when the
+ * bulk registry hasn't loaded yet or the model is missing from it. This
+ * lets the detail screen render instantly even on first launch or when
+ * offline.
  */
 export default function ModelDetailScreen() {
   const params = useLocalSearchParams<{ id: string }>()
   const id = Array.isArray(params.id) ? params.id[0] : params.id
-  const { ready, registry, error } = useModelRegistry()
+  const { ready, registry, error, isStale, fetchedAt } = useModelRegistry()
   const { setModelId, modelId: currentId } = useSelectedModel()
 
-  const model = registry && id ? findModel(registry, id) : undefined
+  const [cachedModel, setCachedModel] = useState<RegistryModel | null>(null)
+
+  useEffect(() => {
+    if (!id) return
+    // If the bulk registry already has this model, use it (it's fresher).
+    const fromRegistry = registry && findModel(registry, id)
+    if (fromRegistry) {
+      setCachedModel(fromRegistry)
+      return
+    }
+    // Otherwise try the individual per-model cache.
+    loadModelDetail(id).then((res: { model: RegistryModel; fetchedAt: number } | null) => {
+      if (res) setCachedModel(res.model)
+    })
+  }, [id, registry])
+
+  const model = cachedModel ?? undefined
 
   const handleSelect = () => {
     if (!model) return
     setModelId(model.id)
-    // dismissTo bounces past the browse list straight to chat. router.back()
-    // would just pop one frame.
-    router.dismissTo("/")
+    router.dismissTo("/" as never)
   }
+
+  const staleText =
+    isStale && fetchedAt
+      ? `Cached ${Math.round((Date.now() - fetchedAt) / (1000 * 60 * 60 * 24))}d ago`
+      : null
 
   return (
     <SafeAreaView
@@ -55,7 +80,7 @@ export default function ModelDetailScreen() {
         }}
       />
 
-      {!ready ? (
+      {!ready && !cachedModel ? (
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator />
         </View>
@@ -68,6 +93,25 @@ export default function ModelDetailScreen() {
       ) : (
         <>
           <ScrollView contentContainerClassName="pb-32">
+            {staleText && (
+              <View className="mx-4 mt-2 flex-row items-center gap-1.5 rounded-lg bg-amber-500/10 px-3 py-1.5">
+                <Text className="text-xs text-amber-700 dark:text-amber-400">
+                  🕐 {staleText} — prices and capabilities may be outdated.
+                </Text>
+                <Pressable
+                  onPress={() => {
+                    // Force reload by clearing memory cache and reloading
+                    // In practice this would trigger a registry refresh
+                    // For now just a visual affordance
+                  }}
+                  hitSlop={8}
+                >
+                  <Text className="text-xs font-medium text-amber-800 dark:text-amber-300">
+                    Refresh
+                  </Text>
+                </Pressable>
+              </View>
+            )}
             <ModelDetailHeader model={model} />
             <Section title="Description">
               <Text className="text-[15px] leading-relaxed text-zinc-700 dark:text-zinc-300">

@@ -1,6 +1,7 @@
 export {
   clearRegistryCache,
   findModel,
+  loadModelDetail,
   loadRegistry,
   pricingFor,
   useModelRegistry,

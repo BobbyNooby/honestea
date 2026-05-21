@@ -43,6 +43,7 @@
     "expo-image": "~55.0.10",
     "expo-image-picker": "~55.0.20",
     "expo-linking": "~55.0.15",
+    "expo-network": "~55.0.14",
     "expo-router": "~55.0.14",
     "expo-secure-store": "~55.0.13",
     "expo-speech": "~55.0.13",
