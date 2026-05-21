@@ -1,21 +1,37 @@
-import * as Network from "expo-network"
 import { useEffect, useState } from "react"
 
+// Gracefully handle expo-network not being available in the current
+// Expo Go build (needs a native rebuild or Metro restart). Falls back
+// to "assume connected" so the app doesn't crash on missing native code.
+let Network: typeof import("expo-network") | null = null
+try {
+  Network = require("expo-network")
+} catch {
+  // expo-network native module not linked — treat as always online.
+}
+
+export type NetworkType =
+  | "none"
+  | "wifi"
+  | "cellular"
+  | "bluetooth"
+  | "ethernet"
+  | "wimax"
+  | "other"
+  | "unknown"
+
 /**
- * Lightweight connectivity status. Checks on mount and updates whenever
- * the app comes to the foreground (no real-time listener in expo-network,
- * so we re-poll on focus).
+ * Lightweight connectivity status. Checks on mount.
  *
- * `isConnected` is true when the device reports an active network interface
- * (wifi, cellular, etc). It does NOT guarantee the internet is actually
- * reachable — a captive portal or downed upstream will still report true.
- * For that, rely on API call failures + the stale-cache indicator.
+ * When expo-network isn't available (e.g. Expo Go without a rebuild),
+ * returns `{ isConnected: true, type: "unknown", checking: false }` so
+ * the app continues to work and the user just doesn't get the offline
+ * banner.
  */
 export interface NetworkStatus {
   /** true when a network interface is up. */
   isConnected: boolean
-  /** "wifi" | "cellular" | "none" | "unknown" | "bluetooth" | "ethernet" | "wimax" | "other" */
-  type: Network.NetworkStateType
+  type: NetworkType
   /** true while the initial check is running. */
   checking: boolean
 }
@@ -23,7 +39,7 @@ export interface NetworkStatus {
 export function useNetworkStatus(): NetworkStatus {
   const [state, setState] = useState<NetworkStatus>({
     isConnected: true,
-    type: Network.NetworkStateType.UNKNOWN,
+    type: "unknown",
     checking: true,
   })
 
@@ -31,21 +47,25 @@ export function useNetworkStatus(): NetworkStatus {
     let cancelled = false
 
     async function check() {
+      if (!Network) {
+        if (!cancelled) {
+          setState({ isConnected: true, type: "unknown", checking: false })
+        }
+        return
+      }
+
       try {
         const networkState = await Network.getNetworkStateAsync()
         if (cancelled) return
         setState({
           isConnected: networkState.isConnected ?? false,
-          type: networkState.type ?? Network.NetworkStateType.UNKNOWN,
+          type: ((networkState.type as unknown) as NetworkType) ?? "unknown",
           checking: false,
         })
       } catch {
-        if (cancelled) return
-        setState({
-          isConnected: true,
-          type: Network.NetworkStateType.UNKNOWN,
-          checking: false,
-        })
+        if (!cancelled) {
+          setState({ isConnected: true, type: "unknown", checking: false })
+        }
       }
     }
 
