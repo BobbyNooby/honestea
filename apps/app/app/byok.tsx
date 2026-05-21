@@ -223,7 +223,15 @@ function ProviderCard({
     setError(null)
     const result = await validateKey(provider, value)
     if (!result.valid) {
-      setError(result.error ?? "Invalid key")
+      const isNetworkError =
+        /network|fetch|timeout|connection|offline|internet/i.test(
+          result.error ?? "",
+        )
+      setError(
+        isNetworkError
+          ? "No internet connection — check your network and try again."
+          : (result.error ?? "Invalid key"),
+      )
       setBusy(false)
       return
     }

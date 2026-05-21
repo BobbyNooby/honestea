@@ -901,6 +901,14 @@ function ChatScreenInner() {
           </Pressable>
           <View className="flex-1 items-center">
             <ModelSelector modelId={modelId} onChange={handleModelChange} />
+            {!network.isConnected && !network.checking && (
+              <View className="mt-0.5 flex-row items-center gap-1">
+                <View className="h-1.5 w-1.5 rounded-full bg-zinc-400 dark:bg-zinc-500" />
+                <Text className="text-[10px] text-zinc-500 dark:text-zinc-400">
+                  Offline
+                </Text>
+              </View>
+            )}
           </View>
           <StorageToggle />
           <ChatActionsMenu
