@@ -30,26 +30,18 @@ import {
 } from "@/lib/byok"
 
 /**
- * API Keys screen. Reached from Settings → API Keys, from Onboarding's
- * Free path, and from the pricing fallback.
+ * API Keys screen. Reached from Settings → API Keys and from Onboarding's
+ * Free path.
  *
- * Visually rebuilt to match the design standard:
- *  • cream background, custom serif header (no Stack default)
- *  • OpenRouter card highlighted with the matcha-recommended border +
- *    "Recommended" eyebrow — it's the one key that unlocks every model
- *  • the other three are advanced direct keys
- *  • configured/not-set status renders as a matcha pill (was emerald
- *    before, off-brand)
- *  • "Get a key" link is matcha-tinted (was blue)
- *
- * Behavior is unchanged from the previous version: paste → validate
- * against each provider's auth-info endpoint → store in Secure Store.
- * Replace / Remove flows survive across the redesign.
+ * OpenRouter is the one key that unlocks every model, so it's the only
+ * card: matcha-recommended border, paste → validate against OR's auth
+ * endpoint → store in Secure Store. Replace / Remove flows preserved.
+ * Direct provider keys (Anthropic/OpenAI/Google) were removed with the
+ * hosted pivot; the storage + validator plumbing in lib/byok stays so
+ * they can be re-enabled later without new scaffolding.
  */
 export default function ByokScreen() {
   const dark = useColorScheme() === "dark"
-  const recommended = BYOK_PROVIDERS.filter((p) => p.recommended)
-  const advanced = BYOK_PROVIDERS.filter((p) => !p.recommended)
   const tint = dark ? "#a8c98a" : "#466b2c"
 
   return (
@@ -91,26 +83,13 @@ export default function ByokScreen() {
         showsVerticalScrollIndicator={false}
       >
         <Text className="px-2 text-[13.5px] leading-5 text-zinc-600 dark:text-zinc-400">
-          Use your own provider keys. We never see them — they live encrypted
-          on your device and are sent only to the provider you point them at.
+          One key unlocks every model. We never see it — it lives encrypted
+          on your device and is sent only to OpenRouter.
         </Text>
 
-        <Section eyebrow="Recommended">
-          {recommended.map((provider) => (
-            <ProviderCard
-              key={provider.id}
-              provider={provider}
-              recommended
-            />
-          ))}
-        </Section>
-
-        <Section
-          eyebrow="Direct provider keys"
-          subtitle="Skip OpenRouter's 5% markup. Coming soon — only OpenRouter is active today."
-        >
-          {advanced.map((provider) => (
-            <ProviderCard key={provider.id} provider={provider} disabled />
+        <Section eyebrow="Your key">
+          {BYOK_PROVIDERS.map((provider) => (
+            <ProviderCard key={provider.id} provider={provider} />
           ))}
         </Section>
 
@@ -126,8 +105,8 @@ export default function ByokScreen() {
             <Text style={{ color: tint, fontWeight: "600" }}>
               Keys never leave your device.
             </Text>{" "}
-            Stored in iOS Keychain / Android Keystore. Sent directly to the
-            provider — we don’t proxy or log them.
+            Stored in iOS Keychain / Android Keystore. Sent directly to
+            OpenRouter — this app doesn’t proxy or log them.
           </Text>
         </View>
 
@@ -186,18 +165,13 @@ function Section({
 }
 
 /**
- * One provider's card. Wraps the same edit/save/remove state machine as
- * before, just rebuilt visually. Recommended (OpenRouter) gets the
- * matcha-500 border-2 treatment; the rest use the standard chamomile.
+ * The provider card — paste, validate, save in Secure Store; replace or
+ * remove any time. OpenRouter gets the matcha border-2 treatment.
  */
 function ProviderCard({
   provider,
-  recommended,
-  disabled,
 }: {
   provider: ByokProvider
-  recommended?: boolean
-  disabled?: boolean
 }) {
   const dark = useColorScheme() === "dark"
   const [stored, setStored] = useState<string | null>(null)
@@ -275,15 +249,7 @@ function ProviderCard({
   const isConfigured = !!stored
 
   return (
-    <View
-      className={cn(
-        "gap-3 rounded-3xl bg-white p-4 dark:bg-zinc-900",
-        recommended
-          ? "border-2 border-matcha-500"
-          : "border border-chamomile-100 dark:border-zinc-800",
-        disabled && "opacity-50",
-      )}
-    >
+    <View className="gap-3 rounded-3xl border-2 border-matcha-500 bg-white p-4 dark:bg-zinc-900">
       <View className="flex-row items-start gap-3">
         <View className="h-10 w-10 items-center justify-center rounded-xl bg-matcha-500/15 dark:bg-matcha-400/20">
           <IconKey size={20} color={tint} strokeWidth={1.75} />
@@ -304,14 +270,10 @@ function ProviderCard({
             {provider.description}
           </Text>
         </View>
-        {disabled ? (
-          <ComingSoonPill />
-        ) : (
-          <StatusPill configured={isConfigured} />
-        )}
+        <StatusPill configured={isConfigured} />
       </View>
 
-      {!disabled && (!isConfigured || editing) && (
+      {(!isConfigured || editing) && (
         <View className="gap-2">
           <TextInput
             value={draft}
@@ -354,7 +316,7 @@ function ProviderCard({
         </View>
       )}
 
-      {!disabled && isConfigured && !editing && (
+      {isConfigured && !editing && (
         <>
           {info && <KeyInfoBlock info={info} />}
           <View className="flex-row gap-2">
@@ -371,49 +333,15 @@ function ProviderCard({
         </>
       )}
 
-      {disabled && (
-        <Text className="text-[12px] text-zinc-500 dark:text-zinc-400">
-          Direct provider keys are coming in a future update. Use OpenRouter
-          today to chat with every model.
-        </Text>
-      )}
-
       <Pressable
         onPress={() => Linking.openURL(provider.signupUrl)}
         hitSlop={4}
-        disabled={disabled}
         className="flex-row items-center"
       >
-        <Text
-          className={cn(
-            "text-[12px] font-medium",
-            disabled
-              ? "text-zinc-400 dark:text-zinc-500"
-              : "text-matcha-700 dark:text-matcha-400",
-          )}
-        >
+        <Text className="text-[12px] font-medium text-matcha-700 dark:text-matcha-400">
           Get a key at {provider.signupUrl.replace(/^https?:\/\//, "")} →
         </Text>
       </Pressable>
-    </View>
-  )
-}
-
-function ComingSoonPill() {
-  return (
-    <View className="rounded-full bg-zinc-200/60 px-2 py-0.5 dark:bg-zinc-800">
-      <Text
-        style={{
-          fontFamily: "Menlo",
-          fontSize: 9,
-          fontWeight: "700",
-          letterSpacing: 0.8,
-          textTransform: "uppercase",
-        }}
-        className="text-zinc-500 dark:text-zinc-400"
-      >
-        Coming soon
-      </Text>
     </View>
   )
 }
