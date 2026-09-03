@@ -170,32 +170,28 @@ export async function loadModelDetail(
 }
 
 /**
- * Wipes the AsyncStorage registry cache. Used by the Developer section
- * of Settings to force the next app launch to refetch the OpenRouter
- * model list. Doesn't drop the in-memory cache held by `useModelRegistry`
- * — a relaunch is the cleanest way to apply.
- */
-export async function clearRegistryCache(): Promise<void> {
-  try {
-    await AsyncStorage.removeItem(STORAGE_KEY)
-  } catch {
-    // non-critical
-  }
-}
-
-/**
  * Force a network fetch of the OpenRouter catalog, updating the memory
- * and disk caches. The manual "Refresh" path — bypasses the TTL. Throws
- * on network failure so the caller can surface it.
+ * and disk caches and notifying every mounted `useModelRegistry` screen.
+ * The manual "Refresh" path — bypasses the TTL. Throws on network
+ * failure so the caller can surface it.
+ *
+ * Note: doesn't rewrite the per-model detail slots. Detail screens prefer
+ * the in-memory registry anyway; the disk slots are a cold-start cache
+ * that the next full `loadRegistry()` repopulates.
  */
 export async function refreshRegistry(): Promise<RegistryModel[]> {
   const fresh = await fetchFromOpenRouter()
   const now = Date.now()
   memoryCache = { data: fresh, fetchedAt: now }
   await saveToAsyncStorage(fresh)
-  await Promise.all(fresh.map((m) => saveModelDetail(m)))
+  for (const listener of registryListeners) listener(fresh)
   return fresh
 }
+
+// Cross-screen propagation: `useModelRegistry` instances live in each
+// screen, so a refresh from Settings must reach the already-mounted chat
+// screen too.
+const registryListeners = new Set<(data: RegistryModel[]) => void>()
 
 /**
  * Loads the model registry, preferring fresh > stale > empty.
@@ -297,6 +293,20 @@ export function useModelRegistry(): ModelRegistryState {
     setError(null)
     setIsStale(false)
     setFetchedAt(memoryCache?.fetchedAt ?? null)
+  }, [])
+
+  // Hear about refreshes triggered from other screens.
+  useEffect(() => {
+    const onUpdate = (data: RegistryModel[]) => {
+      setRegistry(data)
+      setError(null)
+      setIsStale(false)
+      setFetchedAt(memoryCache?.fetchedAt ?? null)
+    }
+    registryListeners.add(onUpdate)
+    return () => {
+      registryListeners.delete(onUpdate)
+    }
   }, [])
 
   return { ready, registry, error, isStale, fetchedAt, refresh }

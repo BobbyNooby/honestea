@@ -42,6 +42,10 @@ import {
  */
 export default function ByokScreen() {
   const dark = useColorScheme() === "dark"
+  // OpenRouter-only: it's the one key that unlocks every model, and the
+  // only catalog that exposes live pricing. The multi-provider storage
+  // and validators in lib/byok stay so direct keys can return later.
+  const providers = BYOK_PROVIDERS.filter((p) => p.id === "openrouter")
   const tint = dark ? "#a8c98a" : "#466b2c"
 
   return (
@@ -88,7 +92,7 @@ export default function ByokScreen() {
         </Text>
 
         <Section eyebrow="Your key">
-          {BYOK_PROVIDERS.map((provider) => (
+          {providers.map((provider) => (
             <ProviderCard key={provider.id} provider={provider} />
           ))}
         </Section>

@@ -18,7 +18,9 @@ import { SafeAreaView } from "react-native-safe-area-context"
 import Toast from "react-native-toast-message"
 
 import {
+  AUTO_MODEL_ID,
   estimateTokens,
+  resolveDefaultModelId,
   resolveModelId,
   type Attachment,
   type Message,
@@ -201,6 +203,15 @@ function ChatScreenInner() {
     abortRef.current.abort()
   }, [])
 
+  // If the persisted selection retired from the catalog (renamed/deleted
+  // slug), fall back to the best available default instead of failing
+  // every send.
+  useEffect(() => {
+    if (!registry || modelId === AUTO_MODEL_ID) return
+    if (findModel(registry, modelId)) return
+    setModelId(resolveDefaultModelId(registry))
+  }, [registry, modelId, setModelId])
+
   const scrollToBottom = useCallback(() => {
     listRef.current?.scrollToEnd({ animated: true })
   }, [])
@@ -320,14 +331,17 @@ function ChatScreenInner() {
       setMessages([])
       return
     }
-    // A stream in flight owns the message list — its optimistic updates
-    // would be clobbered by a stale reload (this is exactly the window
-    // `send` creates a conversation in).
-    if (streamingRef.current) return
+    // A stream in flight owns the message list — a reload here would
+    // clobber its optimistic updates (this is exactly the window `send`
+    // creates a conversation in). Skip the LOAD, but still arm the
+    // cleanup below: switching away must stop the stream no matter how
+    // this conversation came to be current.
     let cancelled = false
-    listMessages(conversations.currentId).then((rows) => {
-      if (!cancelled) setMessages(rows)
-    })
+    if (!streamingRef.current) {
+      listMessages(conversations.currentId).then((rows) => {
+        if (!cancelled) setMessages(rows)
+      })
+    }
     return () => {
       cancelled = true
       // Switching away from a conversation mid-stream stops the stream.
@@ -335,6 +349,19 @@ function ChatScreenInner() {
       abortRef.current?.abort()
     }
   }, [conversations.currentId])
+
+  /**
+   * Resync the message list to whatever conversation is currently on
+   * screen. Called when a stream finishes in case the user switched
+   * conversations mid-flight (the load effect skips while streaming).
+   */
+  const resyncMessages = useCallback(async () => {
+    if (currentIdRef.current != null) {
+      setMessages(await listMessages(currentIdRef.current))
+    } else {
+      setMessages([])
+    }
+  }, [])
 
   // Android: KeyboardAvoidingView leaks residual padding after keyboard dismiss.
   // Track height ourselves and apply it to a plain View instead.
@@ -453,12 +480,10 @@ function ChatScreenInner() {
         style,
       } = params
 
-      const controller = new AbortController()
-      abortRef.current = controller
-
       // Resolve Auto per-turn: the concrete model depends on what THIS
       // turn carries (images → vision, web search → tools) and its
-      // projected prompt size.
+      // projected prompt size. Guard runs before any state (controller,
+      // DB row) is created — there's no finally on this path.
       const turnModelId = resolveModelId(modelId, registry ?? [], {
         vision: contextMessages.some((m) =>
           m.attachments?.some((a) => a.kind === "image"),
@@ -466,6 +491,18 @@ function ChatScreenInner() {
         tools: webSearch,
         minContext: projectPromptTokens(contextMessages),
       })
+      if (turnModelId === AUTO_MODEL_ID) {
+        // Only reachable when the catalog isn't loaded (offline / first
+        // launch) — there is no concrete model to send. Surface it rather
+        // than POSTing the literal "auto" slug to the API.
+        setError(
+          "Model catalog isn't loaded yet. Check your connection and try again.",
+        )
+        return
+      }
+
+      const controller = new AbortController()
+      abortRef.current = controller
 
       const assistantRow = await addMessage({
         conversationId,
@@ -662,9 +699,11 @@ function ChatScreenInner() {
       } catch (e) {
         // Stopped — by the stop button, a conversation switch, or
         // unmount. Keep the partial reply (it's real output the user
-        // saw streaming), finalize as complete so the launch-time sweep
-        // doesn't mark it as an error, and account for the tokens we
-        // already spent.
+        // saw streaming) and finalize as complete so the launch-time
+        // sweep doesn't mark it as an error. Cost: the partial estimate
+        // stays on the message row; the usage ledger only records turns
+        // with real `usage` from the provider, so stopped turns' costs
+        // are visible in-conversation but not in lifetime totals.
         const aborted =
           controller.signal.aborted ||
           (e instanceof Error && e.name === "AbortError")
@@ -698,9 +737,7 @@ function ChatScreenInner() {
             Toast.show({ type: "info", text1: "Stopped", visibilityTime: 1500 })
           }
           return
-        }
-
-        const raw = e instanceof Error ? e.message : "unknown error"
+        }        const raw = e instanceof Error ? e.message : "unknown error"
         const errorText = isNetworkError(raw)
           ? "No internet connection. Check your network and try again."
           : raw
@@ -746,11 +783,12 @@ function ChatScreenInner() {
     // streamingRef (not the `streaming` state) is the gate: state updates
     // are async, so two taps in one frame would both see `streaming === false`.
     if ((!text && pendingAttachments.length === 0) || streamingRef.current) return
-    streamingRef.current = true
 
     // Refuse to send incompatible attachments to a model that can't
     // accept them — would otherwise hit the API and fail with a noisy
     // 4xx. The composer banner already warns; this is the actual gate.
+    // Runs BEFORE the streaming flag flips: these are plain returns with
+    // no finally, so leaking the flag here would soft-lock the chat.
     const hasImageAttachments = pendingAttachments.some(
       (a) => a.kind === "image",
     )
@@ -774,6 +812,8 @@ function ChatScreenInner() {
       })
       return
     }
+
+    streamingRef.current = true
 
     setError(null)
     setStreaming(true)
@@ -835,12 +875,7 @@ function ChatScreenInner() {
       // If the user switched conversations while we were streaming, the
       // switch-abort already finalized the old stream — resync the list
       // to whatever is on screen now.
-      if (currentIdRef.current !== null) {
-        const fresh = await listMessages(currentIdRef.current)
-        setMessages(fresh)
-      } else {
-        setMessages([])
-      }
+      await resyncMessages()
     }
   }, [
     conversations,
@@ -853,6 +888,7 @@ function ChatScreenInner() {
     registry,
     responseStyle,
     runCompaction,
+    resyncMessages,
     streamAssistantTurn,
     webSearch,
   ])
@@ -860,7 +896,8 @@ function ChatScreenInner() {
   const regenerate = useCallback(
     async (assistantMessageId: string) => {
       if (streamingRef.current) return
-      streamingRef.current = true
+      // Resolve all plain-return guards BEFORE flipping the flag — there's
+      // no finally on these paths, and a leaked flag soft-locks the chat.
       const idx = messages.findIndex((m) => m.id === assistantMessageId)
       if (idx === -1) return
       const target = messages[idx]
@@ -874,6 +911,7 @@ function ChatScreenInner() {
       })()
       if (userIdx === -1) return
 
+      streamingRef.current = true
       setError(null)
       setStreaming(true)
       try {
@@ -905,9 +943,12 @@ function ChatScreenInner() {
       } finally {
         streamingRef.current = false
         setStreaming(false)
+        // Same contract as send: if the user switched away mid-stream,
+        // the on-screen list needs a fresh read of the current convo.
+        await resyncMessages()
       }
     },
-    [messages, responseStyle, streamAssistantTurn, webSearch],
+    [messages, responseStyle, resyncMessages, streamAssistantTurn, webSearch],
   )
 
   // ---- Triple-dot menu actions ----

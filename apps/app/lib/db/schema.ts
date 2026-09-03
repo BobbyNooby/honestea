@@ -9,11 +9,12 @@ import type {
 } from "@honestea/shared"
 
 /**
- * SQLite schema for Phase 1 local-only conversation storage.
+ * SQLite schema for the local-only conversation store.
  *
- * The same column shape will be mirrored in `apps/server` Postgres when
- * cloud sync ships — both tables produce values that satisfy the
- * `Conversation` and `Message` interfaces in `@honestea/shared`.
+ * `user_id` and `synced_at` are legacy columns from an abandoned cloud
+ * sync design — always null, kept so existing installs don't need a
+ * migration. All rows satisfy the `Conversation` and `Message`
+ * interfaces in `@honestea/shared`.
  *
  * All timestamps are ms epoch integers (smaller than ISO strings, easier
  * sort, matches `Date.now()`).

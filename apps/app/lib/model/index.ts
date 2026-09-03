@@ -1,5 +1,4 @@
 export {
-  clearRegistryCache,
   cycleRegistryTtl,
   findModel,
   getRegistryTtlLabel,
