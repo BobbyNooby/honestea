@@ -159,6 +159,15 @@ export async function getConversation(id: string): Promise<Conversation | null> 
 }
 
 export async function deleteConversation(id: string): Promise<void> {
+  // Remove the search row first — the cascade delete takes the messages,
+  // but nothing maintains the FTS side table.
+  try {
+    sqlite.runSync(`DELETE FROM conversation_search WHERE conversation_id = ?;`, [
+      id,
+    ])
+  } catch {
+    // FTS5 may not be available on this build.
+  }
   await db.delete(conversations).where(eq(conversations.id, id))
 }
 
@@ -255,6 +264,15 @@ export async function updateMessage(
   >,
 ): Promise<void> {
   await db.update(messages).set(patch).where(eq(messages.id, id))
+  // Assistant rows are inserted empty at stream start and only get their
+  // real content here — without this reindex, search never sees final
+  // assistant text.
+  const [row] = await db
+    .select({ conversationId: messages.conversationId })
+    .from(messages)
+    .where(eq(messages.id, id))
+    .limit(1)
+  if (row) await reindexConversation(row.conversationId)
 }
 
 /**

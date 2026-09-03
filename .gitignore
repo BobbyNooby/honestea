@@ -25,6 +25,12 @@ out/
 .env.development
 .env.production
 
+# Local databases (sqlite) — never commit user data
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
 # Native (Expo prebuild artifacts)
 ios/
 android/

@@ -26,6 +26,8 @@ interface Props {
   onChange: (next: string) => void
   onSend: () => void
   streaming: boolean
+  /** Abort the in-flight stream. Wired to the stop button while streaming. */
+  onStop?: () => void
   /** When true the composer is disabled — compaction in progress, etc. */
   disabled?: boolean
   dark: boolean
@@ -64,6 +66,7 @@ export function Composer({
   onChange,
   onSend,
   streaming,
+  onStop,
   disabled = false,
   dark,
   webSearch,
@@ -218,9 +221,11 @@ export function Composer({
               </Pressable>
             )}
             <Pressable
-              onPress={locked ? undefined : onSend}
-              disabled={locked ? false : !hasText && !hasAttachments}
-              accessibilityLabel={locked ? "Streaming" : "Send"}
+              onPress={locked ? onStop : onSend}
+              disabled={locked ? !onStop : !hasText && !hasAttachments}
+              accessibilityLabel={
+                locked ? (onStop ? "Stop generating" : "Streaming") : "Send"
+              }
               className="h-9 w-9 items-center justify-center rounded-full bg-matcha-600 active:opacity-80 dark:bg-matcha-400"
             >
               {locked ? (

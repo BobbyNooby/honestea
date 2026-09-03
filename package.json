@@ -2,7 +2,7 @@
   "name": "honestea",
   "version": "0.0.0",
   "private": true,
-  "description": "Honest AI — transparent multi-model AI chat platform",
+  "description": "HonesTea — local-first BYOK AI chat harness",
   "packageManager": "pnpm@10.23.0",
   "engines": {
     "node": ">=22"
@@ -11,8 +11,6 @@
     "dev": "mprocs",
     "dev:app": "pnpm --filter @honestea/app dev",
     "dev:client": "pnpm --filter @honestea/app dev:client",
-    "dev:server": "pnpm --filter @honestea/server dev",
-    "dev:web": "pnpm --filter @honestea/web dev",
     "run:android": "pnpm --filter @honestea/app run:android",
     "run:ios": "pnpm --filter @honestea/app run:ios",
     "prebuild": "pnpm --filter @honestea/app prebuild",
@@ -28,13 +26,15 @@
     "build": "turbo run build",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
-    "clean": "turbo run clean"
+    "clean": "turbo run clean",
+    "test": "vitest run"
   },
   "devDependencies": {
     "mprocs": "^0.7.2",
     "tsx": "^4.21.0",
     "turbo": "^2.5.0",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "vitest": "^5.0.0"
   },
   "pnpm": {
     "overrides": {

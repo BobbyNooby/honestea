@@ -6,7 +6,6 @@ import { client } from "../client"
 import { getOpenRouterKey } from "../byok"
 import {
   addMessage,
-  listMessages,
   markMessagesSummarizedInto,
   recordUsageEvent,
   updateMessage,
@@ -186,27 +185,6 @@ export async function compact(opts: {
     summaryId: summaryRow.id,
     summarizedCount: eligible.length,
   }
-}
-
-/**
- * Convenience wrapper that loads fresh state from the DB before compacting.
- * Use this when the caller doesn't already have the message list in memory.
- */
-export async function compactByConversationId(opts: {
-  conversationId: string
-  modelContextLength: number
-  /** Model to use for the summarize call. Defaults to the user's current chat model. */
-  summarizeModel?: string
-  signal?: AbortSignal
-}): Promise<CompactResult> {
-  const messages = await listMessages(opts.conversationId)
-  return compact({
-    conversationId: opts.conversationId,
-    messages,
-    modelContextLength: opts.modelContextLength,
-    summarizeModel: opts.summarizeModel,
-    signal: opts.signal,
-  })
 }
 
 function sumTokens(messages: readonly Message[]): number {

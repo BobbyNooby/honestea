@@ -1,10 +1,7 @@
 import {
   IconChartLine,
-  IconCloud,
-  IconDeviceMobile,
   IconKey,
   IconLayoutGrid,
-  IconLoader2,
   IconPencil,
   IconPlus,
   IconRefresh,
@@ -40,17 +37,16 @@ export interface SidebarProps {
 
 /**
  * App drawer. Sections, top to bottom:
- *  • Brand header — logo + wordmark + "Local mode" badge to telegraph
- *    that nothing's synced yet (Phase 1).
+ *  • Brand header — logo + wordmark.
  *  • Matcha "New chat" pill — primary CTA, brand-leading.
- *  • "Recent" eyebrow + conversation list.
+ *  • Search + "Recent" eyebrow + conversation list.
  *  • Footer quick-link grid: Models · API Keys · Usage · Settings.
  *
  * Footer entries are stacked icon-text rows rather than chevron rows so
  * the sidebar feels like a dock of tools, not a settings list.
  */
 export function Sidebar({ onClose }: SidebarProps) {
-  const { conversations, currentId, refresh, sync, startNew, select, remove, isLoadingCloud } =
+  const { conversations, currentId, refresh, startNew, select, remove } =
     useConversations();
   const { modelId } = useSelectedModel();
   const confirm = useConfirm();
@@ -83,14 +79,11 @@ export function Sidebar({ onClose }: SidebarProps) {
 
   const isSearching = query.trim().length > 0;
 
-  // Refresh local + trigger cloud sync when the drawer opens.
+  // Refresh the conversation list when the drawer opens.
   useFocusEffect(
     useCallback(() => {
       refresh();
-      // Fire-and-forget cloud sync. In Phase 1 this is a no-op stub;
-      // in Phase 2+ it fetches cloud rows and merges them in the background.
-      void sync();
-    }, [refresh, sync]),
+    }, [refresh]),
   );
 
   const goTo = (path: string) => {
@@ -208,25 +201,13 @@ export function Sidebar({ onClose }: SidebarProps) {
           )}
         </View>
 
-        <View className="mb-2 flex-row items-center justify-between px-2">
+        <View className="mb-2 flex-row items-center px-2">
           <Text
             className="text-zinc-500 dark:text-zinc-400"
             style={TYPE_EYEBROW}
           >
             {isSearching ? "Results" : "Recent"}
           </Text>
-          {isLoadingCloud && (
-            <View className="flex-row items-center gap-1">
-              <IconLoader2
-                size={12}
-                color={dark ? "#a1a1aa" : "#71717a"}
-                strokeWidth={2}
-              />
-              <Text className="text-[10px] text-zinc-400 dark:text-zinc-500">
-                Syncing…
-              </Text>
-            </View>
-          )}
         </View>
 
         {displayConversations.length === 0 ? (
@@ -370,12 +351,6 @@ function ConversationRow({
   onLongPress: () => void;
 }) {
   const dark = useColorScheme() === "dark";
-  // Phase 1: every chat is local. Stays accurate when sync ships and rows
-  // start having a non-null userId.
-  const isCloud = convo.userId !== null;
-  const Icon = isCloud ? IconCloud : IconDeviceMobile;
-  const tint = dark ? "#71717a" : "#a1a1aa";
-  const syncStatus = convo.syncStatus ?? "local";
   return (
     <Pressable
       onPress={onPress}
@@ -386,11 +361,6 @@ function ConversationRow({
         active && "bg-matcha-500/10 dark:bg-matcha-400/15",
       )}
     >
-      <Icon
-        size={14}
-        color={active ? (dark ? "#a8c98a" : "#5b8a3a") : tint}
-        strokeWidth={1.75}
-      />
       <Text
         numberOfLines={1}
         className={cn(
@@ -402,28 +372,6 @@ function ConversationRow({
       >
         {convo.title ?? "New chat"}
       </Text>
-      {/* Sync status badge (only visible when not local) */}
-      {syncStatus !== "local" && (
-        <View
-          className={cn(
-            "rounded-full px-1.5 py-0",
-            syncStatus === "syncing" && "bg-amber-100 dark:bg-amber-900",
-            syncStatus === "synced" && "bg-matcha-100 dark:bg-matcha-900",
-            syncStatus === "error" && "bg-red-100 dark:bg-red-900",
-          )}
-        >
-          <Text
-            className={cn(
-              "text-[9px] font-semibold uppercase tracking-wider",
-              syncStatus === "syncing" && "text-amber-700 dark:text-amber-300",
-              syncStatus === "synced" && "text-matcha-700 dark:text-matcha-300",
-              syncStatus === "error" && "text-red-700 dark:text-red-300",
-            )}
-          >
-            {syncStatus}
-          </Text>
-        </View>
-      )}
       {convo.starred && (
         <IconStarFilled size={13} color={dark ? "#facc15" : "#eab308"} />
       )}

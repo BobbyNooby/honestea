@@ -66,8 +66,8 @@ export interface PersistedToolCall {
 /**
  * One attachment the user added to a message via the compose menu — an
  * image from the library, a photo from the camera, or (later) a PDF.
- * Stored on the user message so re-renders + cloud sync (Phase 2) get
- * back the same content the model saw.
+ * Stored on the user message so re-renders show the same content the
+ * model saw.
  *
  * `uri` is a local file path (file:// or content://). The chat dispatcher
  * reads it as base64 at request time and packs it into the OpenAI
@@ -156,11 +156,8 @@ export interface Message {
  * never touches usage history, so lifetime totals stay accurate even
  * after history cleanup.
  *
- * Phase 1 stores this in the device's local SQLite (`apps/app`). When
- * Stage 2 ships cloud sync, the same shape will be mirrored server-side
- * in Postgres — both producers (mobile SQLite + future server) will
- * write rows that satisfy this interface, so the web dashboard and
- * server analytics can consume one canonical type.
+ * Stored in the device's local SQLite (`apps/app`) — the ledger is
+ * append-only and lives on-device forever.
  *
  * `messageId` is a soft pointer back to the source `Message`. Not a
  * foreign key — deleting a chat must never erase the ledger — and may
@@ -181,15 +178,9 @@ export interface UsageEvent {
   messageId: string | null
 }
 
-/**
- * Cloud sync state for a conversation row. The UI uses this to render
- * loading spinners, cloud badges, and retry buttons.
- */
-export type SyncStatus = "local" | "syncing" | "synced" | "error"
-
 export interface Conversation {
   id: string
-  /** null = local-only (Phase 1). Non-null = synced to server under this user. */
+  /** Legacy sync column — always null in the local-only app. */
   userId: string | null
   title: string | null
   /** OpenRouter slug of the most recently used model (picker default on resume). */
@@ -197,13 +188,8 @@ export interface Conversation {
   archived: boolean
   /** User-pinned via the triple-dot menu. Surfaces above non-starred chats in the sidebar. */
   starred: boolean
-  /** ms epoch when this conversation was last pushed to the server. null = never. */
+  /** Legacy sync column — always null in the local-only app. */
   syncedAt: number | null
-  /**
-   * Derived sync status for UI rendering. Not stored in DB — computed from
-   * `userId` + `syncedAt` vs `updatedAt` at read time.
-   */
-  syncStatus?: SyncStatus
   /** ms epoch */
   createdAt: number
   /** ms epoch */

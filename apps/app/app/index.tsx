@@ -33,7 +33,6 @@ import { ScrollToBottom } from "@/components/chat/scroll-to-bottom"
 import { Composer } from "@/components/composer/composer"
 import { type ResponseStyle } from "@/components/composer/compose-menu"
 import { ModelSelector } from "@/components/model-selector"
-import { StorageToggle } from "@/components/settings/storage-toggle"
 import { RenameDialog } from "@/components/ui/rename-dialog"
 import { streamChat } from "@/lib/api"
 import type {
@@ -42,7 +41,6 @@ import type {
 } from "@/lib/api/types"
 import {
   buildMessageContent,
-  classifyHistoryIntent,
   compact,
   generateTitle,
   projectPromptTokens,
@@ -166,6 +164,29 @@ function ChatScreenInner() {
   } | null>(null)
   const listRef = useRef<FlatList<Message>>(null)
 
+  // ── In-flight stream bookkeeping ──
+  // streamingRef mirrors `streaming` synchronously so the send gate can't
+  // be double-fired inside one render frame (state updates are async).
+  const streamingRef = useRef(false)
+  // AbortController for the current stream. The composer's stop button
+  // (and conversation switches / unmount) abort it.
+  const abortRef = useRef<AbortController | null>(null)
+  // True when the abort came from the stop button (vs a conversation
+  // switch) — only then do we toast.
+  const manualStopRef = useRef(false)
+  // Mirror of conversations.currentId so async completions can compare
+  // against what's on screen without stale closures.
+  const currentIdRef = useRef(conversations.currentId)
+  useEffect(() => {
+    currentIdRef.current = conversations.currentId
+  }, [conversations.currentId])
+
+  const stopStreaming = useCallback(() => {
+    if (!abortRef.current) return
+    manualStopRef.current = true
+    abortRef.current.abort()
+  }, [])
+
   const scrollToBottom = useCallback(() => {
     listRef.current?.scrollToEnd({ animated: true })
   }, [])
@@ -285,12 +306,19 @@ function ChatScreenInner() {
       setMessages([])
       return
     }
+    // A stream in flight owns the message list — its optimistic updates
+    // would be clobbered by a stale reload (this is exactly the window
+    // `send` creates a conversation in).
+    if (streamingRef.current) return
     let cancelled = false
     listMessages(conversations.currentId).then((rows) => {
       if (!cancelled) setMessages(rows)
     })
     return () => {
       cancelled = true
+      // Switching away from a conversation mid-stream stops the stream.
+      // The catch path keeps the partial reply, so nothing is lost.
+      abortRef.current?.abort()
     }
   }, [conversations.currentId])
 
@@ -343,6 +371,13 @@ function ChatScreenInner() {
       const refreshed = await listMessages(conversations.currentId)
       setMessages(refreshed)
       return true
+    } catch (e) {
+      Toast.show({
+        type: "error",
+        text1: "Compaction failed",
+        text2: e instanceof Error ? e.message : "unknown error",
+      })
+      return false
     } finally {
       setCompacting(false)
     }
@@ -354,9 +389,10 @@ function ChatScreenInner() {
       void conversations.updateCurrentModel(next)
       // If the new model has a smaller context window AND we're already
       // over 80% of it, auto-compact on switch instead of letting the user
-      // hit a wall on their next send.
+      // hit a wall on their next send. Never mid-stream — the compaction
+      // stream would race the chat stream.
       const newModel = registry ? findModel(registry, next) : null
-      if (newModel?.context_length) {
+      if (newModel?.context_length && !streamingRef.current) {
         const projected = projectPromptTokens(messages)
         if (projected > newModel.context_length * 0.8) {
           await runCompaction()
@@ -400,6 +436,9 @@ function ChatScreenInner() {
         webSearch,
         style,
       } = params
+
+      const controller = new AbortController()
+      abortRef.current = controller
 
       const assistantRow = await addMessage({
         conversationId,
@@ -453,25 +492,11 @@ function ChatScreenInner() {
         apiMessages.push({ role: "system", content: styleDirective })
       }
 
-      // ── Conversation history context injection ──
-      // Before the main turn, run a cheap LLM classifier to decide if
-      // the user needs past conversation history. Replaces brittle
-      // keyword regex with actual semantic understanding.
-      const lastUserMsg = visibleContext
-        .slice()
-        .reverse()
-        .find((m) => m.role === "user")
-      if (lastUserMsg) {
-        const historyCtx = await classifyHistoryIntent(lastUserMsg.content)
-        if (historyCtx) {
-          apiMessages.push({ role: "system", content: historyCtx })
-          Toast.show({
-            type: "info",
-            text1: "Loaded conversation history",
-            visibilityTime: 2000,
-          })
-        }
-      }
+      // ── Conversation history context ──
+      // Deliberately absent: the old per-send LLM intent-classifier.
+      // It cost a paid API call and 1–2s of latency on EVERY message.
+      // Cross-conversation context is available on demand via sidebar
+      // search instead.
 
       for (const m of visibleContext) {
         const content = await buildMessageContent(m.content, m.attachments)
@@ -488,6 +513,7 @@ function ChatScreenInner() {
           model: modelId,
           messages: apiMessages,
           webSearch,
+          signal: controller.signal,
           onToken: (chunk) => {
             buffer += chunk
             const liveUsd = liveCostFor(buffer)
@@ -606,6 +632,46 @@ function ChatScreenInner() {
           })
         }
       } catch (e) {
+        // Stopped — by the stop button, a conversation switch, or
+        // unmount. Keep the partial reply (it's real output the user
+        // saw streaming), finalize as complete so the launch-time sweep
+        // doesn't mark it as an error, and account for the tokens we
+        // already spent.
+        const aborted =
+          controller.signal.aborted ||
+          (e instanceof Error && e.name === "AbortError")
+        if (aborted) {
+          const partialCostUsd = liveCostFor(buffer)
+          await updateMessage(assistantRow.id, {
+            content: buffer,
+            status: "complete",
+            costUsd: partialCostUsd,
+            completionTokens: estimateTokens(buffer),
+          })
+          setMessages((m) =>
+            m.map((msg) =>
+              msg.id === assistantRow.id
+                ? {
+                    ...msg,
+                    content: buffer,
+                    status: "complete",
+                    costUsd: partialCostUsd,
+                  }
+                : msg,
+            ),
+          )
+          setToolActivity((prev) => {
+            if (!prev.has(assistantRow.id)) return prev
+            const next = new Map(prev)
+            next.delete(assistantRow.id)
+            return next
+          })
+          if (manualStopRef.current) {
+            Toast.show({ type: "info", text1: "Stopped", visibilityTime: 1500 })
+          }
+          return
+        }
+
         const raw = e instanceof Error ? e.message : "unknown error"
         const errorText = isNetworkError(raw)
           ? "No internet connection. Check your network and try again."
@@ -637,6 +703,9 @@ function ChatScreenInner() {
           next.delete(assistantRow.id)
           return next
         })
+      } finally {
+        if (abortRef.current === controller) abortRef.current = null
+        manualStopRef.current = false
       }
     },
     [conversations, modelId, registry],
@@ -646,7 +715,10 @@ function ChatScreenInner() {
     const text = input.trim()
     // Allow sending when text is empty BUT attachments are present —
     // common for "what's in this picture?" style turns.
-    if ((!text && pendingAttachments.length === 0) || streaming) return
+    // streamingRef (not the `streaming` state) is the gate: state updates
+    // are async, so two taps in one frame would both see `streaming === false`.
+    if ((!text && pendingAttachments.length === 0) || streamingRef.current) return
+    streamingRef.current = true
 
     // Refuse to send incompatible attachments to a model that can't
     // accept them — would otherwise hit the API and fail with a noisy
@@ -703,10 +775,12 @@ function ChatScreenInner() {
       }
 
       // After a possible compaction, re-read the in-memory list — it may
-      // have new summary rows + stamped summarizedAt fields.
-      const reloaded = conversations.currentId
-        ? await listMessages(conversations.currentId)
-        : messages
+      // have new summary rows + stamped summarizedAt fields. Always keyed
+      // on the resolved conversationId: `conversations.currentId` is a
+      // stale closure value here (null on a brand-new chat, or pointing
+      // at the PREVIOUS conversation), which used to seed a new chat with
+      // the wrong history.
+      const reloaded = await listMessages(conversationId)
       setMessages(reloaded)
 
       const userRow = await addMessage({
@@ -728,7 +802,17 @@ function ChatScreenInner() {
         style: responseStyle,
       })
     } finally {
+      streamingRef.current = false
       setStreaming(false)
+      // If the user switched conversations while we were streaming, the
+      // switch-abort already finalized the old stream — resync the list
+      // to whatever is on screen now.
+      if (currentIdRef.current !== null) {
+        const fresh = await listMessages(currentIdRef.current)
+        setMessages(fresh)
+      } else {
+        setMessages([])
+      }
     }
   }, [
     conversations,
@@ -748,7 +832,8 @@ function ChatScreenInner() {
 
   const regenerate = useCallback(
     async (assistantMessageId: string) => {
-      if (streaming) return
+      if (streamingRef.current) return
+      streamingRef.current = true
       const idx = messages.findIndex((m) => m.id === assistantMessageId)
       if (idx === -1) return
       const target = messages[idx]
@@ -791,6 +876,7 @@ function ChatScreenInner() {
           style: responseStyle,
         })
       } finally {
+        streamingRef.current = false
         setStreaming(false)
       }
     },
@@ -833,7 +919,7 @@ function ChatScreenInner() {
     await renameConversation(currentConversation.id, title)
     await conversations.refresh()
     Toast.show({ type: "success", text1: "Title regenerated" })
-  }, [conversations, currentConversation])
+  }, [conversations, currentConversation, modelId])
 
   const handleToggleStar = useCallback(async () => {
     if (!currentConversation) return
@@ -924,7 +1010,6 @@ function ChatScreenInner() {
               </View>
             )}
           </View>
-          <StorageToggle />
           <ChatActionsMenu
             conversation={currentConversation}
             onRename={() => {
@@ -1035,6 +1120,7 @@ function ChatScreenInner() {
               onChange={setInput}
               onSend={send}
               streaming={streaming}
+              onStop={stopStreaming}
               disabled={compacting}
               dark={dark}
               webSearch={webSearch}
@@ -1077,7 +1163,9 @@ function ChatScreenInner() {
 }
 
 function isNetworkError(message: string): boolean {
-  return /network|fetch|timeout|connection|offline|internet|failed to fetch|could not connect|abort/i.test(
+  // Note: AbortError is handled explicitly before this — "abort" here
+  // would misreport a stopped stream as an offline error.
+  return /network|fetch|timeout|connection|offline|internet|failed to fetch|could not connect/i.test(
     message,
   )
 }

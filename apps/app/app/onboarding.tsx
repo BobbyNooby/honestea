@@ -4,7 +4,7 @@ import {
   IconInfoCircle,
   IconKey,
   IconLeaf,
-  IconSparkles,
+  IconLayoutGrid,
   type Icon,
 } from "@tabler/icons-react-native"
 import { router } from "expo-router"
@@ -22,14 +22,14 @@ import { markOnboardingSeen } from "@/lib/onboarding-state"
 
 /**
  * First-launch picker — split-tile direction. Two full-bleed colored
- * cards (matcha = Free/BYOK, oolong = Hosted/coming-soon) with a
- * "What's an API key?" pill button between them as a third path for
- * newcomers who don't know what BYOK means.
+ * cards (matcha = Free/BYOK chat, oolong = Built in / keyless features)
+ * with a "What's an API key?" pill button between them as a third path
+ * for newcomers who don't know what BYOK means.
  *
  * Tap order:
  *  • Free tile (or its CTA) → /byok (paste key, get going)
  *  • "What's an API key?" pill → /api-key-info (explainer sheet)
- *  • Hosted tile / "See plans" CTA → /pricing (coming-soon tiers)
+ *  • Built-in tile / "Browse models" CTA → /model-browser (keyless)
  *  • "Skip" → routes to /byok with the flag still set so the screen
  *    doesn't reappear on next launch.
  *
@@ -37,10 +37,10 @@ import { markOnboardingSeen } from "@/lib/onboarding-state"
  * later from Settings → Developer.
  */
 export default function OnboardingScreen() {
-  const choose = async (path: "free" | "paid" | "info") => {
+  const choose = async (path: "free" | "builtin" | "info") => {
     await markOnboardingSeen()
     if (path === "free") router.replace("/byok" as never)
-    else if (path === "paid") router.replace("/pricing" as never)
+    else if (path === "builtin") router.replace("/model-browser" as never)
     else router.push("/api-key-info" as never)
   }
 
@@ -83,7 +83,7 @@ export default function OnboardingScreen() {
             Two ways{"\n"}to start brewing.
           </Text>
           <Text className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-            Free if you have an API key. Hosted when you don't.
+            Bring your own API key to chat. Everything stays on this device.
           </Text>
         </View>
 
@@ -93,9 +93,9 @@ export default function OnboardingScreen() {
           title="Free"
           tagline="Use your favorite models when you bring your own API key."
           bullets={[
-            "Direct to OpenRouter, Claude, GPT, Gemini & more",
+            "Every model through one OpenRouter key",
             "Zero markup — pay providers directly",
-            "Local-only — chats + keys stay on this device",
+            "See the exact cost of every message",
           ]}
           cta="Use my own key"
           Icon={IconKey}
@@ -121,18 +121,18 @@ export default function OnboardingScreen() {
         </View>
 
         <BigTile
-          tone="paid"
-          eyebrow="Coming soon"
-          title="Hosted"
-          tagline="We handle the keys for you and offer the best prices."
+          tone="builtin"
+          eyebrow="Built in"
+          title="Local"
+          tagline="Keyless features that work right now, on this device."
           bullets={[
-            "No setup — just chat",
-            "Sync conversations across devices",
-            "Pay-as-you-go, subscription, or BYOK sync",
+            "Browse 300+ models — no key needed",
+            "Voice dictation with on-device speech",
+            "Chats + keys never leave this phone",
           ]}
-          cta="See plans"
-          Icon={IconSparkles}
-          onPress={() => choose("paid")}
+          cta="Browse models"
+          Icon={IconLayoutGrid}
+          onPress={() => choose("builtin")}
         />
 
         <Pressable
@@ -154,7 +154,7 @@ export default function OnboardingScreen() {
 
 /**
  * Full-bleed colored card for one of the two onboarding paths. Solid
- * matcha (free) or oolong (paid) fill, white type, decorative leaf
+ * matcha (free) or oolong (built-in) fill, white type, decorative leaf
  * watermark, glass-morphism CTA pill at the bottom. The whole card is
  * tappable; the CTA pill is just visual reinforcement.
  */
@@ -168,7 +168,7 @@ function BigTile({
   Icon: IconCmp,
   onPress,
 }: {
-  tone: "free" | "paid"
+  tone: "free" | "builtin"
   eyebrow: string
   title: string
   tagline: string
