@@ -64,7 +64,7 @@ export default function ApiKeyInfoScreen() {
               letterSpacing: -0.6,
             }}
           >
-            What's an API key?
+            What’s an API key?
           </Text>
           <Text className="mt-2.5 text-sm text-zinc-600 dark:text-zinc-400">
             A short code from an AI provider that lets HonesTea talk to their
@@ -104,8 +104,8 @@ export default function ApiKeyInfoScreen() {
             <Text style={{ color: tint, fontWeight: "600" }}>
               Your key stays on your device.
             </Text>{" "}
-            HonesTea encrypts it in your phone's secure storage and sends it
-            directly to the provider. We don't proxy or log it.
+            HonesTea encrypts it in your phone’s secure storage and sends it
+            directly to the provider. We don’t proxy or log it.
           </Text>
         </View>
 

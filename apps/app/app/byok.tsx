@@ -127,7 +127,7 @@ export default function ByokScreen() {
               Keys never leave your device.
             </Text>{" "}
             Stored in iOS Keychain / Android Keystore. Sent directly to the
-            provider — we don't proxy or log them.
+            provider — we don’t proxy or log them.
           </Text>
         </View>
 
@@ -137,7 +137,7 @@ export default function ByokScreen() {
         >
           <IconSparkles size={13} color={tint} strokeWidth={1.75} />
           <Text className="text-[12px] font-medium text-zinc-700 dark:text-zinc-300">
-            What's an API key?
+            What’s an API key?
           </Text>
         </Pressable>
       </ScrollView>

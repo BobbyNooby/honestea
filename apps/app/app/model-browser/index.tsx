@@ -39,7 +39,6 @@ import {
  * search list — more marketing, more whitespace, bigger type.
  */
 export default function ModelBrowserScreen() {
-  const dark = useColorScheme() === "dark"
   const { ready, registry } = useModelRegistry()
 
   const trending = useMemo(() => {
@@ -90,6 +89,8 @@ export default function ModelBrowserScreen() {
       { key: "open", label: "Open Weights", tint: "bg-blue-500/10 dark:bg-blue-400/15", models: openWeight.sort(sortCtx).slice(0, 6) },
     ].filter((c) => c.models.length > 0)
   }, [registry])
+
+  const dark = useColorScheme() === "dark"
 
   if (!ready) {
     return (
@@ -182,7 +183,6 @@ export default function ModelBrowserScreen() {
 
 /* ── Trending hero card ── */
 function TrendingCard({ model }: { model: RegistryModel }) {
-  const dark = useColorScheme() === "dark"
   const provider = providerFromId(model.id)
   const { inputUsd, outputUsd } = pricePartsFromPricing(model.pricing)
   const isFree = inputUsd === 0 && outputUsd === 0
@@ -252,7 +252,6 @@ function CategoryCard({
   model: RegistryModel
   tint: string
 }) {
-  const dark = useColorScheme() === "dark"
   const provider = providerFromId(model.id)
   const { inputUsd, outputUsd } = pricePartsFromPricing(model.pricing)
   const isFree = inputUsd === 0 && outputUsd === 0

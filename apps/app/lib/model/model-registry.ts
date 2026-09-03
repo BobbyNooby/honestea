@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage"
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 
 import {
   pricePerMillionFromPerToken,
@@ -10,7 +10,54 @@ import { client } from "../client"
 
 const STORAGE_KEY = "honestea:model-registry"
 const MODEL_DETAIL_KEY = (id: string) => `honestea:model:${id}`
-const TTL_MS = 24 * 60 * 60 * 1000
+const TTL_STORAGE_KEY = "honestea:model-registry-ttl"
+const DEFAULT_TTL_MS = 24 * 60 * 60 * 1000
+
+/** Refresh-interval presets for the Settings row (label + ms). */
+export const REGISTRY_TTL_OPTIONS = [
+  { label: "Daily", ms: 24 * 60 * 60 * 1000 },
+  { label: "Every 3 days", ms: 3 * 24 * 60 * 60 * 1000 },
+  { label: "Weekly", ms: 7 * 24 * 60 * 60 * 1000 },
+] as const
+
+let cachedTtlMs: number | null = null
+
+/** Load the user's refresh interval (defaults to daily). */
+async function getTtlMs(): Promise<number> {
+  if (cachedTtlMs != null) return cachedTtlMs
+  try {
+    const raw = await AsyncStorage.getItem(TTL_STORAGE_KEY)
+    const parsed = raw ? Number.parseInt(raw, 10) : Number.NaN
+    const found = REGISTRY_TTL_OPTIONS.find((o) => o.ms === parsed)
+    cachedTtlMs = found ? found.ms : DEFAULT_TTL_MS
+  } catch {
+    cachedTtlMs = DEFAULT_TTL_MS
+  }
+  return cachedTtlMs
+}
+
+/**
+ * Cycle to the next refresh interval and persist it. Returns the new
+ * option so the caller can reflect it in the UI immediately.
+ */
+export async function cycleRegistryTtl(): Promise<(typeof REGISTRY_TTL_OPTIONS)[number]> {
+  const current = await getTtlMs()
+  const idx = REGISTRY_TTL_OPTIONS.findIndex((o) => o.ms === current)
+  const next = REGISTRY_TTL_OPTIONS[(idx + 1) % REGISTRY_TTL_OPTIONS.length]
+  cachedTtlMs = next.ms
+  try {
+    await AsyncStorage.setItem(TTL_STORAGE_KEY, String(next.ms))
+  } catch {
+    // non-critical
+  }
+  return next
+}
+
+/** Current interval label — for the Settings row sub-label. */
+export async function getRegistryTtlLabel(): Promise<string> {
+  const ms = await getTtlMs()
+  return REGISTRY_TTL_OPTIONS.find((o) => o.ms === ms)?.label ?? "Daily"
+}
 
 /**
  * Subset of the OpenRouter `/api/v1/models` response shape we actually use.
@@ -137,33 +184,41 @@ export async function clearRegistryCache(): Promise<void> {
 }
 
 /**
+ * Force a network fetch of the OpenRouter catalog, updating the memory
+ * and disk caches. The manual "Refresh" path — bypasses the TTL. Throws
+ * on network failure so the caller can surface it.
+ */
+export async function refreshRegistry(): Promise<RegistryModel[]> {
+  const fresh = await fetchFromOpenRouter()
+  const now = Date.now()
+  memoryCache = { data: fresh, fetchedAt: now }
+  await saveToAsyncStorage(fresh)
+  await Promise.all(fresh.map((m) => saveModelDetail(m)))
+  return fresh
+}
+
+/**
  * Loads the model registry, preferring fresh > stale > empty.
  *
- * - If memory cache is fresh, return it
+ * - If memory cache is fresh (within the configured TTL), return it
  * - Else if disk cache is fresh, hydrate memory + return
  * - Else fetch from OpenRouter, save to disk, return
  * - On network failure, fall back to stale disk cache if any
  */
 export async function loadRegistry(): Promise<RegistryModel[]> {
-  if (memoryCache && Date.now() - memoryCache.fetchedAt < TTL_MS) {
+  const ttl = await getTtlMs()
+  if (memoryCache && Date.now() - memoryCache.fetchedAt < ttl) {
     return memoryCache.data
   }
 
   const disk = await loadFromAsyncStorage()
-  if (disk && Date.now() - disk.fetchedAt < TTL_MS) {
+  if (disk && Date.now() - disk.fetchedAt < ttl) {
     memoryCache = disk
     return disk.data
   }
 
   try {
-    const fresh = await fetchFromOpenRouter()
-    const now = Date.now()
-    memoryCache = { data: fresh, fetchedAt: now }
-    await saveToAsyncStorage(fresh)
-    // Populate per-model cache slots in parallel so detail screens can
-    // load instantly without parsing the bulk blob.
-    await Promise.all(fresh.map((m) => saveModelDetail(m)))
-    return fresh
+    return await refreshRegistry()
   } catch (e) {
     if (disk) {
       memoryCache = disk
@@ -198,12 +253,14 @@ export interface ModelRegistryState {
   /** Timestamp (ms) of the most recent successful network fetch, or the
    *  disk cache timestamp when falling back to stale data. */
   fetchedAt: number | null
+  /** Force a network refresh. Rejects on failure — callers toast. */
+  refresh: () => Promise<void>
 }
 
 /**
  * Hydrate the registry on mount. Returns `{ ready, registry, error, isStale,
- * fetchedAt }` so screens can render loading / fallback / stale-data states
- * cleanly.
+ * fetchedAt, refresh }` so screens can render loading / fallback / stale
+ * states cleanly and force a re-fetch.
  */
 export function useModelRegistry(): ModelRegistryState {
   const [registry, setRegistry] = useState<RegistryModel[] | null>(null)
@@ -234,5 +291,13 @@ export function useModelRegistry(): ModelRegistryState {
     }
   }, [])
 
-  return { ready, registry, error, isStale, fetchedAt }
+  const refresh = useCallback(async () => {
+    const data = await refreshRegistry()
+    setRegistry(data)
+    setError(null)
+    setIsStale(false)
+    setFetchedAt(memoryCache?.fetchedAt ?? null)
+  }, [])
+
+  return { ready, registry, error, isStale, fetchedAt, refresh }
 }

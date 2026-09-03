@@ -19,6 +19,7 @@ import Toast from "react-native-toast-message"
 
 import {
   estimateTokens,
+  resolveModelId,
   type Attachment,
   type Message,
   type PersistedToolCall,
@@ -84,7 +85,7 @@ function ChatScreenInner() {
   const sidebar = useSidebar()
   const byok = useByokStatus()
   const { health: keyHealth, recheck: recheckKeyHealth } = useKeyHealth()
-  const { registry, isStale } = useModelRegistry()
+  const { registry } = useModelRegistry()
   const network = useNetworkStatus()
 
   // Re-validate the key when the app regains connectivity.
@@ -131,23 +132,36 @@ function ChatScreenInner() {
     Map<string, Map<number, ToolCallEvent>>
   >(new Map())
 
+  // What "Auto" resolves to right now — preview resolution for capability
+  // gating and the context bar. The send path re-resolves with the turn's
+  // actual requirements (attachments, projected size).
+  const pendingHasImages = pendingAttachments.some((a) => a.kind === "image")
+  const resolvedModelId = useMemo(
+    () =>
+      resolveModelId(modelId, registry ?? [], {
+        vision: pendingHasImages,
+        tools: webSearch,
+      }),
+    [modelId, registry, pendingHasImages, webSearch],
+  )
+
   // Whether the current model supports OR's tool calling (and therefore
   // the web_search server tool). The compose menu greys the toggle and
   // the composer hides the Web pill when this is false.
   const webSearchSupported = useMemo(() => {
     if (!registry) return false
-    const model = findModel(registry, modelId)
+    const model = findModel(registry, resolvedModelId)
     return model?.supported_parameters?.includes("tools") ?? false
-  }, [registry, modelId])
+  }, [registry, resolvedModelId])
 
   // Whether the current model accepts image input. Drives whether the
   // compose menu's "Add image" / "Take photo" rows are tappable. Read
   // from the OR registry's `architecture.input_modalities`.
   const imageSupported = useMemo(() => {
     if (!registry) return false
-    const model = findModel(registry, modelId)
+    const model = findModel(registry, resolvedModelId)
     return model?.architecture?.input_modalities?.includes("image") ?? false
-  }, [registry, modelId])
+  }, [registry, resolvedModelId])
 
   // Whether the current model accepts file (PDF) input. Drives whether
   // the compose menu's "Add file" row is tappable. Gated on the OR
@@ -155,9 +169,9 @@ function ChatScreenInner() {
   // "file" get `type: "file"` content blocks sent directly through OR.
   const fileSupported = useMemo(() => {
     if (!registry) return false
-    const model = findModel(registry, modelId)
+    const model = findModel(registry, resolvedModelId)
     return model?.architecture?.input_modalities?.includes("file") ?? false
-  }, [registry, modelId])
+  }, [registry, resolvedModelId])
   const [renameTarget, setRenameTarget] = useState<{
     id: string
     title: string | null
@@ -354,7 +368,9 @@ function ChatScreenInner() {
         conversationId: conversations.currentId,
         messages: fresh,
         modelContextLength: model.context_length,
-        summarizeModel: modelId,
+        // Resolve Auto to a concrete slug — the summarizer needs a real
+        // model id, not the "auto" sentinel.
+        summarizeModel: resolveModelId(modelId, registry ?? [], {}),
       })
       if (!result.ok) {
         Toast.show({
@@ -440,11 +456,22 @@ function ChatScreenInner() {
       const controller = new AbortController()
       abortRef.current = controller
 
+      // Resolve Auto per-turn: the concrete model depends on what THIS
+      // turn carries (images → vision, web search → tools) and its
+      // projected prompt size.
+      const turnModelId = resolveModelId(modelId, registry ?? [], {
+        vision: contextMessages.some((m) =>
+          m.attachments?.some((a) => a.kind === "image"),
+        ),
+        tools: webSearch,
+        minContext: projectPromptTokens(contextMessages),
+      })
+
       const assistantRow = await addMessage({
         conversationId,
         role: "assistant",
         content: "",
-        modelId,
+        modelId: turnModelId,
         status: "streaming",
       })
 
@@ -461,7 +488,7 @@ function ChatScreenInner() {
       const visibleContext = contextMessages.filter(
         (m) => m.supersededAt === null && m.summarizedAt === null,
       )
-      const registryModel = registry ? findModel(registry, modelId) : null
+      const registryModel = registry ? findModel(registry, turnModelId) : null
       const pricing = registryModel ? pricingFor(registryModel) : null
       const promptTokensEst = estimateTokens(
         visibleContext.map((m) => m.content).join("\n"),
@@ -510,7 +537,7 @@ function ChatScreenInner() {
       const turnToolCalls = new Map<number, ToolCallEvent>()
       try {
         const result = await streamChat({
-          model: modelId,
+          model: turnModelId,
           messages: apiMessages,
           webSearch,
           signal: controller.signal,
@@ -571,7 +598,7 @@ function ChatScreenInner() {
         await updateMessage(assistantRow.id, {
           content: buffer,
           status: "complete",
-          modelId,
+          modelId: turnModelId,
           promptTokens,
           completionTokens,
           costUsd,
@@ -585,7 +612,7 @@ function ChatScreenInner() {
         // not from `messages`, so lifetime totals stay accurate even
         // if the user later deletes this conversation.
         void recordUsageEvent({
-          modelId,
+          modelId: turnModelId,
           provider: result.provider,
           promptTokens,
           completionTokens,
@@ -603,6 +630,7 @@ function ChatScreenInner() {
                   costUsd,
                   promptTokens,
                   completionTokens,
+                  modelId: turnModelId,
                   provider: result.provider,
                   citations,
                   toolCalls: persistedToolCalls,
@@ -624,7 +652,7 @@ function ChatScreenInner() {
           void generateTitle({
             userMessage: firstTurnText,
             assistantResponse: buffer,
-            titleModel: modelId,
+            titleModel: turnModelId,
           }).then(async (title) => {
             if (!title) return
             await renameConversation(conversationId, title)
@@ -825,7 +853,6 @@ function ChatScreenInner() {
     registry,
     responseStyle,
     runCompaction,
-    streaming,
     streamAssistantTurn,
     webSearch,
   ])
@@ -880,7 +907,7 @@ function ChatScreenInner() {
         setStreaming(false)
       }
     },
-    [messages, responseStyle, streaming, streamAssistantTurn, webSearch],
+    [messages, responseStyle, streamAssistantTurn, webSearch],
   )
 
   // ---- Triple-dot menu actions ----
@@ -910,7 +937,7 @@ function ChatScreenInner() {
     const title = await generateTitle({
       userMessage: firstUser.content,
       assistantResponse: firstAssistant.content,
-      titleModel: modelId,
+      titleModel: resolveModelId(modelId, registry ?? [], {}),
     })
     if (!title) {
       Toast.show({ type: "error", text1: "Title generation failed" })
@@ -919,7 +946,7 @@ function ChatScreenInner() {
     await renameConversation(currentConversation.id, title)
     await conversations.refresh()
     Toast.show({ type: "success", text1: "Title regenerated" })
-  }, [conversations, currentConversation, modelId])
+  }, [conversations, currentConversation, modelId, registry])
 
   const handleToggleStar = useCallback(async () => {
     if (!currentConversation) return
@@ -1106,7 +1133,7 @@ function ChatScreenInner() {
 
             <ChatStatusRow
               messages={messages}
-              modelId={modelId}
+              modelId={resolvedModelId}
               registry={registry ?? null}
               draft={input}
               compacting={compacting}

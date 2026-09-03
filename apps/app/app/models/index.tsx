@@ -115,7 +115,7 @@ export default function ModelsBrowseScreen() {
           ListEmptyComponent={
             <View className="px-6 py-16">
               <Text className="text-center text-sm text-zinc-500 dark:text-zinc-400">
-                No models match "{query}".
+                No models match “{query}”.
               </Text>
             </View>
           }

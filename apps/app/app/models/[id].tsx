@@ -35,8 +35,10 @@ import {
 export default function ModelDetailScreen() {
   const params = useLocalSearchParams<{ id: string }>()
   const id = Array.isArray(params.id) ? params.id[0] : params.id
-  const { ready, registry, error, isStale, fetchedAt } = useModelRegistry()
+  const { ready, registry, error, isStale, fetchedAt, refresh } =
+    useModelRegistry()
   const { setModelId, modelId: currentId } = useSelectedModel()
+  const [refreshing, setRefreshing] = useState(false)
 
   const [cachedModel, setCachedModel] = useState<RegistryModel | null>(null)
 
@@ -100,14 +102,19 @@ export default function ModelDetailScreen() {
                 </Text>
                 <Pressable
                   onPress={() => {
-                    // Force reload by clearing memory cache and reloading
-                    // In practice this would trigger a registry refresh
-                    // For now just a visual affordance
+                    if (refreshing) return
+                    setRefreshing(true)
+                    refresh()
+                      .catch(() => {
+                        // Offline — the stale banner stays up.
+                      })
+                      .finally(() => setRefreshing(false))
                   }}
                   hitSlop={8}
+                  disabled={refreshing}
                 >
                   <Text className="text-xs font-medium text-amber-800 dark:text-amber-300">
-                    Refresh
+                    {refreshing ? "Refreshing…" : "Refresh"}
                   </Text>
                 </Pressable>
               </View>

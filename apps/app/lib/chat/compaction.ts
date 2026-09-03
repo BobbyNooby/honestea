@@ -1,5 +1,5 @@
 import type { Message } from "@honestea/shared"
-import { estimateTokens } from "@honestea/shared"
+import { AUTO_MODEL_ID, estimateTokens } from "@honestea/shared"
 import { ApiError } from "@honestea/shared/client"
 
 import { client } from "../client"
@@ -95,7 +95,12 @@ export async function compact(opts: {
     return { ok: false, error: "No OpenRouter key configured." }
   }
 
-  const summarizeModel = opts.summarizeModel || DEFAULT_SUMMARIZE_MODEL
+  // The "auto" sentinel is a picker concept, not a real slug — map it
+  // to the cheap default here so every call site is safe.
+  const summarizeModel =
+    !opts.summarizeModel || opts.summarizeModel === AUTO_MODEL_ID
+      ? DEFAULT_SUMMARIZE_MODEL
+      : opts.summarizeModel
 
   // Per-message truncation guards against a single pasted log
   // ballooning the summarizer prompt (and OOM/4xx-ing the request).

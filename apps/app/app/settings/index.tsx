@@ -1,5 +1,6 @@
 import {
   IconChartLine,
+  IconClock,
   IconHelpCircle,
   IconInfoCircle,
   IconKey,
@@ -10,9 +11,10 @@ import {
   type Icon,
 } from "@tabler/icons-react-native"
 import { Stack, router } from "expo-router"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import Toast from "react-native-toast-message"
 import {
+  ActivityIndicator,
   Pressable,
   ScrollView,
   Text,
@@ -23,7 +25,11 @@ import { SafeAreaView } from "react-native-safe-area-context"
 
 import { ColorModeSheet } from "@/components/settings/color-mode-sheet"
 import { cn } from "@/lib/cn"
-import { clearRegistryCache } from "@/lib/model"
+import {
+  cycleRegistryTtl,
+  getRegistryTtlLabel,
+  refreshRegistry,
+} from "@/lib/model"
 import { resetOnboarding } from "@/lib/onboarding-state"
 import { useSidebar } from "@/lib/sidebar-context"
 import { useThemePreference, type ThemePreference } from "@/lib/theme"
@@ -38,6 +44,11 @@ export default function SettingsScreen() {
   const dark = useColorScheme() === "dark"
   const [pref, setPref] = useThemePreference()
   const [colorSheetOpen, setColorSheetOpen] = useState(false)
+  const [refreshingPrices, setRefreshingPrices] = useState(false)
+  const [ttlLabel, setTtlLabel] = useState("Daily")
+  useEffect(() => {
+    getRegistryTtlLabel().then(setTtlLabel)
+  }, [])
   const tint = dark ? "#e4e4e7" : "#3f3f46"
 
   return (
@@ -131,16 +142,43 @@ export default function SettingsScreen() {
           />
           <Row
             icon={IconRefresh}
-            label="Refresh model registry"
-            sub="Re-fetches OpenRouter's model list on next launch"
+            label="Refresh model prices"
+            sub="Re-fetches OpenRouter's live catalog now"
             onPress={async () => {
-              await clearRegistryCache()
-              Toast.show({
-                type: "success",
-                text1: "Model cache cleared",
-                text2: "Restart the app to refetch.",
-                position: "bottom",
-              })
+              if (refreshingPrices) return
+              setRefreshingPrices(true)
+              refreshRegistry()
+                .then(() => {
+                  Toast.show({
+                    type: "success",
+                    text1: "Models refreshed",
+                    text2: "Prices and capabilities are up to date.",
+                    position: "bottom",
+                  })
+                })
+                .catch(() => {
+                  Toast.show({
+                    type: "error",
+                    text1: "Refresh failed",
+                    text2: "You appear to be offline.",
+                    position: "bottom",
+                  })
+                })
+                .finally(() => setRefreshingPrices(false))
+            }}
+            rightSlot={
+              refreshingPrices ? (
+                <ActivityIndicator size="small" className="mr-1" />
+              ) : undefined
+            }
+          />
+          <Row
+            icon={IconClock}
+            label="Price refresh interval"
+            sub={ttlLabel}
+            onPress={async () => {
+              const next = await cycleRegistryTtl()
+              setTtlLabel(next.label)
             }}
           />
         </Card>

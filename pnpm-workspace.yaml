@@ -3,3 +3,5 @@ packages:
   - packages/*
 
 nodeLinker: hoisted
+overrides:
+  "@sinclair/typebox": ^0.34.0

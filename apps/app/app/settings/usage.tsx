@@ -371,7 +371,7 @@ function SavingsCard({
           <View className="flex-row items-center gap-2">
             <IconTrendingUp size={16} color={tint} strokeWidth={1.75} />
             <Text className="text-xs uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-              You've spent
+              You’ve spent
             </Text>
           </View>
           <Text className="mt-1 text-2xl font-bold tabular-nums text-zinc-900 dark:text-zinc-100">
@@ -431,7 +431,7 @@ function SavingsCard({
         turn that uses it, image generation has its own per-image fee,
         cached prompt reads cost less than fresh reads). The
         counterfactual rows only price the same token volume against
-        each flagship's listed prompt + completion rates — those models
+        each flagship’s listed prompt + completion rates — those models
         would tack on similar tool fees if they ran the same searches.
         Treat this as a directional estimate, not an invoice.
       </Text>
@@ -462,7 +462,7 @@ function ComparisonRow({
             {row.model.display}
           </Text>
           <Text className="text-[11px] text-zinc-500 dark:text-zinc-400">
-            {row.model.lab} · would've cost{" "}
+            {row.model.lab} · would’ve cost{" "}
             <Text className="font-medium tabular-nums text-zinc-700 dark:text-zinc-300">
               {formatUsd(row.hypotheticalCostUsd)}
             </Text>
@@ -549,10 +549,10 @@ function DirectKeysCard({
 function FooterNote() {
   return (
     <Text className="px-1 pb-4 text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">
-      Direct provider keys (Anthropic, OpenAI, Google) don't expose
+      Direct provider keys (Anthropic, OpenAI, Google) don’t expose
       per-key usage in their public APIs without an admin-level
       credential. Tap a provider above to view your usage on their own
-      dashboard — that's the source of truth for those keys.
+      dashboard — that’s the source of truth for those keys.
     </Text>
   )
 }
@@ -597,7 +597,7 @@ function TodaysReceiptCard({ breakdown }: { breakdown: TodaysUsageBreakdown }) {
 
   return (
     <View className="gap-3">
-      <SectionLabel>Today's chat</SectionLabel>
+      <SectionLabel>Today’s chat</SectionLabel>
 
       <View className="overflow-hidden rounded-2xl border border-chamomile-100 bg-white dark:border-transparent dark:bg-zinc-900">
         <View className="px-5 py-4">
@@ -605,7 +605,7 @@ function TodaysReceiptCard({ breakdown }: { breakdown: TodaysUsageBreakdown }) {
             className="text-zinc-900 dark:text-zinc-100"
             style={TYPE_H3}
           >
-            Today's chat
+            Today’s chat
           </Text>
           <Text
             className="mt-1 text-zinc-500 dark:text-zinc-400"

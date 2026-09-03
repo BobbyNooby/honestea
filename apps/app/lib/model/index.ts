@@ -1,9 +1,12 @@
 export {
   clearRegistryCache,
+  cycleRegistryTtl,
   findModel,
+  getRegistryTtlLabel,
   loadModelDetail,
   loadRegistry,
   pricingFor,
+  refreshRegistry,
   useModelRegistry,
   type RegistryModel,
 } from "./model-registry"

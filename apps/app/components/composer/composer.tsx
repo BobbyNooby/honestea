@@ -146,14 +146,14 @@ export function Composer({
             {!imageSupported &&
               attachments.some((a) => a.kind === "image") && (
                 <Text className="px-3 pb-2 text-[11px] text-amber-700 dark:text-amber-400">
-                  This model doesn't accept images — pick a different
+                  This model doesn’t accept images — pick a different
                   model or remove the attachment to send.
                 </Text>
               )}
             {!fileSupported &&
               attachments.some((a) => a.kind === "file") && (
                 <Text className="px-3 pb-2 text-[11px] text-amber-700 dark:text-amber-400">
-                  This model doesn't accept files — pick a different
+                  This model doesn’t accept files — pick a different
                   model or remove the attachment to send.
                 </Text>
               )}

@@ -187,3 +187,46 @@ export function curatedTierLabel(tier: CuratedTier): string {
       return "Basic"
   }
 }
+
+// ── Registry-backed validation ────────────────────────────────────────
+// The curated list is hand-maintained; OpenRouter's catalog is not
+// static. These helpers reconcile the two at runtime so a renamed or
+// retired slug can never render as a dead row.
+
+/**
+ * Curated entries that still exist in the provided catalog (an OpenRouter
+ * `/models` response), preserving curated order. A catalog entry with
+ * zero/absent pricing is treated as unavailable.
+ */
+export function availableCuratedModels(
+  models: ReadonlyArray<{ id: string; pricing?: { prompt?: string | number } }>,
+): CuratedModel[] {
+  const alive = new Set(
+    models
+      .filter((m) => {
+        const p = m.pricing?.prompt
+        const n = typeof p === "string" ? Number.parseFloat(p) : p
+        return typeof n === "number" && Number.isFinite(n) && n > 0
+      })
+      .map((m) => m.id),
+  )
+  return CURATED_MODELS.filter((m) => alive.has(m.id))
+}
+
+/**
+ * The model id a fresh install should start on: the pinned default when
+ * it's still in the catalog, else the first curated survivor, else the
+ * first catalog entry. Empty catalog → the pinned default (send paths
+ * already surface their own "no key / no registry" errors).
+ */
+export function resolveDefaultModelId(
+  models: ReadonlyArray<{ id: string }>,
+): string {
+  if (models.some((m) => m.id === DEFAULT_CURATED_MODEL_ID)) {
+    return DEFAULT_CURATED_MODEL_ID
+  }
+  const curated = availableCuratedModels(
+    models as Array<{ id: string; pricing?: { prompt?: string | number } }>,
+  )
+  return curated[0]?.id ?? models[0]?.id ?? DEFAULT_CURATED_MODEL_ID
+}

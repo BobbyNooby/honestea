@@ -1,3 +1,5 @@
+import { AUTO_MODEL_ID } from "@honestea/shared"
+
 import { client } from "../client"
 import { getOpenRouterKey } from "../byok"
 
@@ -32,7 +34,12 @@ export async function generateTitle(opts: {
   const byokKey = await getOpenRouterKey()
   if (!byokKey) return null
 
-  const model = opts.titleModel || DEFAULT_TITLE_MODEL
+  // The "auto" sentinel is a picker concept, not a real slug — map it
+  // to the cheap default here so every call site is safe.
+  const model =
+    !opts.titleModel || opts.titleModel === AUTO_MODEL_ID
+      ? DEFAULT_TITLE_MODEL
+      : opts.titleModel
 
   const prompt =
     `${TITLE_PROMPT_PREFIX}\n\n` +

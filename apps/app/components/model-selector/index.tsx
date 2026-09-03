@@ -1,9 +1,11 @@
 import {
+  IconCheck,
   IconChevronDown,
   IconChevronRight,
+  IconSparkles,
 } from "@tabler/icons-react-native"
 import { router } from "expo-router"
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import {
   Dimensions,
   Modal,
@@ -16,6 +18,8 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context"
 
 import {
+  AUTO_MODEL_ID,
+  availableCuratedModels,
   curatedModelsByTier,
   curatedTierLabel,
   findCuratedModel,
@@ -39,8 +43,10 @@ interface Props {
  * message list each turn.
  *
  * Sheet structure (top → bottom):
+ *  0. "Auto" — resolves each send to the cheapest capable model.
  *  1. Curated tiers (Flagship → Workhorse → Basic) — `CuratedRow`s
- *     enriched with live registry pricing/context.
+ *     enriched with live registry pricing/context. Entries whose slug
+ *     has vanished from the live catalog are hidden.
  *  2. "From catalog" — only when the active model isn't in the curated
  *     short-list. `CustomModelSection` shows the full registry name and
  *     metadata so the user knows what they picked from /models.
@@ -56,9 +62,34 @@ export function ModelSelector({ modelId, onChange }: Props) {
   // ("Haiku 4.5") and informative for catalog picks ("OpenAI: GPT-5 Pro"
   // beats the raw slug).
   const customRegistryModel =
-    !current && registry ? findModel(registry, modelId) : null
+    !current &&
+    modelId !== AUTO_MODEL_ID &&
+    registry
+      ? findModel(registry, modelId)
+      : null
   const label =
-    current?.shortName ?? customRegistryModel?.name ?? modelId
+    modelId === AUTO_MODEL_ID
+      ? "Auto"
+      : current?.shortName ?? customRegistryModel?.name ?? modelId
+
+  // Hide curated rows whose slug is no longer live in the catalog.
+  // Null registry (loading/offline) → show everything rather than an
+  // empty picker.
+  const availableCuratedIds = useMemo(
+    () =>
+      registry
+        ? new Set(availableCuratedModels(registry).map((m) => m.id))
+        : null,
+    [registry],
+  )
+  const curatedGroups = curatedModelsByTier()
+    .map((group) => ({
+      ...group,
+      models: availableCuratedIds
+        ? group.models.filter((m) => availableCuratedIds.has(m.id))
+        : group.models,
+    }))
+    .filter((group) => group.models.length > 0)
 
   return (
     <>
@@ -105,7 +136,16 @@ export function ModelSelector({ modelId, onChange }: Props) {
               bounces={false}
             >
               <SafeAreaView edges={["bottom"]}>
-                {curatedModelsByTier().map((group, idx) => (
+                {registry && registry.length > 0 && (
+                  <AutoRow
+                    selected={modelId === AUTO_MODEL_ID}
+                    onPress={() => {
+                      onChange(AUTO_MODEL_ID)
+                      setOpen(false)
+                    }}
+                  />
+                )}
+                {curatedGroups.map((group, idx) => (
                   <View key={group.tier}>
                     <Text
                       className={cn(
@@ -166,5 +206,46 @@ export function ModelSelector({ modelId, onChange }: Props) {
         </Pressable>
       </Modal>
     </>
+  )
+}
+
+/**
+ * The "Auto" entry — resolves each send to the cheapest catalog model
+ * that meets the turn's requirements (vision for image attachments,
+ * tools for web search, enough context for the projected prompt).
+ */
+function AutoRow({ selected, onPress }: { selected: boolean; onPress: () => void }) {
+  const dark = useColorScheme() === "dark"
+  return (
+    <Pressable
+      onPress={onPress}
+      className={cn(
+        "flex-row items-center gap-3 border-b border-zinc-200 px-5 py-3.5 active:bg-zinc-100 dark:border-zinc-800 dark:active:bg-zinc-900",
+        selected && "bg-matcha-500/10 dark:bg-matcha-400/15",
+      )}
+    >
+      <View
+        className="h-8 w-8 items-center justify-center rounded-full"
+        style={{ backgroundColor: dark ? "#3f6212" : "#dfe9d0" }}
+      >
+        <IconSparkles size={16} color={dark ? "#a8c98a" : "#466b2c"} strokeWidth={2} />
+      </View>
+      <View className="flex-1 gap-0.5">
+        <Text className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
+          Auto
+        </Text>
+        <Text className="text-xs text-zinc-500 dark:text-zinc-400">
+          Cheapest model that can handle each message — vision, tools, and
+          context resolved per send.
+        </Text>
+      </View>
+      {selected && (
+        <IconCheck
+          size={20}
+          color={dark ? "#a8c98a" : "#5b8a3a"}
+          strokeWidth={2.5}
+        />
+      )}
+    </Pressable>
   )
 }

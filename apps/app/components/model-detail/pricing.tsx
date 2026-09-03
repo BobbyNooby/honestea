@@ -57,7 +57,7 @@ function collectPricingRows(model: RegistryModel): PriceRow[] {
     { label: "Input tokens", value: promptUsd, unit: "/M" },
     { label: "Output tokens", value: completionUsd, unit: "/M" },
   ]
-  const optionalPerMillion: Array<[string, string | undefined, number?]> = [
+  const optionalPerMillion: [string, string | undefined, number?][] = [
     ["Cache read", model.pricing.input_cache_read, promptUsd],
     ["Cache write", model.pricing.input_cache_write],
     ["Internal reasoning", model.pricing.internal_reasoning, completionUsd],
