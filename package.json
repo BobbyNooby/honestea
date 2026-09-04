@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "description": "HonesTea \u2014 local-first BYOK AI chat harness",
-  "packageManager": "pnpm@10.23.0",
+  "packageManager": "pnpm@11.13.1",
   "engines": {
     "node": ">=22"
   },
