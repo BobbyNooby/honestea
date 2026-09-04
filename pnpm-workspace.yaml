@@ -10,14 +10,17 @@ minimumReleaseAgeExclude:
   - '@vitest/mocker@5.0.0'
   - '@vitest/spy@5.0.0'
   - vitest@5.0.0
+  - '@expo/cli@57.0.22'
+  - expo-modules-core@57.0.16
+  - expo-modules-jsi@57.0.8
+  - expo@57.0.20
+  - '@expo/ui@57.0.16'
+  - expo-image-picker@57.0.16
+  - expo-router@57.0.19
 
 nodeLinker: hoisted
 overrides:
   "@sinclair/typebox": ^0.34.0
-  # Transitive peers of expo/@expo/cli/expo-router whose lockfile pins lag
-  # the range expo 55.0.23 declares (wants ^55.0.6 / ^55.0.11).
-  "@expo/dom-webview": ^55.0.6
-  "@expo/metro-runtime": ^55.0.11
 # pnpm 11 blocks dependency build scripts by default; these need theirs
 onlyBuiltDependencies:
   - esbuild
