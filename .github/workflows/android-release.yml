@@ -18,6 +18,9 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # GITHUB_TOKEN needs write access to create Releases on v* tags.
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
