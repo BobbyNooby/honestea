@@ -63,7 +63,7 @@ JDK 17–21. CI does this on every push to `main`.
 
 ## History note
 
-Business-plan/strategy docs from the original "AI platform" concept were
-purged from git history (git filter-repo). Don't reintroduce business,
-billing, cloud-sync, or account surfaces — the product is intentionally a
-local tool.
+Business-plan/strategy docs from the original "AI platform" concept and
+the superpowers planning docs were purged from git history (git
+filter-repo). Don't reintroduce business, billing, cloud-sync, or
+account surfaces — the product is intentionally a local tool.

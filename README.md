@@ -77,6 +77,28 @@ Requires Node 22+, pnpm 11, JDK 17–21, and an Android SDK. The release
 APK is signed with the debug keystore (fine for testing; not for store
 distribution).
 
+## Releases
+
+CI does the building — never build locally to share an APK.
+
+- **Merge (or push) to `main`** → GitHub Actions builds the release APK
+  (arm64) and uploads it as a workflow artifact. Find it under
+  **Actions → Android preview APK → latest run**. Artifacts require a
+  GitHub login to download.
+- **Cut a public release** → tag a commit and push the tag:
+
+  ```bash
+  git checkout main
+  git pull
+  git tag v0.1.0
+  git push origin v0.1.0
+  ```
+
+  CI builds the APK and publishes it as a **prerelease** on the
+  [Releases](https://github.com/BobbyNooby/honestea/releases) page —
+  publicly downloadable, no login needed. Bump the tag number for each
+  release (`v0.1.1`, `v0.2.0`, …).
+
 ## Repo layout
 
 ```
