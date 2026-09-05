@@ -57,13 +57,15 @@ export function Sidebar({ onClose }: SidebarProps) {
   const [resultIds, setResultIds] = useState<string[]>([]);
 
   // Debounced FTS5 search — 150ms feels instant without thrashing.
+  // The empty-query clear also runs inside the timeout so no state is
+  // written synchronously during the effect.
   useEffect(() => {
     const q = query.trim();
-    if (!q) {
-      setResultIds([]);
-      return;
-    }
     const t = setTimeout(() => {
+      if (!q) {
+        setResultIds([]);
+        return;
+      }
       void searchConversations(q).then(setResultIds).catch(() => setResultIds([]));
     }, 150);
     return () => clearTimeout(t);

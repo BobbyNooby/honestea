@@ -325,23 +325,18 @@ function ChatScreenInner() {
   )
 
   // Load messages when the current conversation changes (sidebar selection,
-  // or on initial app launch resuming the last-used convo).
+  // or on initial app launch resuming the last-used convo). All setState
+  // happens in the async continuation — no sync state writes in the effect.
   useEffect(() => {
-    if (!conversations.currentId) {
-      setMessages([])
-      return
-    }
-    // A stream in flight owns the message list — a reload here would
-    // clobber its optimistic updates (this is exactly the window `send`
-    // creates a conversation in). Skip the LOAD, but still arm the
-    // cleanup below: switching away must stop the stream no matter how
-    // this conversation came to be current.
     let cancelled = false
-    if (!streamingRef.current) {
-      listMessages(conversations.currentId).then((rows) => {
-        if (!cancelled) setMessages(rows)
-      })
-    }
+    const id = conversations.currentId
+    // While a stream is in flight the list is owned by the stream's
+    // optimistic updates (its finally resyncs on completion) — skip the
+    // load but still arm the switch-abort cleanup below.
+    if (streamingRef.current && id !== null) return
+    Promise.resolve(id ? listMessages(id) : []).then((rows) => {
+      if (!cancelled) setMessages(rows)
+    })
     return () => {
       cancelled = true
       // Switching away from a conversation mid-stream stops the stream.

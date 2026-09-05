@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import {
   KeyboardAvoidingView,
   Modal,
@@ -27,9 +27,17 @@ interface Props {
 export function RenameDialog({ initial, onCancel, onSubmit }: Props) {
   const [text, setText] = useState("")
 
-  useEffect(() => {
+  // Seed the field each time a new rename target arrives. This is React's
+  // documented "adjust state when a prop changes" render-time pattern —
+  // the new hooks rules ban the old prop-sync effect (sync setState in an
+  // effect). Rendering with the pre-adjustment text for one frame is fine:
+  // the dialog is only interactive once `initial` is set, which is exactly
+  // when the seed applies.
+  const [syncedFrom, setSyncedFrom] = useState<Props["initial"]>(null)
+  if (initial !== syncedFrom) {
+    setSyncedFrom(initial)
     setText(initial?.title ?? "")
-  }, [initial])
+  }
 
   const visible = initial !== null
 

@@ -131,8 +131,10 @@ export default function UsageScreen() {
     return buildCounterfactuals(totals, registry)
   }, [totals, registry])
 
+  // Defer to a microtask so refresh's setState never runs synchronously
+  // inside the effect.
   useEffect(() => {
-    refresh()
+    void Promise.resolve().then(refresh)
   }, [refresh])
 
   return (

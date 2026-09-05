@@ -35,8 +35,7 @@ import {
 export default function ModelDetailScreen() {
   const params = useLocalSearchParams<{ id: string }>()
   const id = Array.isArray(params.id) ? params.id[0] : params.id
-  const { ready, registry, error, isStale, fetchedAt, refresh } =
-    useModelRegistry()
+  const { ready, registry, error, isStale, refresh } = useModelRegistry()
   const { setModelId, modelId: currentId } = useSelectedModel()
   const [refreshing, setRefreshing] = useState(false)
 
@@ -44,16 +43,28 @@ export default function ModelDetailScreen() {
 
   useEffect(() => {
     if (!id) return
-    // If the bulk registry already has this model, use it (it's fresher).
+    let cancelled = false
+    // The bulk registry (when loaded) is fresher than the per-model slot.
+    // All setState happens in promise continuations — no sync state
+    // writes in the effect body.
     const fromRegistry = registry && findModel(registry, id)
-    if (fromRegistry) {
-      setCachedModel(fromRegistry)
-      return
+    Promise.resolve(fromRegistry ?? null)
+      .then((found) => {
+        if (found) {
+          if (!cancelled) setCachedModel(found)
+          return null
+        }
+        return loadModelDetail(id)
+      })
+      .then((res) => {
+        if (res && !cancelled) setCachedModel(res.model)
+      })
+      .catch(() => {
+        // Offline with no cache — the screen shows its empty state.
+      })
+    return () => {
+      cancelled = true
     }
-    // Otherwise try the individual per-model cache.
-    loadModelDetail(id).then((res: { model: RegistryModel; fetchedAt: number } | null) => {
-      if (res) setCachedModel(res.model)
-    })
   }, [id, registry])
 
   const model = cachedModel ?? undefined
@@ -64,10 +75,9 @@ export default function ModelDetailScreen() {
     router.dismissTo("/" as never)
   }
 
-  const staleText =
-    isStale && fetchedAt
-      ? `Cached ${Math.round((Date.now() - fetchedAt) / (1000 * 60 * 60 * 24))}d ago`
-      : null
+  const staleText = isStale
+    ? "Prices and capabilities may be outdated."
+    : null
 
   return (
     <SafeAreaView
