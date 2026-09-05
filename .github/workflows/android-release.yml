@@ -1,0 +1,64 @@
+name: Android preview APK
+
+# Builds an installable release APK on every merge into main (and manually
+# from the Actions tab). Tag a commit `v*` to also publish the APK to a
+# public GitHub prerelease so testers don't need to be repo collaborators
+# to download it.
+#
+# No EAS account or secrets required: the APK is signed with the debug
+# keystore that expo prebuild wires into the release build type — perfect
+# for test builds, not for store distribution.
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # pnpm version comes from the packageManager field.
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate native Android project
+        working-directory: apps/app
+        run: npx expo prebuild -p android --no-install
+
+      - name: Build release APK
+        working-directory: apps/app/android
+        run: |
+          chmod +x gradlew
+          # arm64-v8a only: the preview APK targets modern phones; halves
+          # build time and size. Add armeabi-v7a/x86_64 when needed.
+          ./gradlew assembleRelease --no-daemon \
+            -PreactNativeArchitectures=arm64-v8a
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: honestea-preview-apk
+          path: apps/app/android/app/build/outputs/apk/release/app-release.apk
+
+      - name: Publish prerelease
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          prerelease: true
+          files: apps/app/android/app/build/outputs/apk/release/app-release.apk

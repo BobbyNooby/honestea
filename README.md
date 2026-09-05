@@ -1,146 +1,98 @@
-# HonesTea — Honest AI
+# HonesTea 🍵
 
-A transparent, native mobile AI chat platform. See what AI actually costs. Switch between Claude, GPT, Gemini, and more. Bring your own keys or let us handle the infra — your choice, your data.
+A local-first, bring-your-own-key AI chat harness for Android & iOS.
+One OpenRouter key unlocks 400+ models — and the app tells you exactly
+what every message costs.
 
----
-
-## What this is
-
-Most AI apps charge $20/month and hope you don't use it. HonesTea shows you the real per-message cost, routes your prompts to the cheapest capable model, and lets you choose between BYOK (free), pay-as-you-go, or subscription — all from one native app.
-
-**Key differentiators:**
-- **True native mobile** (Expo / React Native) — not a PWA wrapped in an app shell
-- **Multi-model** — Claude, GPT, Gemini, Kimi, DeepSeek, and 300+ more via OpenRouter
-- **Transparent pricing** — every message shows what it cost, in dollars
-- **BYOK-first** — your API keys, direct-to-provider, never proxied in Phase 1
-- **Smart routing** — automatically pick the cheapest model that can handle the task
-- **Privacy by default** — chats stay on your device unless you opt into encrypted cloud sync
+No account. No server. No subscription. Your keys and your chats live
+in your pocket and nowhere else.
 
 ---
 
-## Repo structure
+## Why
 
-pnpm + Turborepo monorepo:
+Most chat apps hide the meter. HonesTea is built around showing it to
+you: every reply is stamped with the real tokens and real dollars it
+cost, every model's price is live from OpenRouter's catalog, and the
+built-in **Auto** mode picks the cheapest model that can actually handle
+each message — vision when you attach an image, tool-capable when web
+search is on, enough context for the whole conversation.
 
-```
-honestea/
-├── apps/
-│   ├── app/        Expo / React Native mobile app (BYOK chat, model picker, settings)
-│   ├── server/     Elysia.js API (auth, chat proxy, billing) — Stage 2 scaffolding
-│   └── web/        SvelteKit landing + account dashboard + admin
-├── packages/
-│   └── shared/     Types, model registry, cost calc, curated model list
-├── honest-ai-business-plan.md
-├── honest-ai-architecture.md
-├── honest-ai-scaling.md
-└── roadmap.md
-```
+## Features
 
-Internal packages use `workspace:*`. All packages extend `tsconfig.base.json`.
-
----
-
-## Tech stack
-
-| Layer | Tech |
-|---|---|
-| Mobile app | Expo SDK 55, React Native 0.83, NativeWind v4 |
-| Backend API | Elysia.js 1.4 (Bun runtime) |
-| Web frontend | SvelteKit on Vercel |
-| Shared code | TypeScript, `workspace:*` |
-| Database (app) | SQLite via `expo-sqlite` + Drizzle ORM |
-| Database (server) | Postgres (Supabase) — Stage 2 |
-| Auth | Better Auth — Stage 2 |
-| Payments | Stripe — Stage 2 |
-| AI streaming | Vercel AI SDK 5, `@openrouter/ai-sdk-provider` |
-| Dev runner | mprocs (not Turbo — preserves Expo QR code output) |
-
----
-
-## Prerequisites
-
-- **Node.js** >= 22
-- **pnpm** 10.23.0 (enforced via `packageManager` field)
-- **Bun** (for `apps/server`)
-- An **Expo account** (free) if you want to build APKs via EAS
-
----
+- **400+ models via one OpenRouter key** — Fable, GPT-6 Astra, Kimi K3,
+  GLM, DeepSeek, and the whole open-weights world
+- **Auto routing** — cheapest capable model per message, with graceful
+  fallbacks
+- **Honest costs** — per-message USD (real `usage`, not estimates),
+  per-model lifetime spend, a savings card vs. flagship pricing
+- **Stop for real** — abort mid-stream; you keep the partial reply and
+  only pay for what streamed
+- **Context compaction** — long chats get summarized automatically at
+  80% of the model's window instead of silently breaking
+- **Web search / fetch / date-time tools** with a live activity panel
+  and citation chips
+- **Regenerate with version history** — flip between replies; superseded
+  versions still count in cost totals (they were real spend)
+- **Images & PDFs** in, **voice dictation** and read-aloud out
+- **Local-only** — SQLite on device, keys in the iOS Keychain / Android
+  Keystore, full-text search across chats, works offline for history
 
 ## Getting started
 
+### 1. Get an OpenRouter key
+
+Sign up at [openrouter.ai/keys](https://openrouter.ai/keys) — pay-as-you-go,
+no subscription. Most chats cost fractions of a cent.
+
+### 2. Get the app
+
+**Android:** grab the latest APK from
+[Releases](https://github.com/BobbyNooby/honestea/releases)
+(built automatically by CI on every merge to `main`).
+
+**iOS / development:** install [Expo Go](https://expo.dev/go), then
+
 ```bash
-# 1. Install everything
 pnpm install
-
-# 2. Start all three apps in mprocs panes
-pnpm dev
-
-# Or run individually:
-pnpm dev:app      # Expo (QR code for Expo Go)
-pnpm dev:server   # Elysia API
-pnpm dev:web      # SvelteKit
+pnpm dev:app
 ```
 
-### First-time app setup
-1. Open the Expo Go app on your phone
-2. Scan the QR code from `pnpm dev:app`
-3. Go to **Settings → API Access** and paste your **OpenRouter API key** (`sk-or-v1-...`)
-4. Start chatting
+and scan the QR code with your phone.
 
----
+### 3. Paste your key, pick a model, talk.
 
-## Building a standalone APK
+The default is a balanced workhorse model; switch to anything in the
+header picker, or choose **Auto** and let the app route for you.
 
-You don't need Android Studio. EAS Build compiles in the cloud:
+## Building from source
 
 ```bash
-# One-time setup
-pnpm eas:login
-pnpm eas:configure
-
-# Build APK for your phone
-pnpm eas:build:android
+pnpm install
+npx expo prebuild -p android          # generate the native project
+cd apps/app/android && ./gradlew assembleRelease
 ```
 
-In ~5–15 minutes you'll get a download link. Sideload the `.apk` and go.
+Requires Node 22+, pnpm 11, JDK 17–21, and an Android SDK. The release
+APK is signed with the debug keystore (fine for testing; not for store
+distribution).
 
-Other EAS scripts:
+## Repo layout
 
-| Script | Purpose |
-|---|---|
-| `pnpm eas:build:android:prod` | Production Android build |
-| `pnpm eas:build:ios` | iOS preview build |
-| `pnpm eas:build:ios:prod` | Production iOS build |
-| `pnpm eas:build:list` | View past builds |
+```
+honestea/
+├── apps/app/        Expo (SDK 57) / React Native app — the whole product
+├── packages/shared/ Cost math, curated models, Auto routing engine
+└── docs/            Landing page (GitHub Pages)
+```
 
----
+## Privacy
 
-## Key project docs
-
-- [`honest-ai-business-plan.md`](honest-ai-business-plan.md) — product, pricing tiers, marketing, unit economics
-- [`honest-ai-architecture.md`](honest-ai-architecture.md) — stack, security, auth, API key management, phase-by-phase implementation
-- [`honest-ai-scaling.md`](honest-ai-scaling.md) — migration playbook, cost optimization, infrastructure triggers
-- [`roadmap.md`](roadmap.md) — living checklist of what's shipped, in flight, and queued
-- [`CLAUDE.md`](CLAUDE.md) — coding conventions, sharp edges, git rules, what NOT to do
-
----
-
-## Current status (Phase 1)
-
-This is an **alpha / pre-launch** build. The app is BYOK-only right now:
-- No accounts, no auth, no billing
-- The Expo app calls OpenRouter directly with your stored key
-- `apps/server` exists as Stage 2 scaffolding but is not in the request path
-- All chat history is local SQLite; nothing reaches our servers
-
-See `roadmap.md` for the full epic breakdown.
-
----
-
-## Contributing
-
-This is a personal project. No external contributions expected right now, but the code is here if it's useful.
+Chats are stored in a local SQLite database. API keys are stored in the
+system keystore and sent only to OpenRouter over TLS. There is no backend
+to leak: this repo contains no server code at all. Delete the app and
+everything is gone.
 
 ## License
 
-MIT
+Private project — all rights reserved until a license lands.
