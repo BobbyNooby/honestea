@@ -2,9 +2,12 @@ packages:
   - apps/*
   - packages/*
 
+nodeLinker: hoisted
+
+# pnpm 11 blocks dependency build scripts unless allowed here.
 allowBuilds:
-  esbuild: set this to true or false
-  unrs-resolver: set this to true or false
+  esbuild: true
+  unrs-resolver: true
 
 minimumReleaseAgeExclude:
   - '@vitest/mocker@5.0.0'
@@ -18,10 +21,5 @@ minimumReleaseAgeExclude:
   - expo-image-picker@57.0.16
   - expo-router@57.0.19
 
-nodeLinker: hoisted
 overrides:
   "@sinclair/typebox": ^0.34.0
-# pnpm 11 blocks dependency build scripts by default; these need theirs
-onlyBuiltDependencies:
-  - esbuild
-  - unrs-resolver

@@ -98,8 +98,6 @@ export default function SettingsScreen() {
       </View>
 
       <ScrollView contentContainerClassName="px-3 pb-8 pt-1">
-        <AccountCard />
-
         <Card>
           <Row
             icon={IconChartLine}
@@ -192,31 +190,6 @@ export default function SettingsScreen() {
       />
     </SafeAreaView>
   )
-
-  function AccountCard() {
-    return (
-      <View className="mb-3 overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-        <View className="flex-row items-center gap-3 px-4 py-3">
-          <View className="h-9 w-9 items-center justify-center rounded-full bg-matcha-500/15 dark:bg-matcha-400/20">
-            <Text className="text-[13px] font-semibold text-matcha-700 dark:text-matcha-300">
-              HT
-            </Text>
-          </View>
-          <View className="min-w-0 flex-1">
-            <Text className="truncate text-[15px] text-zinc-900 dark:text-zinc-100">
-              Local mode
-            </Text>
-            <Text
-              className="truncate text-[12px] text-zinc-500 dark:text-zinc-400"
-              numberOfLines={1}
-            >
-              Your keys and chats stay on this device
-            </Text>
-          </View>
-        </View>
-      </View>
-    )
-  }
 }
 
 /**
