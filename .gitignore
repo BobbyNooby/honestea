@@ -53,9 +53,7 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
-
-# Claude
-.claude
+.claude/
 
 # Local config
 .vscode/*

@@ -1,4 +1,18 @@
-# HonesTea 🍵
+<p align="center">
+  <a href="https://bobbynooby.github.io/honestea/">
+    <img src="apps/app/assets/app-icon.png" width="128" alt="HonesTea" />
+  </a>
+</p>
+
+<h1 align="center">HonesTea 🍵</h1>
+
+<p align="center">
+  <a href="https://github.com/BobbyNooby/honestea/releases">Download the APK</a> ·
+  <a href="https://bobbynooby.github.io/honestea/">Landing page</a> ·
+  <a href="https://openrouter.ai/keys">Get an OpenRouter key</a>
+</p>
+
+---
 
 A local-first, bring-your-own-key AI chat harness for Android & iOS.
 One OpenRouter key unlocks 400+ models — and the app tells you exactly
