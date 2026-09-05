@@ -105,7 +105,7 @@ export default function OnboardingScreen() {
               strokeWidth={1.75}
             />
             <Text className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
-              What's an API key?
+              What’s an API key?
             </Text>
           </Pressable>
         </View>
@@ -119,7 +119,7 @@ export default function OnboardingScreen() {
             className="text-xs text-zinc-500 dark:text-zinc-500"
             style={{ textDecorationLine: "underline" }}
           >
-            Skip — I'll set this up later
+            Skip — I’ll set this up later
           </Text>
         </Pressable>
       </ScrollView>
